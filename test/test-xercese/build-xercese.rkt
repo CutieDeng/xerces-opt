@@ -58,7 +58,7 @@
 
 (define cont (box #f))
 
-(module+ main
+(define (run)
   (and
     (clean)
     (let/cc k (set-box! cont k) #t)
@@ -69,5 +69,6 @@
     (let/cc k (set-box! cont k) #t)
     (run-test)
     (let/cc k (set-box! cont k) #t)
-  )
-)
+  ))
+
+(module+ main (run))
