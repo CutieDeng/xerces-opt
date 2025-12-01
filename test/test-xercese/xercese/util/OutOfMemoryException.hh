@@ -20,7 +20,7 @@ inline OutOfMemoryException::~OutOfMemoryException() {}
 
 inline OutOfMemoryException::OutOfMemoryException(OutOfMemoryException const& other) : XMemory(other) {}
 
-inline OutOfMemoryException& OutOfMemoryException::operator=(OutOfMemoryException const& _other)
+inline OutOfMemoryException& OutOfMemoryException::operator=(OutOfMemoryException const& /* other */)
 {
     return *this;
 }

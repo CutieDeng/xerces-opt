@@ -39,7 +39,7 @@
 (define (compile-source src-non-path)
   (define obj (path-replace-extension (build-path out-dir src-non-path) ".o"))
   (eprintf "+ g++(compile) ~a~n" src-non-path)
-  (define rst (apply system* `(,compiler-path ,@cxxflags ,src-non-path "-o" ,(path->string obj))))
+  (define rst (apply system* `(,compiler-path ,@cxxflags ,src-non-path "-c" "-o" ,(path->string obj))))
   (cond [(not rst) (eprintf "- g++ ~a (failed)~n") src-non-path])
   rst
 )
@@ -48,22 +48,26 @@
 (define (link-objects)
   (define objs (directory-list out-dir #:build? #t))
   (define objs-s (map path->string objs))
-  (eprintf "+ g++(build) ~a~n" (path->string out-main))
-  (define rst (apply system* `(,compiler-path ,@cxxflags ,@objs-s "-o" ,(path->string (build-path bin-dir out-main)))))
-  (cond [(not rst) (eprintf "- g++ -o ~a (failed)~n" (path->string out-main))])
+  (define out-main-p (build-path bin-dir out-main))
+  (eprintf "+ g++(build) ~a~n" (path->string out-main-p))
+  (define rst (apply system* `(,compiler-path ,@cxxflags ,@objs-s "-o" ,(path->string out-main-p))))
+  (cond [(not rst) (eprintf "- g++ -o ~a (failed)~n" (path->string out-main-p))])
   rst
 )
 
 ;; 运行测试程序
 (define (run-test)
   (eprintf "+ test~n")
-  (system (build-path bin-dir out-main))
+  (system (path->string (build-path bin-dir out-main)))
 )
 
 ;; 主流程
 (module+ main
-  (clean)
-  (pre-build)
-  (for-each compile-source sources)
-  (link-objects)
-  (run-test))
+  (and
+    (clean)
+    (pre-build)
+    (for-each compile-source sources)
+    (link-objects)
+    (run-test)
+  )
+)

@@ -7,13 +7,19 @@ namespace xercese
 
 struct XMLPlatformUtils
 {
-    static MemoryManager *fgMemoryManager; // 全局内存管理器指针
+    static MemoryManager *fgMemoryManager;
 
-    // 初始化方法，设置全局内存管理器
     static void Initialize (MemoryManager *memMgrOrNull);
 
-    // 终止方法，释放全局内存管理器资源
-    static void Terminate();
+    static void Terminate ();
+
+    inline static size_t alignPointerForNewBlockAllocation (size_t ptrSize);
 };
+
+size_t XMLPlatformUtils::alignPointerForNewBlockAllocation (size_t ptrSize) {
+  size_t alignment = sizeof (void *) >= sizeof (double) ? sizeof (void *) : sizeof (double);
+  size_t current = ptrSize % alignment;
+  return current == 0 ? ptrSize : (ptrSize + alignment - current);
+}
 
 } // namespace xercese
