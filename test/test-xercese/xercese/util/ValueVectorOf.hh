@@ -1,11 +1,13 @@
-#include "XMemory.hh"
+#pragma once
+
+#include "xercese/util/XMemory.hh"
+#include "xercese/framework/MemoryManager.hh"
 
 namespace xercese {
 
 template <typename TElem>
 struct ValueVectorOf : XMemory {
-  // TODO: XMLPlatformUtils::fgMemoryManager
-  ValueVectorOf (unsigned maxElems, MemoryManager *mgr, bool toCallDestructor = false);
+  ValueVectorOf (unsigned maxElems, MemoryManager *mgr = XMLPlatformUtils::fgMemoryManager, bool toCallDestructor = false);
   ValueVectorOf (ValueVectorOf<TElem> const &toCopy);
   ~ValueVectorOf ();
   ValueVectorOf<TElem> &operator= (ValueVectorOf<TElem> const &toAssign);
