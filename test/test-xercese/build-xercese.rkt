@@ -15,13 +15,11 @@
 (define bin-dir "bin")
 (define out-main "test-xercese")
 
-;; 编译配置
 (define compiler-exe "g++-15")
 (define compiler-path (find-executable-path compiler-exe))
 (define cxxflags `(
   "-std=c++17" "-Wall" "-Wextra" "-g" "-I."))
 
-;; 清理之前的编译产物
 (define (clean)
   (for
     ([f
@@ -35,7 +33,6 @@
   (make-directory* out-dir)
   (make-directory* bin-dir))
 
-;; 编译单个源文件
 (define (compile-source src-non-path)
   (define obj (path-replace-extension (build-path out-dir src-non-path) ".o"))
   (eprintf "+ g++(compile) ~a~n" src-non-path)
@@ -44,7 +41,6 @@
   rst
 )
 
-;; 链接目标文件
 (define (link-objects)
   (define objs (directory-list out-dir #:build? #t))
   (define objs-s (map path->string objs))
@@ -55,19 +51,23 @@
   rst
 )
 
-;; 运行测试程序
 (define (run-test)
   (eprintf "+ test~n")
   (system (path->string (build-path bin-dir out-main)))
 )
 
-;; 主流程
+(define cont (box #f))
+
 (module+ main
   (and
     (clean)
+    (let/cc k (set-box! cont k) #t)
     (pre-build)
-    (for-each compile-source sources)
+    (let/cc k (set-box! cont k) #t)
+    (for/and ([s sources]) (and (compile-source s) (let/cc k (set-box! cont k) #t)))
     (link-objects)
+    (let/cc k (set-box! cont k) #t)
     (run-test)
+    (let/cc k (set-box! cont k) #t)
   )
 )
