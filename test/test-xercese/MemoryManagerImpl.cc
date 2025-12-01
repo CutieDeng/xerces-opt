@@ -1,4 +1,5 @@
 #include "xercese/internal/MemoryManagerImpl.hh"
+#include "xercese/util/OutOfMemoryException.hh"
 
 namespace xercese
 {

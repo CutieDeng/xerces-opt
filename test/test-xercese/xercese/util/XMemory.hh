@@ -1,13 +1,13 @@
 #pragma once
 
-#include <stdint.h>
+#include <stddef.h>
 
 namespace xercese
 {
 
 struct MemoryManager;
 
-struct XMeomry {
+struct XMemory {
   void *operator new (size_t size);  
   void *operator new (size_t size, char const *file, int line); 
   void operator delete (void *p, char const *file, int line);
@@ -16,7 +16,7 @@ struct XMeomry {
   void operator delete (void *p);
   void operator delete (void *p, MemoryManager *memMgr);
   void operator delete (void *p, void *ptr);
-  virtual ~XMeomry() {}
+  virtual ~XMemory() {}
 };
   
 } // namespace xercese

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stddef.h"
+
 #include "xercese/framework/MemoryManager.hh"
 
 namespace xercese

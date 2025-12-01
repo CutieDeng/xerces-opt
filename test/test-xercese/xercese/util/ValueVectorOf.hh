@@ -18,11 +18,11 @@ struct ValueVectorOf : XMemory {
   void removeAllElements ();
   bool containsElement (TElem const &toCheck, unsigned startIndex = 0);
   TElem const &elementAt (unsigned getAt) const;
-  TElem &elementAt (unsigned );
+  TElem &elementAt (unsigned getAt);
   unsigned curCapacity () const;
   unsigned size () const;
   MemoryManager *getMemoryManager () const;
-  void ensureExtraCapacity (unsigned );
+  void ensureExtraCapacity (unsigned amount);
   TElem const *rawData() const;
   private:
   bool fCallDestructor;
