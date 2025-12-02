@@ -19,6 +19,7 @@
 (define compiler-path (find-executable-path compiler-exe))
 (define cxxflags `(
   "-std=c++17" "-Wall" "-Wextra" "-g" "-I."))
+(set! cxxflags (append cxxflags '("-fplugin=../../array-detect/out/plugin-array-detect.dylib")))
 
 (define (clean)
   (for
