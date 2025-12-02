@@ -71,6 +71,8 @@
     (delete-file f)
     (eprintf "+ rm ~a~n" f)
   )
+  (delete-directory/files (build-path 'up "test" "test-xercese" "array-detect-results.txt") #:must-exist? #f)
+  #t
 )
 
 (define (run-xercese)
