@@ -169,11 +169,23 @@ static CutieErrorCode trace_field_assignments(CutieContext &ctx, ArrayDetector* 
 // 字段信息结构
 // ----------------------------------------------------------------------------
 
+// 单个赋值操作的详细信息
+struct AssignmentDetail {
+  const char* source;              // 赋值来源
+  bool is_call;                    // 是否是函数调用
+  int tree_code;                   // 右值表达式的树代码
+  const char* location_info;       // 位置信息（文件名:行号，如果可用）
+  const char* rhs_description;     // 右值表达式描述
+};
+
 // 函数级别的赋值信息
 struct FunctionAssignment {
-  const char* function_name;      // 函数名称
+  const char* function_name;      // 函数名称（用于显示）
+  tree function_decl;              // 函数声明（唯一标识）
+  const char* function_id;        // 函数唯一标识字符串（基于decl和位置）
   int assignment_count;            // 该函数中该字段的赋值次数
-  vec<const char*>* sources;       // 该函数中的赋值来源
+  vec<const char*>* sources;       // 该函数中的赋值来源（简化版）
+  vec<AssignmentDetail*>* assignment_details; // 详细的赋值信息
 };
 
 struct FieldInfo {
@@ -336,6 +348,11 @@ public:
                 fa->sources->release();
                 delete fa->sources;
               }
+              if (fa->assignment_details) {
+                // AssignmentDetail 使用 ggc_alloc，不需要显式释放
+                fa->assignment_details->release();
+                delete fa->assignment_details;
+              }
               // FunctionAssignment本身使用ggc_alloc，不需要显式释放
             }
           }
@@ -411,9 +428,33 @@ static CutieErrorCode print_results(CutieContext &ctx, ArrayDetector* detector) 
         for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
           FunctionAssignment* fa = (*field->function_assignments)[j];
           if (!fa) continue;
-          fprintf(output_file, "    Function: %s\n", fa->function_name);
+          fprintf(output_file, "    Function: %s", fa->function_name);
+          if (fa->function_id && strstr(fa->function_id, "@")) {
+            // 显示函数ID以区分同名函数
+            fprintf(output_file, " (ID: %s)", fa->function_id);
+          }
+          fprintf(output_file, "\n");
           fprintf(output_file, "      Assignment count: %d\n", fa->assignment_count);
-          if (fa->sources && fa->sources->length() > 0) {
+          
+          // 显示详细的赋值信息
+          if (fa->assignment_details && fa->assignment_details->length() > 0) {
+            fprintf(output_file, "      Detailed assignments:\n");
+            for (unsigned int k = 0; k < fa->assignment_details->length(); k++) {
+              AssignmentDetail* detail = (*fa->assignment_details)[k];
+              if (!detail) continue;
+              fprintf(output_file, "        Assignment #%d:\n", k + 1);
+              fprintf(output_file, "          Source: %s\n", detail->source);
+              fprintf(output_file, "          Is function call: %s\n", detail->is_call ? "yes" : "no");
+              fprintf(output_file, "          RHS tree code: %d\n", detail->tree_code);
+              if (detail->location_info) {
+                fprintf(output_file, "          Location: %s\n", detail->location_info);
+              }
+              if (detail->rhs_description) {
+                fprintf(output_file, "          RHS description: %s\n", detail->rhs_description);
+              }
+            }
+          } else if (fa->sources && fa->sources->length() > 0) {
+            // 回退到简化版显示
             fprintf(output_file, "      Sources:\n");
             for (unsigned int k = 0; k < fa->sources->length(); k++) {
               fprintf(output_file, "        - %s\n", (*fa->sources)[k]);
@@ -864,11 +905,13 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
                 // 检查是否是类型转换后的函数调用结果
                 // 例如 (TElem*)fMemoryManager->allocate(...) 可能是 NOP_EXPR 或 CONVERT_EXPR
                 tree inner_expr = rhs;
+                int conversion_depth = 0;
                 while (inner_expr && 
                        (TREE_CODE(inner_expr) == NOP_EXPR || 
                         TREE_CODE(inner_expr) == CONVERT_EXPR ||
                         TREE_CODE(inner_expr) == VIEW_CONVERT_EXPR)) {
                   inner_expr = TREE_OPERAND(inner_expr, 0);
+                  conversion_depth++;
                 }
                 
                 if (inner_expr && TREE_CODE(inner_expr) == CALL_EXPR) {
@@ -885,10 +928,30 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
                     source = "<member-call>";
                     is_call = true;
                   }
+                } else if (TREE_CODE(rhs) == OBJ_TYPE_REF) {
+                  // 直接是OBJ_TYPE_REF（可能在转换之前）
+                  tree method = TREE_OPERAND(rhs, 1);
+                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
+                    source = IDENTIFIER_POINTER(DECL_NAME(method));
+                    is_call = true;
+                  } else {
+                    source = "<member-call>";
+                    is_call = true;
+                  }
                 } else {
-                  // 其他类型的表达式
-                  source = expr_to_string(rhs);
-                  is_call = false;
+                  // 检查树代码155（可能是某种函数调用形式）
+                  // 在GCC中，树代码155可能是OBJ_TYPE_REF或其他形式
+                  // 尝试从stmt中获取更多信息
+                  if (TREE_CODE(rhs) == 155 || (inner_expr && TREE_CODE(inner_expr) == 155)) {
+                    // 可能是成员函数调用，尝试从GIMPLE语句中获取
+                    // 检查是否有相关的CALL语句
+                    source = "<possible-member-call>";
+                    is_call = true; // 假设是函数调用
+                  } else {
+                    // 其他类型的表达式
+                    source = expr_to_string(rhs);
+                    is_call = false;
+                  }
                 }
               }
             
@@ -908,12 +971,12 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
                 field_info->conflicting_assigns->safe_push(source);
               }
               
-              // 按函数分组记录赋值
+              // 按函数分组记录赋值（使用函数声明作为唯一标识）
               FunctionAssignment* func_assign = NULL;
-              // 查找是否已有该函数的赋值记录
+              // 查找是否已有该函数的赋值记录（使用函数声明比较）
               for (unsigned int j = 0; j < field_info->function_assignments->length(); j++) {
                 FunctionAssignment* fa = (*field_info->function_assignments)[j];
-                if (fa && fa->function_name && strcmp(fa->function_name, func_name) == 0) {
+                if (fa && fa->function_decl == decl) {
                   func_assign = fa;
                   break;
                 }
@@ -924,15 +987,107 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
                 func_assign = (FunctionAssignment*)ggc_alloc<FunctionAssignment>();
                 memset(func_assign, 0, sizeof(FunctionAssignment));
                 func_assign->function_name = func_name;
+                func_assign->function_decl = decl;
+                
+                // 生成唯一的函数ID（基于函数声明和第一个赋值的位置）
+                location_t first_loc = gimple_location(stmt);
+                char* func_id = (char*)ggc_alloc_atomic(512);
+                if (first_loc) {
+                  expanded_location xloc = expand_location(first_loc);
+                  if (xloc.file) {
+                    snprintf(func_id, 512, "%s@%p:%s:%d", func_name, (void*)decl, xloc.file, xloc.line);
+                  } else {
+                    snprintf(func_id, 512, "%s@%p", func_name, (void*)decl);
+                  }
+                } else {
+                  snprintf(func_id, 512, "%s@%p", func_name, (void*)decl);
+                }
+                func_assign->function_id = func_id;
+                
                 func_assign->assignment_count = 0;
                 func_assign->sources = new vec<const char*>();
                 func_assign->sources->create(0);
+                func_assign->assignment_details = new vec<AssignmentDetail*>();
+                func_assign->assignment_details->create(0);
                 field_info->function_assignments->safe_push(func_assign);
               }
+              
+              // 创建详细的赋值信息
+              AssignmentDetail* detail = (AssignmentDetail*)ggc_alloc<AssignmentDetail>();
+              memset(detail, 0, sizeof(AssignmentDetail));
+              detail->source = source;
+              detail->is_call = is_call;
+              detail->tree_code = rhs ? (int)TREE_CODE(rhs) : 0;
+              
+              // 尝试获取源代码位置信息
+              location_t loc = gimple_location(stmt);
+              if (loc) {
+                expanded_location xloc = expand_location(loc);
+                if (xloc.file) {
+                  char* loc_str = (char*)ggc_alloc_atomic(256);
+                  snprintf(loc_str, 256, "%s:%d", xloc.file, xloc.line);
+                  detail->location_info = loc_str;
+                }
+              }
+              
+              // 生成右值表达式描述
+              char* rhs_desc = (char*)ggc_alloc_atomic(512);
+              if (rhs) {
+                if (TREE_CODE(rhs) == CALL_EXPR) {
+                  snprintf(rhs_desc, 512, "CALL_EXPR");
+                } else if (TREE_CODE(rhs) == INTEGER_CST) {
+                  snprintf(rhs_desc, 512, "INTEGER_CST(%lld)", (long long)tree_to_shwi(rhs));
+                } else if (TREE_CODE(rhs) == NOP_EXPR || TREE_CODE(rhs) == CONVERT_EXPR) {
+                  // 检查转换后的表达式
+                  tree inner = TREE_OPERAND(rhs, 0);
+                  if (inner && TREE_CODE(inner) == CALL_EXPR) {
+                    snprintf(rhs_desc, 512, "CONVERT_EXPR(CALL_EXPR)");
+                  } else if (inner && TREE_CODE(inner) == OBJ_TYPE_REF) {
+                    snprintf(rhs_desc, 512, "CONVERT_EXPR(OBJ_TYPE_REF)");
+                  } else {
+                    snprintf(rhs_desc, 512, "CONVERT_EXPR(TREE_CODE_%d)", inner ? (int)TREE_CODE(inner) : 0);
+                  }
+                } else if (TREE_CODE(rhs) == OBJ_TYPE_REF) {
+                  tree method = TREE_OPERAND(rhs, 1);
+                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
+                    snprintf(rhs_desc, 512, "OBJ_TYPE_REF(method: %s)", IDENTIFIER_POINTER(DECL_NAME(method)));
+                  } else {
+                    snprintf(rhs_desc, 512, "OBJ_TYPE_REF");
+                  }
+                } else {
+                  // 对于树代码155，尝试检查是否是某种函数调用形式
+                  // 检查操作数
+                  if (TREE_CODE(rhs) == 155) {
+                    // 尝试获取操作数信息
+                    if (TREE_OPERAND(rhs, 0)) {
+                      tree op0 = TREE_OPERAND(rhs, 0);
+                      if (TREE_CODE(op0) == OBJ_TYPE_REF) {
+                        tree method = TREE_OPERAND(op0, 1);
+                        if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
+                          snprintf(rhs_desc, 512, "TREE_CODE_155(OBJ_TYPE_REF, method: %s)", 
+                                  IDENTIFIER_POINTER(DECL_NAME(method)));
+                        } else {
+                          snprintf(rhs_desc, 512, "TREE_CODE_155(OBJ_TYPE_REF)");
+                        }
+                      } else {
+                        snprintf(rhs_desc, 512, "TREE_CODE_155(op0_code: %d)", (int)TREE_CODE(op0));
+                      }
+                    } else {
+                      snprintf(rhs_desc, 512, "TREE_CODE_155");
+                    }
+                  } else {
+                    snprintf(rhs_desc, 512, "TREE_CODE_%d", (int)TREE_CODE(rhs));
+                  }
+                }
+              } else {
+                snprintf(rhs_desc, 512, "NULL");
+              }
+              detail->rhs_description = rhs_desc;
               
               // 记录该函数中的赋值
               func_assign->assignment_count++;
               func_assign->sources->safe_push(source);
+              func_assign->assignment_details->safe_push(detail);
               
               // 如果该函数中有多个赋值，检查是否来源相同
               if (func_assign->assignment_count > 1) {
