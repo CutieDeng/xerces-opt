@@ -169,6 +169,13 @@ static CutieErrorCode trace_field_assignments(CutieContext &ctx, ArrayDetector* 
 // 字段信息结构
 // ----------------------------------------------------------------------------
 
+// 函数级别的赋值信息
+struct FunctionAssignment {
+  const char* function_name;      // 函数名称
+  int assignment_count;            // 该函数中该字段的赋值次数
+  vec<const char*>* sources;       // 该函数中的赋值来源
+};
+
 struct FieldInfo {
   const char* field_name;         // 字段名称
   const char* containing_type;    // 包含该字段的类型名称
@@ -176,9 +183,10 @@ struct FieldInfo {
   tree containing_type_tree;     // 包含该字段的类型树
   bool is_pointer;                // 是否是指针类型
   bool is_array_candidate;        // 是否是数组候选
-  int source_count;               // 来源数量
-  vec<const char*>* sources;     // 赋值来源（函数调用等）
+  int source_count;               // 总来源数量（所有函数）
+  vec<const char*>* sources;       // 所有赋值来源（函数调用等）
   vec<const char*>* conflicting_assigns; // 冲突的赋值操作
+  vec<FunctionAssignment*>* function_assignments; // 按函数分组的赋值信息
 };
 
 // ----------------------------------------------------------------------------
@@ -227,32 +235,78 @@ public:
         continue;
       }
       
-      // 检查来源数量
-      if (field->source_count == 0) {
-        // 没有赋值来源，不是数组候选
+      // 检查是否有冲突赋值（某个函数中有多个赋值）
+      if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
         field->is_array_candidate = false;
-      } else if (field->source_count == 1) {
-        // 只有一个来源，检查是否是函数调用
-        if (field->sources && field->sources->length() > 0) {
-          const char* source = (*field->sources)[0];
-          // 如果是函数调用（不是<other-expr>等），可能是数组候选
-          if (strcmp(source, "<call-expr>") == 0 || 
-              (strstr(source, "allocate") != NULL) ||
-              (strcmp(source, "<unknown-call>") != 0 && strcmp(source, "<other-expr>") != 0)) {
-            field->is_array_candidate = true;
-          } else {
-            field->is_array_candidate = false;
-          }
-        } else {
-          field->is_array_candidate = false;
-        }
-      } else {
-        // 多个来源，不是owned数组
-        field->is_array_candidate = false;
+        continue;
       }
       
-      // 如果有冲突赋值，肯定不是owned数组
-      if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
+      // 基于函数级别的赋值信息判断
+      if (!field->function_assignments || field->function_assignments->length() == 0) {
+        // 没有赋值信息，不是数组候选
+        field->is_array_candidate = false;
+        continue;
+      }
+      
+      // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
+      bool all_from_function_call = true;
+      const char* unique_source = NULL;
+      
+      for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
+        FunctionAssignment* fa = (*field->function_assignments)[j];
+        if (!fa) continue;
+        
+        // 检查该函数中的所有赋值来源
+        if (!fa->sources || fa->sources->length() == 0) {
+          all_from_function_call = false;
+          break;
+        }
+        
+        // 检查该函数中的所有赋值是否都来自函数调用，且来源相同
+        const char* func_unique_source = NULL;
+        for (unsigned int k = 0; k < fa->sources->length(); k++) {
+          const char* source = (*fa->sources)[k];
+          
+          // 检查是否是函数调用
+          bool is_call = (strcmp(source, "<call-expr>") == 0) ||
+                        (strstr(source, "allocate") != NULL) ||
+                        (strcmp(source, "<unknown-call>") != 0 && 
+                         strcmp(source, "<other-expr>") != 0 &&
+                         strcmp(source, "<null>") != 0);
+          
+          if (!is_call) {
+            all_from_function_call = false;
+            break;
+          }
+          
+          // 检查该函数中的所有赋值来源是否相同
+          if (func_unique_source == NULL) {
+            func_unique_source = source;
+          } else if (strcmp(func_unique_source, source) != 0) {
+            // 该函数中有不同的赋值来源，不是唯一来源
+            all_from_function_call = false;
+            break;
+          }
+        }
+        
+        if (!all_from_function_call) {
+          break;
+        }
+        
+        // 检查所有函数中的赋值来源是否相同（唯一来源）
+        if (unique_source == NULL) {
+          unique_source = func_unique_source;
+        } else if (strcmp(unique_source, func_unique_source) != 0) {
+          // 不同函数中的赋值来源不同，不是唯一来源
+          all_from_function_call = false;
+          break;
+        }
+      }
+      
+      // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
+      if (all_from_function_call && unique_source) {
+        field->is_array_candidate = true;
+      } else {
         field->is_array_candidate = false;
       }
     }
@@ -273,6 +327,20 @@ public:
         if (field->conflicting_assigns) {
           field->conflicting_assigns->release();
           delete field->conflicting_assigns;
+        }
+        if (field->function_assignments) {
+          for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
+            FunctionAssignment* fa = (*field->function_assignments)[j];
+            if (fa) {
+              if (fa->sources) {
+                fa->sources->release();
+                delete fa->sources;
+              }
+              // FunctionAssignment本身使用ggc_alloc，不需要显式释放
+            }
+          }
+          field->function_assignments->release();
+          delete field->function_assignments;
         }
         // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
       }
@@ -335,36 +403,59 @@ static CutieErrorCode print_results(CutieContext &ctx, ArrayDetector* detector) 
     
     if (field->is_pointer) {
       fprintf(output_file, "  - Array candidate: %s\n", field->is_array_candidate ? "yes" : "no");
-      fprintf(output_file, "  - Source count: %d\n", field->source_count);
+      fprintf(output_file, "  - Total assignment count: %d\n", field->source_count);
+      
+      // 显示函数级别的赋值信息
+      if (field->function_assignments && field->function_assignments->length() > 0) {
+        fprintf(output_file, "  - Assignments by function:\n");
+        for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
+          FunctionAssignment* fa = (*field->function_assignments)[j];
+          if (!fa) continue;
+          fprintf(output_file, "    Function: %s\n", fa->function_name);
+          fprintf(output_file, "      Assignment count: %d\n", fa->assignment_count);
+          if (fa->sources && fa->sources->length() > 0) {
+            fprintf(output_file, "      Sources:\n");
+            for (unsigned int k = 0; k < fa->sources->length(); k++) {
+              fprintf(output_file, "        - %s\n", (*fa->sources)[k]);
+            }
+          }
+        }
+      }
       
       if (field->is_array_candidate) {
         array_candidates++;
-        
-        if (field->source_count == 1 && field->sources && field->sources->length() > 0) {
-          fprintf(output_file, "  - Source: %s\n", (*field->sources)[0]);
-          fprintf(output_file, "  - Potential owned array (single source)\n");
-          fprintf(output_file, "  - DETECTED: This is likely an owned array member!\n");
-        }
+        fprintf(output_file, "  - DETECTED: This is likely an owned array member!\n");
+        fprintf(output_file, "  - Reason: All functions have single assignment from function call\n");
       } else {
         // 说明为什么不是数组候选
         if (field->source_count == 0) {
           fprintf(output_file, "  - Reason: No assignment sources found\n");
-        } else if (field->source_count > 1) {
-          fprintf(output_file, "  - Reason: Multiple sources detected (not owned array)\n");
-          if (field->sources) {
-            for (unsigned int j = 0; j < field->sources->length(); j++) {
-              fprintf(output_file, "    Source %d: %s\n", j+1, (*field->sources)[j]);
-            }
-          }
         } else if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
           fprintf(output_file, "  - Reason: Conflicting assignments detected\n");
           for (unsigned int j = 0; j < field->conflicting_assigns->length(); j++) {
-            fprintf(output_file, "    Conflicting assign: %s\n", (*field->conflicting_assigns)[j]);
+            fprintf(output_file, "    - %s\n", (*field->conflicting_assigns)[j]);
           }
         } else {
-          fprintf(output_file, "  - Reason: Source is not a function call\n");
-          if (field->sources && field->sources->length() > 0) {
-            fprintf(output_file, "    Source: %s\n", (*field->sources)[0]);
+          // 检查是否是多个函数中的赋值来源不同
+          bool has_multiple_functions = (field->function_assignments && 
+                                        field->function_assignments->length() > 1);
+          bool has_multiple_assignments_in_function = false;
+          if (field->function_assignments) {
+            for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
+              FunctionAssignment* fa = (*field->function_assignments)[j];
+              if (fa && fa->assignment_count > 1) {
+                has_multiple_assignments_in_function = true;
+                break;
+              }
+            }
+          }
+          
+          if (has_multiple_assignments_in_function) {
+            fprintf(output_file, "  - Reason: Some function has multiple assignments\n");
+          } else if (has_multiple_functions) {
+            fprintf(output_file, "  - Reason: Assignments in multiple functions with different sources\n");
+          } else {
+            fprintf(output_file, "  - Reason: Source is not a function call\n");
           }
         }
       }
@@ -553,12 +644,14 @@ static CutieErrorCode process_type_fields(CutieContext &ctx, tree type, ArrayDet
     field_info->field_decl = field;
     field_info->containing_type_tree = type;
     field_info->is_pointer = is_ptr;
-    field_info->is_array_candidate = false;
-    field_info->source_count = 0;
-    field_info->sources = new vec<const char*>();
-    field_info->sources->create(0);
-    field_info->conflicting_assigns = new vec<const char*>();
-    field_info->conflicting_assigns->create(0);
+        field_info->is_array_candidate = false;
+        field_info->source_count = 0;
+        field_info->sources = new vec<const char*>();
+        field_info->sources->create(0);
+        field_info->conflicting_assigns = new vec<const char*>();
+        field_info->conflicting_assigns->create(0);
+        field_info->function_assignments = new vec<FunctionAssignment*>();
+        field_info->function_assignments->create(0);
     
     CutieErrorCode tmp_ecode = detector->add_field(field_info);
     if (tmp_ecode != cutie_ns::OK) {
@@ -647,7 +740,16 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
     function* fn = node->get_fun();
     if (!fn) continue;
     
+    // 获取函数名称（尝试获取可读的名称）
     const char* func_name = node->name();
+    tree decl = node->decl;
+    if (decl && DECL_NAME(decl)) {
+      func_name = IDENTIFIER_POINTER(DECL_NAME(decl));
+    }
+    // 如果还是空，使用mangled name
+    if (!func_name || strlen(func_name) == 0) {
+      func_name = node->name();
+    }
     CUTIE_DEBUG_PRINT("Analyzing function: %s", func_name);
     
     // 遍历函数中的所有基本块
@@ -718,13 +820,39 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
             }
             
             // 分析右值来源
+            // 辅助函数：从CALL_EXPR获取函数名称
+            auto get_call_expr_name = [](tree call_expr) -> const char* {
+              if (TREE_CODE(call_expr) != CALL_EXPR) return NULL;
+              // CALL_EXPR的第一个操作数是函数
+              tree fn = TREE_OPERAND(call_expr, 0);
+              if (!fn) return "<call-expr>";
+              
+              // 如果是函数声明
+              if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
+                return IDENTIFIER_POINTER(DECL_NAME(fn));
+              }
+              // 如果是ADDR_EXPR，获取其操作数
+              if (TREE_CODE(fn) == ADDR_EXPR) {
+                tree decl = TREE_OPERAND(fn, 0);
+                if (decl && DECL_NAME(decl)) {
+                  return IDENTIFIER_POINTER(DECL_NAME(decl));
+                }
+              }
+              // 如果是INDIRECT_REF，可能是通过指针调用
+              if (TREE_CODE(fn) == INDIRECT_REF) {
+                return "<indirect-call>";
+              }
+              
+              return "<call-expr>";
+            };
+            
             const char* source = NULL;
             bool is_call = false;
             
             // 检查是否是函数调用
             if (TREE_CODE(rhs) == CALL_EXPR) {
               // 直接调用表达式
-              source = "<call-expr>";
+              source = get_call_expr_name(rhs);
               is_call = true;
             } else if (gimple_code(stmt) == GIMPLE_CALL) {
               // GIMPLE调用语句
@@ -732,22 +860,101 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
               if (source) {
                 is_call = true;
               }
-            } else {
-              // 其他类型的表达式
-              source = expr_to_string(rhs);
-              is_call = false;
-            }
+              } else {
+                // 检查是否是类型转换后的函数调用结果
+                // 例如 (TElem*)fMemoryManager->allocate(...) 可能是 NOP_EXPR 或 CONVERT_EXPR
+                tree inner_expr = rhs;
+                while (inner_expr && 
+                       (TREE_CODE(inner_expr) == NOP_EXPR || 
+                        TREE_CODE(inner_expr) == CONVERT_EXPR ||
+                        TREE_CODE(inner_expr) == VIEW_CONVERT_EXPR)) {
+                  inner_expr = TREE_OPERAND(inner_expr, 0);
+                }
+                
+                if (inner_expr && TREE_CODE(inner_expr) == CALL_EXPR) {
+                  source = get_call_expr_name(inner_expr);
+                  is_call = true;
+                } else if (inner_expr && TREE_CODE(inner_expr) == OBJ_TYPE_REF) {
+                  // OBJ_TYPE_REF用于C++成员函数调用
+                  // 第二个操作数是方法
+                  tree method = TREE_OPERAND(inner_expr, 1);
+                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
+                    source = IDENTIFIER_POINTER(DECL_NAME(method));
+                    is_call = true;
+                  } else {
+                    source = "<member-call>";
+                    is_call = true;
+                  }
+                } else {
+                  // 其他类型的表达式
+                  source = expr_to_string(rhs);
+                  is_call = false;
+                }
+              }
             
             if (source) {
-              CUTIE_DEBUG_PRINT("  Source: %s (is_call: %d)", source, is_call ? 1 : 0);
+              CUTIE_DEBUG_PRINT("  Source: %s (is_call: %d) in function: %s", source, is_call ? 1 : 0, func_name);
+              // 调试：输出右值表达式的树代码
+              if (rhs) {
+                CUTIE_DEBUG_PRINT("    RHS tree code: %d", (int)TREE_CODE(rhs));
+              }
               
-              // 记录来源
+              // 记录总来源（用于兼容旧逻辑）
               field_info->sources->safe_push(source);
               field_info->source_count++;
               
               // 如果不是函数调用，记录为冲突赋值
               if (!is_call) {
                 field_info->conflicting_assigns->safe_push(source);
+              }
+              
+              // 按函数分组记录赋值
+              FunctionAssignment* func_assign = NULL;
+              // 查找是否已有该函数的赋值记录
+              for (unsigned int j = 0; j < field_info->function_assignments->length(); j++) {
+                FunctionAssignment* fa = (*field_info->function_assignments)[j];
+                if (fa && fa->function_name && strcmp(fa->function_name, func_name) == 0) {
+                  func_assign = fa;
+                  break;
+                }
+              }
+              
+              // 如果没有找到，创建新的函数赋值记录
+              if (!func_assign) {
+                func_assign = (FunctionAssignment*)ggc_alloc<FunctionAssignment>();
+                memset(func_assign, 0, sizeof(FunctionAssignment));
+                func_assign->function_name = func_name;
+                func_assign->assignment_count = 0;
+                func_assign->sources = new vec<const char*>();
+                func_assign->sources->create(0);
+                field_info->function_assignments->safe_push(func_assign);
+              }
+              
+              // 记录该函数中的赋值
+              func_assign->assignment_count++;
+              func_assign->sources->safe_push(source);
+              
+              // 如果该函数中有多个赋值，检查是否来源相同
+              if (func_assign->assignment_count > 1) {
+                // 检查该函数中的所有赋值来源是否相同
+                bool all_same_source = true;
+                const char* first_source = (*func_assign->sources)[0];
+                for (unsigned int k = 1; k < func_assign->sources->length(); k++) {
+                  if (strcmp((*func_assign->sources)[k], first_source) != 0) {
+                    all_same_source = false;
+                    break;
+                  }
+                }
+                
+                // 只有当赋值来源不同时，才记录为冲突
+                if (!all_same_source) {
+                  char conflict_msg[256];
+                  snprintf(conflict_msg, sizeof(conflict_msg), 
+                          "Multiple assignments with different sources in function %s (count: %d)", 
+                          func_name, func_assign->assignment_count);
+                  field_info->conflicting_assigns->safe_push(conflict_msg);
+                  CUTIE_DEBUG_PRINT("  WARNING: Multiple assignments with different sources in function %s", func_name);
+                }
               }
             }
           }
