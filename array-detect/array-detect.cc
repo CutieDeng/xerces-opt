@@ -791,7 +791,29 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
     if (!func_name || strlen(func_name) == 0) {
       func_name = node->name();
     }
-    CUTIE_DEBUG_PRINT("Analyzing function: %s", func_name);
+    
+    // 获取函数所属的类型（对于成员函数）
+    const char* containing_type_name = NULL;
+    if (decl) {
+      tree context = DECL_CONTEXT(decl);
+      if (context) {
+        if (TREE_CODE(context) == RECORD_TYPE || TREE_CODE(context) == UNION_TYPE) {
+          containing_type_name = get_type_name(context);
+        } else if (TREE_CODE(context) == NAMESPACE_DECL) {
+          // 命名空间中的函数
+          if (DECL_NAME(context)) {
+            containing_type_name = IDENTIFIER_POINTER(DECL_NAME(context));
+          }
+        }
+      }
+    }
+    
+    // 输出调试信息，包含函数所属类型
+    if (containing_type_name) {
+      CUTIE_DEBUG_PRINT("Analyzing function: %s::%s", containing_type_name, func_name);
+    } else {
+      CUTIE_DEBUG_PRINT("Analyzing function: %s", func_name);
+    }
     
     // 遍历函数中的所有基本块
     basic_block bb;
