@@ -38,7 +38,7 @@
   (define obj (path-replace-extension (build-path out-dir src-non-path) ".o"))
   (eprintf "+ g++(compile) ~a~n" src-non-path)
   (define rst (apply system* `(,compiler-path ,@cxxflags ,src-non-path "-c" "-o" ,(path->string obj))))
-  (cond [(not rst) (eprintf "- g++ ~a (failed)~n") src-non-path])
+  (cond [(not rst) (eprintf "- g++ ~a (failed)~n" src-non-path)])
   rst
 )
 
