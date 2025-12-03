@@ -62,6 +62,18 @@
     } \
   } while (0)
 
+// 简化的重试宏，默认跳到 cleanup 标签，仅在失败时打印调试信息
+#define CUTIE_TRY(rst) \
+  CUTIE_TRY_RAW(rst, cleanup, false, true, "Failed: %s")
+
+// 带自定义错误消息的重试宏
+#define CUTIE_TRY_MSG(rst, msg, ...) \
+  CUTIE_TRY_RAW(rst, cleanup, false, true, msg, ##__VA_ARGS__)
+
+// 指定跳转标签的重试宏
+#define CUTIE_TRY_LABEL(rst, label) \
+  CUTIE_TRY_RAW(rst, label, false, true, "Failed: %s")
+
 #define CUTIE_TRY_RAW2(rst, unmatch_label, brk_label, succ_debug, unmatch_debug, err_debug, dbg_msg, ...) \
   do { \
     CutieErrorCode ecode1 = (rst); \
@@ -85,6 +97,9 @@
 
 #define CUTIE_FUNC_ARGS \
   ::cutie_ns::CutieContext &ctx
+
+// 便捷宏用于传递上下文参数
+#define CUTIE_CTX ctx
 
 namespace cutie_ns {
 
@@ -238,35 +253,39 @@ public:
     RET;
   } CUTIE_FUNCTION_END
   
-  ::cutie_ns::CutieErrorCode analyze_usage() CUTIE_FUNCTION_BEGIN {
+  ::cutie_ns::CutieErrorCode analyze_usage(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+    (void )ctx;
+    CUTIE_DEBUG_PRINT ("start analyze fields usage");
     // 分析使用情况，判断是否是数组候选
     for (unsigned int i = 0; i < m_fields.length(); i++) {
+      // TODO: add field type/name log, if not null
       FieldInfo* field = m_fields[i];
+      // TODO: if null, warning this situation
       if (!field) continue;
-      
-      // 只有指针类型才可能是数组候选
+      // TODO: add log about non array candidate judge, with evidence: non pointer type
       if (!field->is_pointer) {
         field->is_array_candidate = false;
         continue;
       }
-      
+      // TODO: add log
       // 检查是否有冲突赋值（某个函数中有多个赋值）
       if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
         field->is_array_candidate = false;
         continue;
       }
-      
+      // TODO: add log
       // 基于函数级别的赋值信息判断
       if (!field->function_assignments || field->function_assignments->length() == 0) {
         // 没有赋值信息，不是数组候选
+        // TODO: change the available set
+        // no assignment doesn't mean no array candidate! (just ignored, can set as unrelated, but not yes or no)
         field->is_array_candidate = false;
         continue;
       }
-      
+      // TODO: wrap in a new function to check the all src values
       // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
       bool all_from_function_call = true;
       const char* unique_source = NULL;
-      
       for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
         FunctionAssignment* fa = (*field->function_assignments)[j];
         if (!fa) continue;
@@ -332,39 +351,7 @@ public:
   
   void cleanup() {
     // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
-    for (unsigned int i = 0; i < m_fields.length(); i++) {
-      FieldInfo* field = m_fields[i];
-      if (field) {
-        if (field->sources) {
-          field->sources->release();
-          delete field->sources;
-        }
-        if (field->conflicting_assigns) {
-          field->conflicting_assigns->release();
-          delete field->conflicting_assigns;
-        }
-        if (field->function_assignments) {
-          for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
-            FunctionAssignment* fa = (*field->function_assignments)[j];
-            if (fa) {
-              if (fa->sources) {
-                fa->sources->release();
-                delete fa->sources;
-              }
-              if (fa->assignment_details) {
-                // AssignmentDetail 使用 ggc_alloc，不需要显式释放
-                fa->assignment_details->release();
-                delete fa->assignment_details;
-              }
-              // FunctionAssignment本身使用ggc_alloc，不需要显式释放
-            }
-          }
-          field->function_assignments->release();
-          delete field->function_assignments;
-        }
-        // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
-      }
-    }
+    // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
     m_fields.release();
   }
   
@@ -696,15 +683,23 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
         field_info->function_assignments = new vec<FunctionAssignment*>();
         field_info->function_assignments->create(0);
     
-    CutieErrorCode tmp_ecode = detector->add_field(field_info);
-    if (tmp_ecode != cutie_ns::OK) {
+    CUTIE_TRY_LABEL(detector->add_field(field_info), field_init_error);
+    continue;
+
+    field_init_error:
+    if (field_info->sources) {
       field_info->sources->release();
       delete field_info->sources;
+    }
+    if (field_info->conflicting_assigns) {
       field_info->conflicting_assigns->release();
       delete field_info->conflicting_assigns;
-      ecode = tmp_ecode;
-      RET;
     }
+    if (field_info->function_assignments) {
+      field_info->function_assignments->release();
+      delete field_info->function_assignments;
+    }
+    RET;
   }
   
   ecode = cutie_ns::OK;
@@ -760,11 +755,7 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
             
             tree containing_type = TYPE_MAIN_VARIANT(object_type);
             if (containing_type) {
-              CutieErrorCode tmp_ecode = process_type_fields(ctx, containing_type, detector, &processed_types);
-              if (tmp_ecode != cutie_ns::OK) {
-                ecode = tmp_ecode;
-                RET;
-              }
+              CUTIE_TRY (process_type_fields(ctx, containing_type, detector, &processed_types));
             }
           }
         }
@@ -782,6 +773,166 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
 // 分析字段赋值
 namespace cutie_ns {
 namespace {
+static const char* get_call_expr_name(tree call_expr) {
+  if (TREE_CODE(call_expr) != CALL_EXPR) return NULL;
+  tree fn = TREE_OPERAND(call_expr, 0);
+  if (!fn) return "<call-expr>";
+  
+  if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
+    return IDENTIFIER_POINTER(DECL_NAME(fn));
+  }
+  if (TREE_CODE(fn) == ADDR_EXPR) {
+    tree decl = TREE_OPERAND(fn, 0);
+    if (decl && DECL_NAME(decl)) {
+      return IDENTIFIER_POINTER(DECL_NAME(decl));
+    }
+  }
+  if (TREE_CODE(fn) == INDIRECT_REF) {
+    return "<indirect-call>";
+  }
+  return "<call-expr>";
+}
+
+static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, const char* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
+  if (gimple_code(stmt) != GIMPLE_ASSIGN) {
+    RET;
+  }
+
+  tree lhs = gimple_assign_lhs(stmt);
+  tree rhs = gimple_assign_rhs1(stmt);
+
+  tree field_decl = NULL_TREE;
+  tree object = NULL_TREE;
+  if (!is_field_access(lhs, &field_decl, &object)) {
+    RET;
+  }
+
+  FieldInfo* field_info = NULL;
+  for (size_t i = 0; i < detector->get_field_count(); i++) {
+    FieldInfo* fi = detector->get_field(i);
+    if (fi && fi->field_decl == field_decl) {
+      field_info = fi;
+      break;
+    }
+  }
+
+  if (!field_info) {
+    tree object_type = TREE_TYPE(object);
+    if (object_type) {
+      if (TREE_CODE(object_type) == REFERENCE_TYPE) object_type = TREE_TYPE(object_type);
+      if (TREE_CODE(object_type) == POINTER_TYPE) object_type = TREE_TYPE(object_type);
+      tree containing_type = TYPE_MAIN_VARIANT(object_type);
+      if (containing_type) {
+        hash_set<tree> temp_processed;
+        temp_processed.create_ggc(0);
+        CutieErrorCode err = process_type_fields(ctx, containing_type, detector, &temp_processed);
+        if (err == cutie_ns::OK) {
+            for (size_t i = 0; i < detector->get_field_count(); i++) {
+               FieldInfo* fi = detector->get_field(i);
+               if (fi && fi->field_decl == field_decl) {
+                 field_info = fi;
+                 break;
+               }
+            }
+        }
+      }
+    }
+    if (!field_info) RET;
+  }
+
+  const char* source = "UNKNOWN";
+  bool is_call = false;
+  enum tree_code rhs_code = gimple_assign_rhs_code(stmt);
+  const char* rhs_desc = "";
+
+  if (rhs_code == INTEGER_CST) {
+    source = "CONST";
+    rhs_desc = "constant";
+  } else if (rhs_code == SSA_NAME || rhs_code == VAR_DECL || rhs_code == PARM_DECL) {
+     if (rhs_code == SSA_NAME) {
+        gimple* def_stmt = SSA_NAME_DEF_STMT(rhs);
+        if (def_stmt && is_gimple_call(def_stmt)) {
+            source = get_call_expr_name(gimple_call_fn(def_stmt));
+            if (!source) source = "<unknown-call>";
+            is_call = true;
+            rhs_desc = "call result";
+        } else {
+          source = "VAR";
+          rhs_desc = "variable";
+        }
+     } else {
+       source = "VAR";
+       rhs_desc = "variable";
+     }
+  } else if (get_gimple_rhs_class(rhs_code) == GIMPLE_BINARY_RHS) {
+     source = "EXPR";
+     rhs_desc = "expression";
+  } else {
+     source = "OTHER";
+     rhs_desc = "other";
+  }
+
+  char loc_buf[256];
+  expanded_location xloc = expand_location(gimple_location(stmt));
+  if (xloc.file) {
+      snprintf(loc_buf, sizeof(loc_buf), "%s:%d", xloc.file, xloc.line);
+  } else {
+      strcpy(loc_buf, "<unknown location>");
+  }
+  const char* loc_str = ggc_strdup(loc_buf);
+ 
+  AssignmentDetail* detail = ggc_alloc<AssignmentDetail>();
+  detail->source = source;
+  detail->is_call = is_call;
+  detail->tree_code = (int)rhs_code;
+  detail->location_info = loc_str;
+  detail->rhs_description = rhs_desc;
+
+  if (!field_info->function_assignments) {
+      field_info->function_assignments = ggc_alloc<vec<FunctionAssignment*>>();
+      field_info->function_assignments->create(0);
+  }
+  
+  FunctionAssignment* target_fa = NULL;
+  for (unsigned i = 0; i < field_info->function_assignments->length(); ++i) {
+      FunctionAssignment* fa = (*field_info->function_assignments)[i];
+      // 使用 function_decl 比较更准确，或者 func_name
+      if (fa->function_decl == func_decl) {
+         target_fa = fa;
+         break;
+      }
+  }
+
+  if (!target_fa) {
+      target_fa = ggc_alloc<FunctionAssignment>();
+      target_fa->function_name = func_name;
+      target_fa->function_decl = func_decl;
+      target_fa->function_id = func_name; // 简单起见
+      target_fa->assignment_count = 0;
+      target_fa->sources = ggc_alloc<vec<const char*>>();
+      target_fa->sources->create(0);
+      target_fa->assignment_details = ggc_alloc<vec<AssignmentDetail*>>();
+      target_fa->assignment_details->create(0);
+      
+      field_info->function_assignments->safe_push(target_fa);
+  }
+
+  target_fa->assignment_count++;
+  target_fa->sources->safe_push(source);
+  target_fa->assignment_details->safe_push(detail);
+  
+  // 更新 FieldInfo 级别的统计
+  field_info->source_count++;
+  if (!field_info->sources) {
+      field_info->sources = ggc_alloc<vec<const char*>>();
+      field_info->sources->create(0);
+  }
+  field_info->sources->safe_push(source);
+
+  ecode = cutie_ns::OK;
+  RET;
+} CUTIE_FUNCTION_END
+
 static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Analyzing field assignments in functions");
   
@@ -834,317 +985,7 @@ static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, Ar
         
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
-          tree lhs = gimple_assign_lhs(stmt);
-          tree rhs = gimple_assign_rhs1(stmt);
-          
-          // 检查左值是否是字段访问
-          tree field_decl = NULL_TREE;
-          tree object = NULL_TREE;
-          if (is_field_access(lhs, &field_decl, &object)) {
-            const char* field_name = get_field_name(field_decl);
-            CUTIE_DEBUG_PRINT("Found field assignment: %s", field_name);
-            
-            // 查找对应的FieldInfo
-            FieldInfo* field_info = NULL;
-            for (size_t i = 0; i < detector->get_field_count(); i++) {
-              FieldInfo* fi = detector->get_field(i);
-              if (fi && fi->field_decl == field_decl) {
-                field_info = fi;
-                break;
-              }
-            }
-            
-            if (!field_info) {
-              // 字段不在我们的列表中，尝试提取类型并添加
-              tree object_type = TREE_TYPE(object);
-              if (object_type) {
-                // 如果是引用类型，获取其基础类型
-                if (TREE_CODE(object_type) == REFERENCE_TYPE) {
-                  object_type = TREE_TYPE(object_type);
-                }
-                // 如果是指针类型，获取其指向的类型
-                if (TREE_CODE(object_type) == POINTER_TYPE) {
-                  object_type = TREE_TYPE(object_type);
-                }
-                
-                tree containing_type = TYPE_MAIN_VARIANT(object_type);
-                if (containing_type) {
-                  // 创建临时hash_set来处理类型
-                  hash_set<tree> temp_processed;
-                  temp_processed.create_ggc(0);
-                  CutieErrorCode tmp_ecode = process_type_fields(ctx, containing_type, detector, &temp_processed);
-                  if (tmp_ecode == cutie_ns::OK) {
-                    // 重新查找字段信息
-                    for (size_t i = 0; i < detector->get_field_count(); i++) {
-                      FieldInfo* fi = detector->get_field(i);
-                      if (fi && fi->field_decl == field_decl) {
-                        field_info = fi;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-              
-              if (!field_info) {
-                // 仍然找不到，跳过
-                continue;
-              }
-            }
-            
-            // 分析右值来源
-            // 辅助函数：从CALL_EXPR获取函数名称
-            auto get_call_expr_name = [](tree call_expr) -> const char* {
-              if (TREE_CODE(call_expr) != CALL_EXPR) return NULL;
-              // CALL_EXPR的第一个操作数是函数
-              tree fn = TREE_OPERAND(call_expr, 0);
-              if (!fn) return "<call-expr>";
-              
-              // 如果是函数声明
-              if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-                return IDENTIFIER_POINTER(DECL_NAME(fn));
-              }
-              // 如果是ADDR_EXPR，获取其操作数
-              if (TREE_CODE(fn) == ADDR_EXPR) {
-                tree decl = TREE_OPERAND(fn, 0);
-                if (decl && DECL_NAME(decl)) {
-                  return IDENTIFIER_POINTER(DECL_NAME(decl));
-                }
-              }
-              // 如果是INDIRECT_REF，可能是通过指针调用
-              if (TREE_CODE(fn) == INDIRECT_REF) {
-                return "<indirect-call>";
-              }
-              
-              return "<call-expr>";
-            };
-            
-            const char* source = NULL;
-            bool is_call = false;
-            
-            // 检查是否是函数调用
-            if (TREE_CODE(rhs) == CALL_EXPR) {
-              // 直接调用表达式
-              source = get_call_expr_name(rhs);
-              is_call = true;
-            } else if (gimple_code(stmt) == GIMPLE_CALL) {
-              // GIMPLE调用语句
-              source = get_call_name(stmt);
-              if (source) {
-                is_call = true;
-              }
-              } else {
-                // 检查是否是类型转换后的函数调用结果
-                // 例如 (TElem*)fMemoryManager->allocate(...) 可能是 NOP_EXPR 或 CONVERT_EXPR
-                tree inner_expr = rhs;
-                int conversion_depth = 0;
-                while (inner_expr && 
-                       (TREE_CODE(inner_expr) == NOP_EXPR || 
-                        TREE_CODE(inner_expr) == CONVERT_EXPR ||
-                        TREE_CODE(inner_expr) == VIEW_CONVERT_EXPR)) {
-                  inner_expr = TREE_OPERAND(inner_expr, 0);
-                  conversion_depth++;
-                }
-                
-                if (inner_expr && TREE_CODE(inner_expr) == CALL_EXPR) {
-                  source = get_call_expr_name(inner_expr);
-                  is_call = true;
-                } else if (inner_expr && TREE_CODE(inner_expr) == OBJ_TYPE_REF) {
-                  // OBJ_TYPE_REF用于C++成员函数调用
-                  // 第二个操作数是方法
-                  tree method = TREE_OPERAND(inner_expr, 1);
-                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
-                    source = IDENTIFIER_POINTER(DECL_NAME(method));
-                    is_call = true;
-                  } else {
-                    source = "<member-call>";
-                    is_call = true;
-                  }
-                } else if (TREE_CODE(rhs) == OBJ_TYPE_REF) {
-                  // 直接是OBJ_TYPE_REF（可能在转换之前）
-                  tree method = TREE_OPERAND(rhs, 1);
-                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
-                    source = IDENTIFIER_POINTER(DECL_NAME(method));
-                    is_call = true;
-                  } else {
-                    source = "<member-call>";
-                    is_call = true;
-                  }
-                } else {
-                  // 检查树代码155（可能是某种函数调用形式）
-                  // 在GCC中，树代码155可能是OBJ_TYPE_REF或其他形式
-                  // 尝试从stmt中获取更多信息
-                  if (TREE_CODE(rhs) == 155 || (inner_expr && TREE_CODE(inner_expr) == 155)) {
-                    // 可能是成员函数调用，尝试从GIMPLE语句中获取
-                    // 检查是否有相关的CALL语句
-                    source = "<possible-member-call>";
-                    is_call = true; // 假设是函数调用
-                  } else {
-                    // 其他类型的表达式
-                    source = expr_to_string(rhs);
-                    is_call = false;
-                  }
-                }
-              }
-            
-            if (source) {
-              CUTIE_DEBUG_PRINT("  Source: %s (is_call: %d) in function: %s", source, is_call ? 1 : 0, func_name);
-              // 调试：输出右值表达式的树代码
-              if (rhs) {
-                CUTIE_DEBUG_PRINT("    RHS tree code: %d", (int)TREE_CODE(rhs));
-              }
-              
-              // 记录总来源（用于兼容旧逻辑）
-              field_info->sources->safe_push(source);
-              field_info->source_count++;
-              
-              // 如果不是函数调用，记录为冲突赋值
-              if (!is_call) {
-                field_info->conflicting_assigns->safe_push(source);
-              }
-              
-              // 按函数分组记录赋值（使用函数声明作为唯一标识）
-              FunctionAssignment* func_assign = NULL;
-              // 查找是否已有该函数的赋值记录（使用函数声明比较）
-              for (unsigned int j = 0; j < field_info->function_assignments->length(); j++) {
-                FunctionAssignment* fa = (*field_info->function_assignments)[j];
-                if (fa && fa->function_decl == decl) {
-                  func_assign = fa;
-                  break;
-                }
-              }
-              
-              // 如果没有找到，创建新的函数赋值记录
-              if (!func_assign) {
-                func_assign = (FunctionAssignment*)ggc_alloc<FunctionAssignment>();
-                memset(func_assign, 0, sizeof(FunctionAssignment));
-                func_assign->function_name = func_name;
-                func_assign->function_decl = decl;
-                
-                // 生成唯一的函数ID（基于函数声明和第一个赋值的位置）
-                location_t first_loc = gimple_location(stmt);
-                char* func_id = (char*)ggc_alloc_atomic(512);
-                if (first_loc) {
-                  expanded_location xloc = expand_location(first_loc);
-                  if (xloc.file) {
-                    snprintf(func_id, 512, "%s@%p:%s:%d", func_name, (void*)decl, xloc.file, xloc.line);
-                  } else {
-                    snprintf(func_id, 512, "%s@%p", func_name, (void*)decl);
-                  }
-                } else {
-                  snprintf(func_id, 512, "%s@%p", func_name, (void*)decl);
-                }
-                func_assign->function_id = func_id;
-                
-                func_assign->assignment_count = 0;
-                func_assign->sources = new vec<const char*>();
-                func_assign->sources->create(0);
-                func_assign->assignment_details = new vec<AssignmentDetail*>();
-                func_assign->assignment_details->create(0);
-                field_info->function_assignments->safe_push(func_assign);
-              }
-              
-              // 创建详细的赋值信息
-              AssignmentDetail* detail = (AssignmentDetail*)ggc_alloc<AssignmentDetail>();
-              memset(detail, 0, sizeof(AssignmentDetail));
-              detail->source = source;
-              detail->is_call = is_call;
-              detail->tree_code = rhs ? (int)TREE_CODE(rhs) : 0;
-              
-              // 尝试获取源代码位置信息
-              location_t loc = gimple_location(stmt);
-              if (loc) {
-                expanded_location xloc = expand_location(loc);
-                if (xloc.file) {
-                  char* loc_str = (char*)ggc_alloc_atomic(256);
-                  snprintf(loc_str, 256, "%s:%d", xloc.file, xloc.line);
-                  detail->location_info = loc_str;
-                }
-              }
-              
-              // 生成右值表达式描述
-              char* rhs_desc = (char*)ggc_alloc_atomic(512);
-              if (rhs) {
-                if (TREE_CODE(rhs) == CALL_EXPR) {
-                  snprintf(rhs_desc, 512, "CALL_EXPR");
-                } else if (TREE_CODE(rhs) == INTEGER_CST) {
-                  snprintf(rhs_desc, 512, "INTEGER_CST(%lld)", (long long)tree_to_shwi(rhs));
-                } else if (TREE_CODE(rhs) == NOP_EXPR || TREE_CODE(rhs) == CONVERT_EXPR) {
-                  // 检查转换后的表达式
-                  tree inner = TREE_OPERAND(rhs, 0);
-                  if (inner && TREE_CODE(inner) == CALL_EXPR) {
-                    snprintf(rhs_desc, 512, "CONVERT_EXPR(CALL_EXPR)");
-                  } else if (inner && TREE_CODE(inner) == OBJ_TYPE_REF) {
-                    snprintf(rhs_desc, 512, "CONVERT_EXPR(OBJ_TYPE_REF)");
-                  } else {
-                    snprintf(rhs_desc, 512, "CONVERT_EXPR(TREE_CODE_%d)", inner ? (int)TREE_CODE(inner) : 0);
-                  }
-                } else if (TREE_CODE(rhs) == OBJ_TYPE_REF) {
-                  tree method = TREE_OPERAND(rhs, 1);
-                  if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
-                    snprintf(rhs_desc, 512, "OBJ_TYPE_REF(method: %s)", IDENTIFIER_POINTER(DECL_NAME(method)));
-                  } else {
-                    snprintf(rhs_desc, 512, "OBJ_TYPE_REF");
-                  }
-                } else {
-                  // 对于树代码155，尝试检查是否是某种函数调用形式
-                  // 检查操作数
-                  if (TREE_CODE(rhs) == 155) {
-                    // 尝试获取操作数信息
-                    if (TREE_OPERAND(rhs, 0)) {
-                      tree op0 = TREE_OPERAND(rhs, 0);
-                      if (TREE_CODE(op0) == OBJ_TYPE_REF) {
-                        tree method = TREE_OPERAND(op0, 1);
-                        if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
-                          snprintf(rhs_desc, 512, "TREE_CODE_155(OBJ_TYPE_REF, method: %s)", 
-                                  IDENTIFIER_POINTER(DECL_NAME(method)));
-                        } else {
-                          snprintf(rhs_desc, 512, "TREE_CODE_155(OBJ_TYPE_REF)");
-                        }
-                      } else {
-                        snprintf(rhs_desc, 512, "TREE_CODE_155(op0_code: %d)", (int)TREE_CODE(op0));
-                      }
-                    } else {
-                      snprintf(rhs_desc, 512, "TREE_CODE_155");
-                    }
-                  } else {
-                    snprintf(rhs_desc, 512, "TREE_CODE_%d", (int)TREE_CODE(rhs));
-                  }
-                }
-              } else {
-                snprintf(rhs_desc, 512, "NULL");
-              }
-              detail->rhs_description = rhs_desc;
-              
-              // 记录该函数中的赋值
-              func_assign->assignment_count++;
-              func_assign->sources->safe_push(source);
-              func_assign->assignment_details->safe_push(detail);
-              
-              // 如果该函数中有多个赋值，检查是否来源相同
-              if (func_assign->assignment_count > 1) {
-                // 检查该函数中的所有赋值来源是否相同
-                bool all_same_source = true;
-                const char* first_source = (*func_assign->sources)[0];
-                for (unsigned int k = 1; k < func_assign->sources->length(); k++) {
-                  if (strcmp((*func_assign->sources)[k], first_source) != 0) {
-                    all_same_source = false;
-                    break;
-                  }
-                }
-                
-                // 只有当赋值来源不同时，才记录为冲突
-                if (!all_same_source) {
-                  char conflict_msg[256];
-                  snprintf(conflict_msg, sizeof(conflict_msg), 
-                          "Multiple assignments with different sources in function %s (count: %d)", 
-                          func_name, func_assign->assignment_count);
-                  field_info->conflicting_assigns->safe_push(conflict_msg);
-                  CUTIE_DEBUG_PRINT("  WARNING: Multiple assignments with different sources in function %s", func_name);
-                }
-              }
-            }
-          }
+          analyze_gimple_assignment(ctx, stmt, detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {
@@ -1167,13 +1008,13 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
   CUTIE_DEBUG_PRINT("Tracing field assignments");
   
   // 第一步：收集所有类型和字段
-  CUTIE_TRY_RAW (collect_all_types_and_fields (ctx, detector), cleanup, 0, 1, "%s");
+  CUTIE_TRY (collect_all_types_and_fields (ctx, detector));
   
   // 第二步：分析字段赋值
-  CUTIE_TRY_RAW (analyze_field_assignments_in_functions (ctx, detector), cleanup, 0, 1, "%s");
+  CUTIE_TRY (analyze_field_assignments_in_functions (ctx, detector));
 
   // 第三步：分析使用情况，判断是否是数组候选
-  CUTIE_TRY_RAW (detector->analyze_usage (), cleanup, 0, 1, "%s");
+  CUTIE_TRY (detector->analyze_usage (ctx));
 
   ecode = cutie_ns::OK;
   RET;
@@ -1191,17 +1032,9 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ArrayDetector detector;
   
   // 执行分析
-  CutieErrorCode tmp_ecode = trace_field_assignments(ctx, &detector);
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    goto analysis_cleanup;
-  }
+  CUTIE_TRY_LABEL(trace_field_assignments(ctx, &detector), analysis_cleanup);
   
-  tmp_ecode = cutie_ns::print_results(ctx, &detector);
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    goto analysis_cleanup;
-  }
+  CUTIE_TRY_LABEL(cutie_ns::print_results(ctx, &detector), analysis_cleanup);
   
   analysis_cleanup:
   // 使用显式清理函数替代析构函数
@@ -1215,9 +1048,9 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
 
 namespace cutie_ns {
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_TRY_RAW (initWithStderr(ctx, nullptr), cleanup, 0, 0, "%s");
+  CUTIE_TRY (initWithStderr(ctx, nullptr));
   
-  CUTIE_TRY_RAW (array_detect_analysis (ctx), cleanup, 0, 1, "%s");
+  CUTIE_TRY (array_detect_analysis (ctx));
   
   ecode = ::cutie_ns::OK;
   cleanup:
