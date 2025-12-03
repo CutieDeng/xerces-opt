@@ -26,7 +26,7 @@
 #include <cstdint>
 
 #define CUTIE_FUNCTION_BEGIN \
-  { ::cutie_ns::CutieErrorCode ecode;
+  { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
 
 #define CUTIE_FUNCTION_RAW_END \
   return ecode; }
@@ -39,7 +39,7 @@
 
 #define CUTIE_DEBUG_PRINT_RAW(file, fmt_msg, ...) \
   do { \
-    fprintf(file, "[%s:%d] %s: ", __FILE__, __LINE__, __func__); \
+    fprintf(file, "[%s +%d] %s: ", __FILE__, __LINE__, __func__); \
     fprintf(file, fmt_msg, ##__VA_ARGS__); \
     fprintf(file, "\n"); \
   } while (0)
@@ -49,7 +49,7 @@
 
 #define CUTIE_TRY_RAW(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
   do { CutieErrorCode ecode1 = (rst); \
-    if (ecode1 != OK) { \
+    if (ecode1 != ::cutie_ns::OK) { \
       ecode = ecode1; \
       if (err_debug) { \
         CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
@@ -65,12 +65,12 @@
 #define CUTIE_TRY_RAW2(rst, unmatch_label, brk_label, succ_debug, unmatch_debug, err_debug, dbg_msg, ...) \
   do { \
     CutieErrorCode ecode1 = (rst); \
-    if (ecode1 == RECOVERABLE_ERROR) { \
+    if (ecode1 == ::cutie_ns::RECOVERABLE_ERROR) { \
       if (unmatch_debug) { \
         CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
       } \
       goto unmatch_label; \
-    } else if (ecode1 != OK) { \
+    } else if (ecode1 != ::cutie_ns::OK) { \
       ecode = ecode1; \
       if (err_debug) { \
         CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
@@ -82,6 +82,9 @@
       } \
     } \
   } while (0)
+
+#define CUTIE_FUNC_ARGS \
+  ::cutie_ns::CutieContext &ctx
 
 namespace cutie_ns {
 
@@ -109,7 +112,7 @@ static void closeWrap(FILE *f) {
 static void nothingWithFile(FILE *) {
 }
 
-CutieErrorCode initWithTmpFile(CutieContext &ctx) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
@@ -121,7 +124,7 @@ CutieErrorCode initWithTmpFile(CutieContext &ctx) CUTIE_FUNCTION_BEGIN {
   }
 } CUTIE_FUNCTION_END
 
-CutieErrorCode initWithNamedFile(CutieContext &ctx, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT_RAW (stderr, "set debug ostream -> %s\n", debug_file_path);
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
@@ -134,7 +137,7 @@ CutieErrorCode initWithNamedFile(CutieContext &ctx, char const *debug_file_path)
   }
 } CUTIE_FUNCTION_END
 
-CutieErrorCode initWithStderr(CutieContext &ctx, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
   (void)debug_file_path; // 避免未使用参数警告
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
@@ -147,7 +150,7 @@ CutieErrorCode initWithStderr(CutieContext &ctx, char const *debug_file_path) CU
   }
 } CUTIE_FUNCTION_END
 
-void deinit(CutieContext &ctx) {
+void deinit(CUTIE_FUNC_ARGS) {
   ctx.debug_file_dtor(ctx.debug_file);
 }
 
@@ -156,14 +159,13 @@ void deinit(CutieContext &ctx) {
 // 前向声明
 class ArrayDetector;
 
-// 使用cutie_ns命名空间中的类型
-typedef cutie_ns::CutieContext CutieContext;
-typedef cutie_ns::CutieErrorCode CutieErrorCode;
+namespace cutie_ns {
 
-// 前向声明函数（非命名空间内的函数）
-static CutieErrorCode array_detect_execute(CutieContext &ctx);
-static CutieErrorCode array_detect_analysis(CutieContext &ctx);
-static CutieErrorCode trace_field_assignments(CutieContext &ctx, ArrayDetector* detector);
+CutieErrorCode array_detect_execute(CUTIE_FUNC_ARGS);
+CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS);
+CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector);
+
+} // namespace cutie_ns
 
 // ----------------------------------------------------------------------------
 // 字段信息结构
@@ -206,6 +208,7 @@ struct FieldInfo {
 // ----------------------------------------------------------------------------
 
 class ArrayDetector {
+
 private:
   vec<FieldInfo*> m_fields; // 使用GCC框架的vec容器存储字段信息
 
@@ -218,7 +221,7 @@ public:
   // 注意：根据code-style.rktd规范，禁用RAII机制，所以这里不使用析构函数
   // 改为提供显式的清理函数
   
-  CutieErrorCode add_field(FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
+  ::cutie_ns::CutieErrorCode add_field(FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
     if (!field_info) {
       ecode = cutie_ns::OK;
       RET;
@@ -235,7 +238,7 @@ public:
     RET;
   } CUTIE_FUNCTION_END
   
-  CutieErrorCode analyze_usage() CUTIE_FUNCTION_BEGIN {
+  ::cutie_ns::CutieErrorCode analyze_usage() CUTIE_FUNCTION_BEGIN {
     // 分析使用情况，判断是否是数组候选
     for (unsigned int i = 0; i < m_fields.length(); i++) {
       FieldInfo* field = m_fields[i];
@@ -327,7 +330,7 @@ public:
     RET;
   } CUTIE_FUNCTION_END
   
-  CutieErrorCode cleanup() CUTIE_FUNCTION_BEGIN {
+  void cleanup() {
     // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
     for (unsigned int i = 0; i < m_fields.length(); i++) {
       FieldInfo* field = m_fields[i];
@@ -363,10 +366,7 @@ public:
       }
     }
     m_fields.release();
-    
-    ecode = cutie_ns::OK;
-    RET;
-  } CUTIE_FUNCTION_END
+  }
   
   size_t get_field_count() const {
     return m_fields.length();
@@ -386,7 +386,7 @@ public:
 
 namespace cutie_ns {
 
-static CutieErrorCode print_results(CutieContext &ctx, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+static CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Printing results");
   
   // 统计信息
@@ -632,7 +632,9 @@ static const char* expr_to_string(tree expr) {
 // ----------------------------------------------------------------------------
 
 // 辅助函数：处理一个类型，提取其字段
-static CutieErrorCode process_type_fields(CutieContext &ctx, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
+namespace cutie_ns {
+namespace {
+CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
   if (!type) {
     ecode = cutie_ns::OK;
     RET;
@@ -708,9 +710,13 @@ static CutieErrorCode process_type_fields(CutieContext &ctx, tree type, ArrayDet
   ecode = cutie_ns::OK;
   RET;
 } CUTIE_FUNCTION_END
+}
+} // namespace cutie_ns
 
 // 收集所有类型和字段
-static CutieErrorCode collect_all_types_and_fields(CutieContext &ctx, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+namespace cutie_ns {
+namespace {
+CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Collecting all types and fields");
   
   // 使用hash_set来避免重复处理同一类型
@@ -770,9 +776,13 @@ static CutieErrorCode collect_all_types_and_fields(CutieContext &ctx, ArrayDetec
   ecode = cutie_ns::OK;
   RET;
 } CUTIE_FUNCTION_END
+}
+} // namespace cutie_ns
 
 // 分析字段赋值
-static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+namespace cutie_ns {
+namespace {
+static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Analyzing field assignments in functions");
   
   // 遍历所有函数
@@ -1148,39 +1158,32 @@ static CutieErrorCode analyze_field_assignments_in_functions(CutieContext &ctx, 
   ecode = cutie_ns::OK;
   RET;
 } CUTIE_FUNCTION_END
+}
+} // namespace cutie_ns
 
-static CutieErrorCode trace_field_assignments(CutieContext &ctx, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+namespace cutie_ns {
+CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   // 追踪字段的赋值操作
   CUTIE_DEBUG_PRINT("Tracing field assignments");
   
   // 第一步：收集所有类型和字段
-  CutieErrorCode tmp_ecode = collect_all_types_and_fields(ctx, detector);
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    RET;
-  }
+  CUTIE_TRY_RAW (collect_all_types_and_fields (ctx, detector), cleanup, 0, 1, "%s");
   
   // 第二步：分析字段赋值
-  tmp_ecode = analyze_field_assignments_in_functions(ctx, detector);
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    RET;
-  }
-  
+  CUTIE_TRY_RAW (analyze_field_assignments_in_functions (ctx, detector), cleanup, 0, 1, "%s");
+
   // 第三步：分析使用情况，判断是否是数组候选
-  tmp_ecode = detector->analyze_usage();
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    RET;
-  }
-  
+  CUTIE_TRY_RAW (detector->analyze_usage (), cleanup, 0, 1, "%s");
+
   ecode = cutie_ns::OK;
   RET;
 } CUTIE_FUNCTION_END
+} // namespace cutie_ns
 
 // 已经在文件开头定义了这些类型别名
 
-static CutieErrorCode array_detect_analysis(CutieContext &ctx) CUTIE_FUNCTION_BEGIN {
+namespace cutie_ns {
+CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   // 重命名标签以避免与宏中的cleanup冲突
   CUTIE_DEBUG_PRINT("Starting array member detection analysis");
   
@@ -1208,26 +1211,19 @@ static CutieErrorCode array_detect_analysis(CutieContext &ctx) CUTIE_FUNCTION_BE
   ecode = cutie_ns::OK;
   RET;
 } CUTIE_FUNCTION_END
+} // namespace cutie_ns
 
-static CutieErrorCode array_detect_execute(CutieContext &ctx) CUTIE_FUNCTION_BEGIN {
-  // 使用不同的标签名来避免与宏中的cleanup冲突
-  CutieErrorCode tmp_ecode = cutie_ns::initWithStderr(ctx, "");
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    goto exec_cleanup;
-  }
+namespace cutie_ns {
+CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+  CUTIE_TRY_RAW (initWithStderr(ctx, nullptr), cleanup, 0, 0, "%s");
   
-  tmp_ecode = array_detect_analysis(ctx);
-  if (tmp_ecode != cutie_ns::OK) {
-    ecode = tmp_ecode;
-    goto exec_cleanup;
-  }
+  CUTIE_TRY_RAW (array_detect_analysis (ctx), cleanup, 0, 1, "%s");
   
-  exec_cleanup:
+  ecode = ::cutie_ns::OK;
+  cleanup:
   cutie_ns::deinit(ctx);
-  ecode = cutie_ns::OK;
-  RET;
-} CUTIE_FUNCTION_END
+} CUTIE_FUNCTION_RAW_END
+} // namespace cutie_ns
 
 // ----------------------------------------------------------------------------
 // Pass 注册结构
@@ -1266,8 +1262,7 @@ class pass_array_detect : public ipa_opt_pass_d {
 
   unsigned int execute(function*) override {
     // Regular IPA passes in WPA mode call execute() with NULL function
-    array_detect_execute(cutie_ns::g_cutie_ctx);
-    return 0; // IPA passes return 0 for success
+    return array_detect_execute (cutie_ns::g_cutie_ctx) != ::cutie_ns::OK;
   }
 };
 
