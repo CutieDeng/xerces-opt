@@ -22,7 +22,7 @@
   "-shared"
   "-o"
   ,output-so-path
-  "array-detect.cc"
+  "plugin-top.cc"
   "-I"
   ,plugin-path
   "-I"

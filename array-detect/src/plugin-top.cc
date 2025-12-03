@@ -25,106 +25,12 @@
 #include <cstring>
 #include <cstdint>
 
-#define CUTIE_FUNCTION_BEGIN \
-  { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
-
-#define CUTIE_FUNCTION_RAW_END \
-  return ecode; }
-
-#define CUTIE_FUNCTION_END \
-  cleanup:; CUTIE_FUNCTION_RAW_END
-
-#define RET \
-  do { goto cleanup; } while (0)
-
-#define CUTIE_DEBUG_PRINT_RAW(file, fmt_msg, ...) \
-  do { \
-    fprintf(file, "[%s +%d] %s: ", __FILE__, __LINE__, __func__); \
-    fprintf(file, fmt_msg, ##__VA_ARGS__); \
-    fprintf(file, "\n"); \
-  } while (0)
-
-#define CUTIE_DEBUG_PRINT(fmt_msg, ...) \
-  CUTIE_DEBUG_PRINT_RAW(ctx.debug_file, fmt_msg, ##__VA_ARGS__)
-
-#define CUTIE_TRY_RAW(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
-  do { CutieErrorCode ecode1 = (rst); \
-    if (ecode1 != ::cutie_ns::OK) { \
-      ecode = ecode1; \
-      if (err_debug) { \
-        CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
-      } \
-      goto brk_label; \
-    } else { \
-      if (succ_debug) { \
-        CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
-      } \
-    } \
-  } while (0)
-
-// 简化的重试宏，默认跳到 cleanup 标签，仅在失败时打印调试信息
-#define CUTIE_TRY(rst) \
-  CUTIE_TRY_RAW(rst, cleanup, false, true, "Failed: %s")
-
-// 带自定义错误消息的重试宏
-#define CUTIE_TRY_MSG(rst, msg, ...) \
-  CUTIE_TRY_RAW(rst, cleanup, false, true, msg, ##__VA_ARGS__)
-
-// 指定跳转标签的重试宏
-#define CUTIE_TRY_LABEL(rst, label) \
-  CUTIE_TRY_RAW(rst, label, false, true, "Failed: %s")
-
-#define CUTIE_TRY_RAW2(rst, unmatch_label, brk_label, succ_debug, unmatch_debug, err_debug, dbg_msg, ...) \
-  do { \
-    CutieErrorCode ecode1 = (rst); \
-    if (ecode1 == ::cutie_ns::RECOVERABLE_ERROR) { \
-      if (unmatch_debug) { \
-        CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
-      } \
-      goto unmatch_label; \
-    } else if (ecode1 != ::cutie_ns::OK) { \
-      ecode = ecode1; \
-      if (err_debug) { \
-        CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
-      } \
-      goto brk_label; \
-    } else { \
-      if (succ_debug) { \
-        CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
-      } \
-    } \
-  } while (0)
-
-#define CUTIE_FUNC_ARGS \
-  ::cutie_ns::CutieContext &ctx
-
-#define CUTIE_ARGS \
-  ctx
-
-namespace cutie_ns {
-
-enum CutieErrorCode : int64_t {
-#define CUTIE_ERROR_DEF(e, d) e,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
-};
-
-char const *ERROR_DESCRIPTION[] = {
-#define CUTIE_ERROR_DEF(e, d) d,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
-};
-
-struct CutieContext {
-  FILE *debug_file;
-  void (*debug_file_dtor)(FILE *);
-} g_cutie_ctx;
-
-} // namespace cutie_ns
-
-#include "context_init.cc"
-
+#include "prelude.hh"
+#include "state.hh"
+#include "context.hh"
+#include "context-init.hh"
 #include "array-detector.hh"
+#include "array-detector-op0.hh"
 
 // ----------------------------------------------------------------------------
 // 字段信息结构
@@ -132,14 +38,9 @@ struct CutieContext {
 #include "info.hh"
 
 // ----------------------------------------------------------------------------
-// 数组检测器类
-// ----------------------------------------------------------------------------
-#include "array-detector.cc"
-
-// ----------------------------------------------------------------------------
 // print_results 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
-#include "info-print.cc"
+#include "info-print.hh"
 
 // ----------------------------------------------------------------------------
 // 辅助函数
@@ -246,20 +147,20 @@ namespace {
 CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
   if (!type) {
     ecode = cutie_ns::OK;
-    RET;
+    CUTIE_RETURN;
   }
   
   // 只处理结构体/类类型
   if (TREE_CODE(type) != RECORD_TYPE && TREE_CODE(type) != UNION_TYPE) {
     ecode = cutie_ns::OK;
-    RET;
+    CUTIE_RETURN;
   }
   
   // 检查是否已处理过
   if (!processed_types->add(type)) {
     // 已处理过，跳过
     ecode = cutie_ns::OK;
-    RET;
+    CUTIE_RETURN;
   }
   
   const char* type_name = get_type_name(type);
@@ -286,7 +187,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     FieldInfo* field_info = (FieldInfo*)ggc_alloc<FieldInfo>();
     if (!field_info) {
       ecode = cutie_ns::MEMORY_ERROR;
-      RET;
+      CUTIE_RETURN;
     }
     // 初始化字段
     memset(field_info, 0, sizeof(FieldInfo));
@@ -321,11 +222,11 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
       field_info->function_assignments->release();
       delete field_info->function_assignments;
     }
-    RET;
+    CUTIE_RETURN;
   }
   
   ecode = cutie_ns::OK;
-  RET;
+  CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 }
 } // namespace cutie_ns
@@ -387,7 +288,7 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
   
   // hash_set使用GCC的垃圾回收，不需要显式释放
   ecode = cutie_ns::OK;
-  RET;
+  CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 }
 } // namespace cutie_ns
@@ -417,7 +318,7 @@ static const char* get_call_expr_name(tree call_expr) {
 
 static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, const char* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-    RET;
+    CUTIE_RETURN;
   }
 
   tree lhs = gimple_assign_lhs(stmt);
@@ -426,7 +327,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
   tree field_decl = NULL_TREE;
   tree object = NULL_TREE;
   if (!is_field_access(lhs, &field_decl, &object)) {
-    RET;
+    CUTIE_RETURN;
   }
 
   FieldInfo* field_info = NULL;
@@ -459,7 +360,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
         }
       }
     }
-    if (!field_info) RET;
+    if (!field_info) CUTIE_RETURN;
   }
 
   const char* source = "UNKNOWN";
@@ -552,7 +453,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
   field_info->sources->safe_push(source);
 
   ecode = cutie_ns::OK;
-  RET;
+  CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 
 static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
@@ -619,66 +520,12 @@ static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, Ar
   }
   
   ecode = cutie_ns::OK;
-  RET;
+  CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 }
 } // namespace cutie_ns
 
-namespace cutie_ns {
-CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
-  // 追踪字段的赋值操作
-  CUTIE_DEBUG_PRINT("Tracing field assignments");
-  
-  // 第一步：收集所有类型和字段
-  CUTIE_TRY (collect_all_types_and_fields (CUTIE_ARGS, detector));
-  
-  // 第二步：分析字段赋值
-  CUTIE_TRY (analyze_field_assignments_in_functions (CUTIE_ARGS, detector));
-
-  // 第三步：分析使用情况，判断是否是数组候选
-  CUTIE_TRY (detector->analyze_usage (CUTIE_ARGS));
-
-  ecode = cutie_ns::OK;
-  RET;
-} CUTIE_FUNCTION_END
-} // namespace cutie_ns
-
 // 已经在文件开头定义了这些类型别名
-
-namespace cutie_ns {
-CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  // 重命名标签以避免与宏中的cleanup冲突
-  CUTIE_DEBUG_PRINT("Starting array member detection analysis");
-  
-  // 创建数组检测器
-  ArrayDetector detector;
-  
-  // 执行分析
-  CUTIE_TRY_LABEL(trace_field_assignments(CUTIE_ARGS, &detector), analysis_cleanup);
-  
-  CUTIE_TRY_LABEL(cutie_ns::print_results(CUTIE_ARGS, &detector), analysis_cleanup);
-  
-  analysis_cleanup:
-  // 使用显式清理函数替代析构函数
-  detector.cleanup();
-  
-  CUTIE_DEBUG_PRINT("Array member detection analysis completed");
-  ecode = cutie_ns::OK;
-  RET;
-} CUTIE_FUNCTION_END
-} // namespace cutie_ns
-
-namespace cutie_ns {
-CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_TRY (initWithStderr(CUTIE_ARGS));
-  
-  CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
-  
-  ecode = ::cutie_ns::OK;
-  cleanup:
-  cutie_ns::deinit(CUTIE_ARGS);
-} CUTIE_FUNCTION_RAW_END
-} // namespace cutie_ns
 
 // ----------------------------------------------------------------------------
 // Pass 注册结构

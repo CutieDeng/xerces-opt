@@ -1,8 +1,14 @@
+#pragma once
+
+#include "prelude.hh"
+#include "context.hh"
+#include "state.hh"
+
 namespace array_detector {
 
 class ArrayDetector;
 
-}
+} // namespace array_detector
 
 namespace cutie_ns {
 

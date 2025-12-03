@@ -1,10 +1,12 @@
+#include "info-print.hh"
+
 // ----------------------------------------------------------------------------
 // print_results 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
 
 namespace cutie_ns {
 
-static CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Printing results");
   
   // 统计信息
