@@ -98,8 +98,8 @@
 #define CUTIE_FUNC_ARGS \
   ::cutie_ns::CutieContext &ctx
 
-// 便捷宏用于传递上下文参数
-#define CUTIE_CTX ctx
+#define CUTIE_ARGS \
+  ctx
 
 namespace cutie_ns {
 
@@ -156,13 +156,8 @@ CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTI
   (void)debug_file_path; // 避免未使用参数警告
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
-  if (ctx.debug_file == nullptr) {
-    ecode = RESOURCE_ERROR;
-    RET;
-  } else {
-    ecode = OK;
-    RET;
-  }
+  ecode = OK;
+  RET;
 } CUTIE_FUNCTION_END
 
 void deinit(CUTIE_FUNC_ARGS) {
@@ -227,6 +222,67 @@ class ArrayDetector {
 private:
   vec<FieldInfo*> m_fields; // 使用GCC框架的vec容器存储字段信息
 
+  bool check_all_src_values(FieldInfo* field, const char** out_unique_source) {
+    if (!field || !field->function_assignments) return false;
+
+    bool all_from_function_call = true;
+    const char* unique_source = NULL;
+    
+    for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
+      FunctionAssignment* fa = (*field->function_assignments)[j];
+      if (!fa) continue;
+      
+      // 检查该函数中的所有赋值来源
+      if (!fa->sources || fa->sources->length() == 0) {
+        all_from_function_call = false;
+        break;
+      }
+      
+      // 检查该函数中的所有赋值是否都来自函数调用，且来源相同
+      const char* func_unique_source = NULL;
+      for (unsigned int k = 0; k < fa->sources->length(); k++) {
+        const char* source = (*fa->sources)[k];
+        
+        // 检查是否是函数调用
+        bool is_call = (strcmp(source, "<call-expr>") == 0) ||
+                      (strstr(source, "allocate") != NULL) ||
+                      (strcmp(source, "<unknown-call>") != 0 && 
+                       strcmp(source, "<other-expr>") != 0 &&
+                       strcmp(source, "<null>") != 0);
+        
+        if (!is_call) {
+          all_from_function_call = false;
+          break;
+        }
+        
+        // 检查该函数中的所有赋值来源是否相同
+        if (func_unique_source == NULL) {
+          func_unique_source = source;
+        } else if (strcmp(func_unique_source, source) != 0) {
+          // 该函数中有不同的赋值来源，不是唯一来源
+          all_from_function_call = false;
+          break;
+        }
+      }
+      
+      if (!all_from_function_call) {
+        break;
+      }
+      
+      // 检查所有函数中的赋值来源是否相同（唯一来源）
+      if (unique_source == NULL) {
+        unique_source = func_unique_source;
+      } else if (strcmp(unique_source, func_unique_source) != 0) {
+        // 不同函数中的赋值来源不同，不是唯一来源
+        all_from_function_call = false;
+        break;
+      }
+    }
+
+    if (out_unique_source) *out_unique_source = unique_source;
+    return all_from_function_call;
+  }
+
 public:
   ArrayDetector() {
     // 初始化检测器
@@ -258,89 +314,53 @@ public:
     CUTIE_DEBUG_PRINT ("start analyze fields usage");
     // 分析使用情况，判断是否是数组候选
     for (unsigned int i = 0; i < m_fields.length(); i++) {
-      // TODO: add field type/name log, if not null
       FieldInfo* field = m_fields[i];
       // TODO: if null, warning this situation
-      if (!field) continue;
+      if (!field) {
+        CUTIE_DEBUG_PRINT("Warning: NULL field at index %u", i);
+        continue;
+      }
+
+      // TODO: add field type/name log, if not null
+      CUTIE_DEBUG_PRINT("Analyzing field: %s::%s", field->containing_type, field->field_name);
+
       // TODO: add log about non array candidate judge, with evidence: non pointer type
       if (!field->is_pointer) {
+        CUTIE_DEBUG_PRINT("  -> Not array candidate: Not a pointer type");
         field->is_array_candidate = false;
         continue;
       }
+
       // TODO: add log
       // 检查是否有冲突赋值（某个函数中有多个赋值）
       if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
+        CUTIE_DEBUG_PRINT("  -> Not array candidate: Conflicting assignments found");
         field->is_array_candidate = false;
         continue;
       }
+
       // TODO: add log
       // 基于函数级别的赋值信息判断
       if (!field->function_assignments || field->function_assignments->length() == 0) {
         // 没有赋值信息，不是数组候选
         // TODO: change the available set
         // no assignment doesn't mean no array candidate! (just ignored, can set as unrelated, but not yes or no)
+        CUTIE_DEBUG_PRINT("  -> Ignored: No assignment information available");
         field->is_array_candidate = false;
         continue;
       }
+
       // TODO: wrap in a new function to check the all src values
       // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
-      bool all_from_function_call = true;
       const char* unique_source = NULL;
-      for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
-        FunctionAssignment* fa = (*field->function_assignments)[j];
-        if (!fa) continue;
-        
-        // 检查该函数中的所有赋值来源
-        if (!fa->sources || fa->sources->length() == 0) {
-          all_from_function_call = false;
-          break;
-        }
-        
-        // 检查该函数中的所有赋值是否都来自函数调用，且来源相同
-        const char* func_unique_source = NULL;
-        for (unsigned int k = 0; k < fa->sources->length(); k++) {
-          const char* source = (*fa->sources)[k];
-          
-          // 检查是否是函数调用
-          bool is_call = (strcmp(source, "<call-expr>") == 0) ||
-                        (strstr(source, "allocate") != NULL) ||
-                        (strcmp(source, "<unknown-call>") != 0 && 
-                         strcmp(source, "<other-expr>") != 0 &&
-                         strcmp(source, "<null>") != 0);
-          
-          if (!is_call) {
-            all_from_function_call = false;
-            break;
-          }
-          
-          // 检查该函数中的所有赋值来源是否相同
-          if (func_unique_source == NULL) {
-            func_unique_source = source;
-          } else if (strcmp(func_unique_source, source) != 0) {
-            // 该函数中有不同的赋值来源，不是唯一来源
-            all_from_function_call = false;
-            break;
-          }
-        }
-        
-        if (!all_from_function_call) {
-          break;
-        }
-        
-        // 检查所有函数中的赋值来源是否相同（唯一来源）
-        if (unique_source == NULL) {
-          unique_source = func_unique_source;
-        } else if (strcmp(unique_source, func_unique_source) != 0) {
-          // 不同函数中的赋值来源不同，不是唯一来源
-          all_from_function_call = false;
-          break;
-        }
-      }
+      bool all_from_function_call = check_all_src_values(field, &unique_source);
       
       // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
       if (all_from_function_call && unique_source) {
+        CUTIE_DEBUG_PRINT("  -> Is array candidate: Unique source '%s'", unique_source);
         field->is_array_candidate = true;
       } else {
+        CUTIE_DEBUG_PRINT("  -> Not array candidate: Assignments not consistent or not from function calls");
         field->is_array_candidate = false;
       }
     }
@@ -755,7 +775,7 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
             
             tree containing_type = TYPE_MAIN_VARIANT(object_type);
             if (containing_type) {
-              CUTIE_TRY (process_type_fields(ctx, containing_type, detector, &processed_types));
+              CUTIE_TRY (process_type_fields(CUTIE_ARGS, containing_type, detector, &processed_types));
             }
           }
         }
@@ -825,7 +845,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
       if (containing_type) {
         hash_set<tree> temp_processed;
         temp_processed.create_ggc(0);
-        CutieErrorCode err = process_type_fields(ctx, containing_type, detector, &temp_processed);
+        CutieErrorCode err = process_type_fields(CUTIE_ARGS, containing_type, detector, &temp_processed);
         if (err == cutie_ns::OK) {
             for (size_t i = 0; i < detector->get_field_count(); i++) {
                FieldInfo* fi = detector->get_field(i);
@@ -985,7 +1005,7 @@ static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, Ar
         
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
-          analyze_gimple_assignment(ctx, stmt, detector, func_name, decl);
+          analyze_gimple_assignment(CUTIE_ARGS, stmt, detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {
@@ -1008,13 +1028,13 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
   CUTIE_DEBUG_PRINT("Tracing field assignments");
   
   // 第一步：收集所有类型和字段
-  CUTIE_TRY (collect_all_types_and_fields (ctx, detector));
+  CUTIE_TRY (collect_all_types_and_fields (CUTIE_ARGS, detector));
   
   // 第二步：分析字段赋值
-  CUTIE_TRY (analyze_field_assignments_in_functions (ctx, detector));
+  CUTIE_TRY (analyze_field_assignments_in_functions (CUTIE_ARGS, detector));
 
   // 第三步：分析使用情况，判断是否是数组候选
-  CUTIE_TRY (detector->analyze_usage (ctx));
+  CUTIE_TRY (detector->analyze_usage (CUTIE_ARGS));
 
   ecode = cutie_ns::OK;
   RET;
@@ -1032,9 +1052,9 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ArrayDetector detector;
   
   // 执行分析
-  CUTIE_TRY_LABEL(trace_field_assignments(ctx, &detector), analysis_cleanup);
+  CUTIE_TRY_LABEL(trace_field_assignments(CUTIE_ARGS, &detector), analysis_cleanup);
   
-  CUTIE_TRY_LABEL(cutie_ns::print_results(ctx, &detector), analysis_cleanup);
+  CUTIE_TRY_LABEL(cutie_ns::print_results(CUTIE_ARGS, &detector), analysis_cleanup);
   
   analysis_cleanup:
   // 使用显式清理函数替代析构函数
@@ -1048,13 +1068,13 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
 
 namespace cutie_ns {
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_TRY (initWithStderr(ctx, nullptr));
+  CUTIE_TRY (initWithStderr(CUTIE_ARGS, nullptr));
   
-  CUTIE_TRY (array_detect_analysis (ctx));
+  CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
   
   ecode = ::cutie_ns::OK;
   cleanup:
-  cutie_ns::deinit(ctx);
+  cutie_ns::deinit(CUTIE_ARGS);
 } CUTIE_FUNCTION_RAW_END
 } // namespace cutie_ns
 
