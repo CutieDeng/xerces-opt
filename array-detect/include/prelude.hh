@@ -12,6 +12,9 @@
 #define CUTIE_RETURN \
   do { goto cleanup; } while (0)
 
+#define CUTIE_RETURNV(x) \
+  do { ecode = ::cutie_ns::x; goto cleanup; } while (0)
+
 #define CUTIE_DEBUG_PRINT2(file, fmt_msg, ...) \
   do { \
     fprintf(file, "[%s +%d] %s: ", __FILE__, __LINE__, __func__); \

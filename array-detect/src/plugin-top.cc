@@ -181,7 +181,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
         field_info->function_assignments = new vec<FunctionAssignment*>();
         field_info->function_assignments->create(0);
     
-    CUTIE_TRY_LABEL(detector->add_field(field_info), field_init_error);
+    CUTIE_TRY_LABEL(add_field(*detector, CUTIE_ARGS, field_info), field_init_error);
     continue;
 
     field_init_error:
@@ -200,15 +200,13 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     CUTIE_RETURN;
   }
   
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 }
 } // namespace cutie_ns
 
 // 收集所有类型和字段
 namespace cutie_ns {
-namespace {
 CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Collecting all types and fields");
   
@@ -265,13 +263,13 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
   ecode = cutie_ns::OK;
   CUTIE_RETURN;
 } CUTIE_FUNCTION_END
-}
 } // namespace cutie_ns
 
 // 分析字段赋值
 namespace cutie_ns {
+
 namespace {
-static const char* get_call_expr_name(tree call_expr) {
+const char* get_call_expr_name(tree call_expr) {
   if (TREE_CODE(call_expr) != CALL_EXPR) return NULL;
   tree fn = TREE_OPERAND(call_expr, 0);
   if (!fn) return "<call-expr>";
@@ -290,8 +288,10 @@ static const char* get_call_expr_name(tree call_expr) {
   }
   return "<call-expr>";
 }
+}
 
-static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, const char* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
+namespace {
+CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, const char* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
     CUTIE_RETURN;
   }
@@ -306,8 +306,8 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
   }
 
   FieldInfo* field_info = NULL;
-  for (size_t i = 0; i < detector->get_field_count(); i++) {
-    FieldInfo* fi = detector->get_field(i);
+  for (size_t i = 0; i < get_field_count(*detector); i++) {
+    FieldInfo* fi = get_field(*detector, i);
     if (fi && fi->field_decl == field_decl) {
       field_info = fi;
       break;
@@ -325,8 +325,8 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
         temp_processed.create_ggc(0);
         CutieErrorCode err = process_type_fields(CUTIE_ARGS, containing_type, detector, &temp_processed);
         if (err == cutie_ns::OK) {
-            for (size_t i = 0; i < detector->get_field_count(); i++) {
-               FieldInfo* fi = detector->get_field(i);
+            for (size_t i = 0; i < get_field_count(*detector); i++) {
+               FieldInfo* fi = get_field(*detector, i);
                if (fi && fi->field_decl == field_decl) {
                  field_info = fi;
                  break;
@@ -430,6 +430,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
   ecode = cutie_ns::OK;
   CUTIE_RETURN;
 } CUTIE_FUNCTION_END
+}
 
 CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Analyzing field assignments in functions");
@@ -497,7 +498,6 @@ CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDete
   ecode = cutie_ns::OK;
   CUTIE_RETURN;
 } CUTIE_FUNCTION_END
-}
 } // namespace cutie_ns
 
 // 已经在文件开头定义了这些类型别名

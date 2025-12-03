@@ -10,12 +10,12 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   CUTIE_DEBUG_PRINT("Printing results");
   
   // 统计信息
-  size_t total_fields = detector->get_field_count();
+  size_t total_fields = get_field_count(*detector);
   CUTIE_DEBUG_PRINT("Total fields in detector: %zu", total_fields);
   
   if (total_fields == 0) {
     ecode = OK;
-    RET;
+    CUTIE_RETURN;
   }
   
   // 打开输出文件（写入模式，每次覆盖，因为每个编译单元独立分析）
@@ -23,7 +23,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   if (!output_file) {
     CUTIE_DEBUG_PRINT("Failed to open output file");
     ecode = RESOURCE_ERROR;
-    RET;
+    CUTIE_RETURN;
   }
   
   fprintf(output_file, "=== Array Detection Results ===\n\n");
@@ -32,7 +32,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   
   // 遍历所有字段，输出分析结果
   for (size_t i = 0; i < total_fields; i++) {
-    FieldInfo* field = detector->get_field(i);
+    FieldInfo* field = get_field(*detector, i);
     if (!field) continue;
     
     fprintf(output_file, "Type: %s, Field: %s\n", field->containing_type, field->field_name);
@@ -135,7 +135,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   // 按类型分组输出
   fprintf(output_file, "\n--- Results by Type ---\n");
   for (size_t i = 0; i < total_fields; i++) {
-    FieldInfo* field = detector->get_field(i);
+    FieldInfo* field = get_field(*detector, i);
     if (!field) continue;
     
     fprintf(output_file, "\nType: %s\n", field->containing_type);
@@ -147,7 +147,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   
   fclose(output_file);
   ecode = OK;
-  RET;
+  CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 
 } // namespace cutie_ns

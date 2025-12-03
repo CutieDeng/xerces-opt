@@ -33,6 +33,7 @@
     (build-path s "context-init.cc") (list (build-path i "prelude.hh") (build-path i "state.hh") (build-path i "context.hh"))
     (build-path s "info-print.cc") (list (build-path i "info-print.hh"))
     (build-path s "plugin-top.cc") (list (build-path i "prelude.hh") (build-path i "state.hh") (build-path i "context.hh") (build-path i "context-init.hh") (build-path i "array-detector.hh") (build-path i "array-detector-op0.hh") (build-path i "gcc-common.hh"))
+    (build-path s "state.cc") (list (build-path i "state.hh"))
   )))
 
 (define (find-rel x) (find-relative-path (current-directory) x))

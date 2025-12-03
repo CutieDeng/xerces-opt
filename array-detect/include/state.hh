@@ -10,10 +10,6 @@ enum CutieErrorCode : int64_t {
 #undef CUTIE_ERROR_DEF
 };
 
-char const *ERROR_DESCRIPTION[] = {
-#define CUTIE_ERROR_DEF(e, d) d,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
-};
+extern char const *ERROR_DESCRIPTION[];
 
 } // namespace cutie_ns
