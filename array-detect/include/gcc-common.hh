@@ -2,7 +2,6 @@
 
 // GCC Headers
 #include "gcc-plugin.h"
-#include "plugin-version.h"
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"

@@ -6,6 +6,7 @@ namespace array_detector {
 
 bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
   (void)self; // Unused parameter
+  CUTIE_ARGS_WARN_DENY;
   if (!field || !field->function_assignments) return false;
 
   bool all_from_function_call = true;

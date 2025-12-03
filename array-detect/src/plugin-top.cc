@@ -1,4 +1,5 @@
 #include "gcc-common.hh"
+#include "plugin-version.h"
 
 #include "prelude.hh"
 #include "state.hh"
@@ -40,12 +41,16 @@ static const char* get_type_name(tree type) {
 }
 
 // 获取字段名称
-static const char* get_field_name(tree field) {
-  if (!field) return "<unknown>";
+namespace {
+char const *gcc_field_desc(tree field) {
+  if (!field) {
+    return "<null>";
+  }
   if (DECL_NAME(field)) {
     return IDENTIFIER_POINTER(DECL_NAME(field));
   }
   return "<unnamed>";
+}
 }
 
 // 检查类型是否是指针类型
@@ -66,51 +71,11 @@ static bool is_field_access(tree expr, tree* field_decl_out, tree* object_out) {
   return false;
 }
 
-// 获取函数调用名称
-static const char* get_call_name(gimple* stmt) {
-  if (!stmt || gimple_code(stmt) != GIMPLE_CALL) {
-    return NULL;
-  }
-  
-  tree fndecl = gimple_call_fndecl(stmt);
-  if (fndecl && DECL_NAME(fndecl)) {
-    return IDENTIFIER_POINTER(DECL_NAME(fndecl));
-  }
-  
-  // 如果是间接调用，尝试获取函数指针的名称
-  tree fn = gimple_call_fn(stmt);
-  if (fn && TREE_CODE(fn) == ADDR_EXPR) {
-    tree decl = TREE_OPERAND(fn, 0);
-    if (decl && DECL_NAME(decl)) {
-      return IDENTIFIER_POINTER(DECL_NAME(decl));
-    }
-  }
-  
-  return "<unknown-call>";
-}
-
 // 检查是否是函数调用表达式（未使用，但保留以备将来使用）
 // static bool is_function_call(tree expr) {
 //   if (!expr) return false;
 //   return TREE_CODE(expr) == CALL_EXPR;
 // }
-
-// 获取表达式的字符串表示（简化版）
-static const char* expr_to_string(tree expr) {
-  if (!expr) return "<null>";
-  
-  if (TREE_CODE(expr) == CALL_EXPR) {
-    return "<call-expr>";
-  } else if (TREE_CODE(expr) == ADDR_EXPR) {
-    return "<addr-expr>";
-  } else if (TREE_CODE(expr) == VAR_DECL && DECL_NAME(expr)) {
-    return IDENTIFIER_POINTER(DECL_NAME(expr));
-  } else if (TREE_CODE(expr) == COMPONENT_REF) {
-    return "<component-ref>";
-  }
-  
-  return "<other-expr>";
-}
 
 // ----------------------------------------------------------------------------
 // 业务逻辑函数
@@ -146,7 +111,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
   for (field = TYPE_FIELDS(type); field; field = DECL_CHAIN(field)) {
     if (TREE_CODE(field) != FIELD_DECL) continue;
     
-    const char* field_name = get_field_name(field);
+    const char* field_name = gcc_field_desc(field);
     
     // 跳过虚函数表指针
     if (strstr(field_name, "_vptr") != NULL) {
