@@ -1,6 +1,10 @@
 #include "prelude.hh"
 #include "state.hh"
 #include "array-detector-op0.hh"
+#include "array-detector.hh"
+#include "info-print.hh"
+#include "context-init.hh"
+
 
 namespace cutie_ns {
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
@@ -18,7 +22,7 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Starting array member detection analysis");
   
   // 创建数组检测器
-  ArrayDetector detector;
+  array_detector::ArrayDetector detector;
   
   // 执行分析
   CUTIE_TRY_LABEL(trace_field_assignments(CUTIE_ARGS, &detector), analysis_cleanup);
@@ -27,7 +31,7 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   
   analysis_cleanup:
   // 使用显式清理函数替代析构函数
-  detector.cleanup();
+  deinit(detector);
   
   CUTIE_DEBUG_PRINT("Array member detection analysis completed");
   ecode = cutie_ns::OK;
@@ -45,7 +49,7 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
   CUTIE_TRY (analyze_field_assignments_in_functions (CUTIE_ARGS, detector));
 
   // 第三步：分析使用情况，判断是否是数组候选
-  CUTIE_TRY (detector->analyze_usage (CUTIE_ARGS));
+  CUTIE_TRY (analyze_usage (*detector, CUTIE_ARGS));
 
   ecode = cutie_ns::OK;
   CUTIE_RETURN;

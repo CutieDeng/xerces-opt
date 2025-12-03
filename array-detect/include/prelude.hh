@@ -23,7 +23,7 @@
   CUTIE_DEBUG_PRINT2(ctx.debug_file, fmt_msg, ##__VA_ARGS__)
 
 #define CUTIE_TRY2(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
-  do { CutieErrorCode ecode1 = (rst); \
+  do { ::cutie_ns::CutieErrorCode ecode1 = (rst); \
     if (ecode1 != ::cutie_ns::OK) { \
       ecode = ecode1; \
       if (err_debug) { \
@@ -38,7 +38,7 @@
   } while (0)
 
 #define CUTIE_ETRY2(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
-  do { CutieErrorCode ecode1 = (rst); \
+  do { ::cutie_ns::CutieErrorCode ecode1 = (rst); \
     if (ecode1 != ::cutie_ns::OK) { \
       ecode = ecode1; \
       if (err_debug) { \
@@ -63,7 +63,7 @@
 
 #define CUTIE_RTRY2(rst, unmatch_label, brk_label, succ_debug, unmatch_debug, err_debug, dbg_msg, ...) \
   do { \
-    CutieErrorCode ecode1 = (rst); \
+    ::cutie_ns::CutieErrorCode ecode1 = (rst); \
     if (ecode1 == ::cutie_ns::RECOVERABLE_ERROR) { \
       if (unmatch_debug) { \
         CUTIE_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \

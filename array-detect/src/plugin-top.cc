@@ -1,29 +1,4 @@
-#include "gcc-plugin.h"
-#include "plugin-version.h"
-#include "config.h"
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "tree-pass.h"
-#include "cgraph.h"
-#include "plugin.h"
-#include "diagnostic.h"
-#include "langhooks.h"
-#include "context.h"
-#include "gimple.h"
-#include "stringpool.h"
-#include "vec.h"
-#include "hash-map.h"
-#include "tree-iterator.h"
-#include "gimple-iterator.h"
-#include "gimple-walk.h"
-#include "tree-ssa.h"
-#include "print-tree.h"
-
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cstdint>
+#include "gcc-common.hh"
 
 #include "prelude.hh"
 #include "state.hh"
@@ -456,7 +431,7 @@ static CutieErrorCode analyze_gimple_assignment(CUTIE_FUNC_ARGS, gimple* stmt, A
   CUTIE_RETURN;
 } CUTIE_FUNCTION_END
 
-static CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Analyzing field assignments in functions");
   
   // 遍历所有函数

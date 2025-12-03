@@ -4,7 +4,8 @@
 
 namespace array_detector {
 
-::cutie_ns::CutieErrorCode check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
+bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
+  (void)self; // Unused parameter
   if (!field || !field->function_assignments) return false;
 
   bool all_from_function_call = true;
@@ -109,7 +110,7 @@ namespace array_detector {
     // TODO: wrap in a new function to check the all src values
     // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
     const char* unique_source = NULL;
-    bool all_from_function_call = check_all_src_values (*this, CUTIE_ARGS, field, &unique_source);
+    bool all_from_function_call = check_all_src_values (self, CUTIE_ARGS, field, &unique_source);
     
     // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
     if (all_from_function_call && unique_source) {
@@ -132,6 +133,7 @@ void deinit(ArrayDetector &self) {
 }
 
 ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
+  (void)ctx;
   if (!field_info) {
     ecode = cutie_ns::OK;
     CUTIE_RETURN;
@@ -153,7 +155,7 @@ size_t get_field_count(ArrayDetector const &self) {
 }
 
 FieldInfo* get_field(ArrayDetector const &self, size_t index) {
-  if (index < m_fields.length()) {
+  if (index < self.m_fields.length()) {
     return self.m_fields[index];
   }
   return nullptr;

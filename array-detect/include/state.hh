@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 namespace cutie_ns {
 
 enum CutieErrorCode : int64_t {
