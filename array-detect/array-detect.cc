@@ -120,430 +120,32 @@ struct CutieContext {
   void (*debug_file_dtor)(FILE *);
 } g_cutie_ctx;
 
-static void closeWrap(FILE *f) {
-  (void) fclose(f);
-}
-
-static void nothingWithFile(FILE *) {
-}
-
-CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  ctx.debug_file = fopen("/tmp/array-detect.log", "w");
-  ctx.debug_file_dtor = closeWrap;
-  if (ctx.debug_file == nullptr) {
-    ecode = RESOURCE_ERROR;
-    RET;
-  } else {
-    ecode = OK;
-    RET;
-  }
-} CUTIE_FUNCTION_END
-
-CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
-  CUTIE_DEBUG_PRINT_RAW (stderr, "set debug ostream -> %s\n", debug_file_path);
-  ctx.debug_file = fopen(debug_file_path, "w");
-  ctx.debug_file_dtor = closeWrap;
-  if (ctx.debug_file == nullptr) {
-    ecode = RESOURCE_ERROR;
-    RET;
-  } else {
-    ecode = OK;
-    RET;
-  }
-} CUTIE_FUNCTION_END
-
-CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
-  (void)debug_file_path; // 避免未使用参数警告
-  ctx.debug_file = stderr;
-  ctx.debug_file_dtor = nothingWithFile;
-  ecode = OK;
-  RET;
-} CUTIE_FUNCTION_END
-
-void deinit(CUTIE_FUNC_ARGS) {
-  ctx.debug_file_dtor(ctx.debug_file);
-}
-
 } // namespace cutie_ns
 
-// 前向声明
-class ArrayDetector;
+#include "context_init.cc"
 
-namespace cutie_ns {
-
-CutieErrorCode array_detect_execute(CUTIE_FUNC_ARGS);
-CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS);
-CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector);
-
-} // namespace cutie_ns
+#include "array-detector.hh"
 
 // ----------------------------------------------------------------------------
 // 字段信息结构
 // ----------------------------------------------------------------------------
-
-// 单个赋值操作的详细信息
-struct AssignmentDetail {
-  const char* source;              // 赋值来源
-  bool is_call;                    // 是否是函数调用
-  int tree_code;                   // 右值表达式的树代码
-  const char* location_info;       // 位置信息（文件名:行号，如果可用）
-  const char* rhs_description;     // 右值表达式描述
-};
-
-// 函数级别的赋值信息
-struct FunctionAssignment {
-  const char* function_name;      // 函数名称（用于显示）
-  tree function_decl;              // 函数声明（唯一标识）
-  const char* function_id;        // 函数唯一标识字符串（基于decl和位置）
-  int assignment_count;            // 该函数中该字段的赋值次数
-  vec<const char*>* sources;       // 该函数中的赋值来源（简化版）
-  vec<AssignmentDetail*>* assignment_details; // 详细的赋值信息
-};
-
-struct FieldInfo {
-  const char* field_name;         // 字段名称
-  const char* containing_type;    // 包含该字段的类型名称
-  tree field_decl;                // 字段声明（用于匹配）
-  tree containing_type_tree;     // 包含该字段的类型树
-  bool is_pointer;                // 是否是指针类型
-  bool is_array_candidate;        // 是否是数组候选
-  int source_count;               // 总来源数量（所有函数）
-  vec<const char*>* sources;       // 所有赋值来源（函数调用等）
-  vec<const char*>* conflicting_assigns; // 冲突的赋值操作
-  vec<FunctionAssignment*>* function_assignments; // 按函数分组的赋值信息
-};
+#include "info.hh"
 
 // ----------------------------------------------------------------------------
 // 数组检测器类
 // ----------------------------------------------------------------------------
-
-class ArrayDetector {
-
-private:
-  vec<FieldInfo*> m_fields; // 使用GCC框架的vec容器存储字段信息
-
-  bool check_all_src_values(FieldInfo* field, const char** out_unique_source) {
-    if (!field || !field->function_assignments) return false;
-
-    bool all_from_function_call = true;
-    const char* unique_source = NULL;
-    
-    for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
-      FunctionAssignment* fa = (*field->function_assignments)[j];
-      if (!fa) continue;
-      
-      // 检查该函数中的所有赋值来源
-      if (!fa->sources || fa->sources->length() == 0) {
-        all_from_function_call = false;
-        break;
-      }
-      
-      // 检查该函数中的所有赋值是否都来自函数调用，且来源相同
-      const char* func_unique_source = NULL;
-      for (unsigned int k = 0; k < fa->sources->length(); k++) {
-        const char* source = (*fa->sources)[k];
-        
-        // 检查是否是函数调用
-        bool is_call = (strcmp(source, "<call-expr>") == 0) ||
-                      (strstr(source, "allocate") != NULL) ||
-                      (strcmp(source, "<unknown-call>") != 0 && 
-                       strcmp(source, "<other-expr>") != 0 &&
-                       strcmp(source, "<null>") != 0);
-        
-        if (!is_call) {
-          all_from_function_call = false;
-          break;
-        }
-        
-        // 检查该函数中的所有赋值来源是否相同
-        if (func_unique_source == NULL) {
-          func_unique_source = source;
-        } else if (strcmp(func_unique_source, source) != 0) {
-          // 该函数中有不同的赋值来源，不是唯一来源
-          all_from_function_call = false;
-          break;
-        }
-      }
-      
-      if (!all_from_function_call) {
-        break;
-      }
-      
-      // 检查所有函数中的赋值来源是否相同（唯一来源）
-      if (unique_source == NULL) {
-        unique_source = func_unique_source;
-      } else if (strcmp(unique_source, func_unique_source) != 0) {
-        // 不同函数中的赋值来源不同，不是唯一来源
-        all_from_function_call = false;
-        break;
-      }
-    }
-
-    if (out_unique_source) *out_unique_source = unique_source;
-    return all_from_function_call;
-  }
-
-public:
-  ArrayDetector() {
-    // 初始化检测器
-    m_fields.create(0); // 提供初始大小参数
-  }
-  
-  // 注意：根据code-style.rktd规范，禁用RAII机制，所以这里不使用析构函数
-  // 改为提供显式的清理函数
-  
-  ::cutie_ns::CutieErrorCode add_field(FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
-    if (!field_info) {
-      ecode = cutie_ns::OK;
-      RET;
-    }
-    
-    // 添加字段信息
-    m_fields.safe_push(field_info);
-    // 调试信息：输出字段添加情况
-    fprintf(stderr, "[ArrayDetector] Added field: %s::%s (total: %u)\n", 
-            field_info->containing_type, field_info->field_name, 
-            (unsigned)m_fields.length());
-    
-    ecode = cutie_ns::OK;
-    RET;
-  } CUTIE_FUNCTION_END
-  
-  ::cutie_ns::CutieErrorCode analyze_usage(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-    (void )ctx;
-    CUTIE_DEBUG_PRINT ("start analyze fields usage");
-    // 分析使用情况，判断是否是数组候选
-    for (unsigned int i = 0; i < m_fields.length(); i++) {
-      FieldInfo* field = m_fields[i];
-      // TODO: if null, warning this situation
-      if (!field) {
-        CUTIE_DEBUG_PRINT("Warning: NULL field at index %u", i);
-        continue;
-      }
-
-      // TODO: add field type/name log, if not null
-      CUTIE_DEBUG_PRINT("Analyzing field: %s::%s", field->containing_type, field->field_name);
-
-      // TODO: add log about non array candidate judge, with evidence: non pointer type
-      if (!field->is_pointer) {
-        CUTIE_DEBUG_PRINT("  -> Not array candidate: Not a pointer type");
-        field->is_array_candidate = false;
-        continue;
-      }
-
-      // TODO: add log
-      // 检查是否有冲突赋值（某个函数中有多个赋值）
-      if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
-        CUTIE_DEBUG_PRINT("  -> Not array candidate: Conflicting assignments found");
-        field->is_array_candidate = false;
-        continue;
-      }
-
-      // TODO: add log
-      // 基于函数级别的赋值信息判断
-      if (!field->function_assignments || field->function_assignments->length() == 0) {
-        // 没有赋值信息，不是数组候选
-        // TODO: change the available set
-        // no assignment doesn't mean no array candidate! (just ignored, can set as unrelated, but not yes or no)
-        CUTIE_DEBUG_PRINT("  -> Ignored: No assignment information available");
-        field->is_array_candidate = false;
-        continue;
-      }
-
-      // TODO: wrap in a new function to check the all src values
-      // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
-      const char* unique_source = NULL;
-      bool all_from_function_call = check_all_src_values(field, &unique_source);
-      
-      // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
-      if (all_from_function_call && unique_source) {
-        CUTIE_DEBUG_PRINT("  -> Is array candidate: Unique source '%s'", unique_source);
-        field->is_array_candidate = true;
-      } else {
-        CUTIE_DEBUG_PRINT("  -> Not array candidate: Assignments not consistent or not from function calls");
-        field->is_array_candidate = false;
-      }
-    }
-    
-    ecode = cutie_ns::OK;
-    RET;
-  } CUTIE_FUNCTION_END
-  
-  void cleanup() {
-    // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
-    // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
-    m_fields.release();
-  }
-  
-  size_t get_field_count() const {
-    return m_fields.length();
-  }
-  
-  FieldInfo* get_field(size_t index) const {
-    if (index < m_fields.length()) {
-      return m_fields[index];
-    }
-    return NULL;
-  }
-};
+#include "array-detector.cc"
 
 // ----------------------------------------------------------------------------
 // print_results 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
-
-namespace cutie_ns {
-
-static CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
-  CUTIE_DEBUG_PRINT("Printing results");
-  
-  // 统计信息
-  size_t total_fields = detector->get_field_count();
-  CUTIE_DEBUG_PRINT("Total fields in detector: %zu", total_fields);
-  
-  if (total_fields == 0) {
-    ecode = OK;
-    RET;
-  }
-  
-  // 打开输出文件（写入模式，每次覆盖，因为每个编译单元独立分析）
-  FILE* output_file = fopen("array-detect-results.txt", "w");
-  if (!output_file) {
-    CUTIE_DEBUG_PRINT("Failed to open output file");
-    ecode = RESOURCE_ERROR;
-    RET;
-  }
-  
-  fprintf(output_file, "=== Array Detection Results ===\n\n");
-  
-  size_t array_candidates = 0;
-  
-  // 遍历所有字段，输出分析结果
-  for (size_t i = 0; i < total_fields; i++) {
-    FieldInfo* field = detector->get_field(i);
-    if (!field) continue;
-    
-    fprintf(output_file, "Type: %s, Field: %s\n", field->containing_type, field->field_name);
-    fprintf(output_file, "  - Is pointer: %s\n", field->is_pointer ? "yes" : "no");
-    
-    if (field->is_pointer) {
-      fprintf(output_file, "  - Array candidate: %s\n", field->is_array_candidate ? "yes" : "no");
-      fprintf(output_file, "  - Total assignment count: %d\n", field->source_count);
-      
-      // 显示函数级别的赋值信息
-      if (field->function_assignments && field->function_assignments->length() > 0) {
-        fprintf(output_file, "  - Assignments by function:\n");
-        for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
-          FunctionAssignment* fa = (*field->function_assignments)[j];
-          if (!fa) continue;
-          fprintf(output_file, "    Function: %s", fa->function_name);
-          if (fa->function_id && strstr(fa->function_id, "@")) {
-            // 显示函数ID以区分同名函数
-            fprintf(output_file, " (ID: %s)", fa->function_id);
-          }
-          fprintf(output_file, "\n");
-          fprintf(output_file, "      Assignment count: %d\n", fa->assignment_count);
-          
-          // 显示详细的赋值信息
-          if (fa->assignment_details && fa->assignment_details->length() > 0) {
-            fprintf(output_file, "      Detailed assignments:\n");
-            for (unsigned int k = 0; k < fa->assignment_details->length(); k++) {
-              AssignmentDetail* detail = (*fa->assignment_details)[k];
-              if (!detail) continue;
-              fprintf(output_file, "        Assignment #%d:\n", k + 1);
-              fprintf(output_file, "          Source: %s\n", detail->source);
-              fprintf(output_file, "          Is function call: %s\n", detail->is_call ? "yes" : "no");
-              fprintf(output_file, "          RHS tree code: %d\n", detail->tree_code);
-              if (detail->location_info) {
-                fprintf(output_file, "          Location: %s\n", detail->location_info);
-              }
-              if (detail->rhs_description) {
-                fprintf(output_file, "          RHS description: %s\n", detail->rhs_description);
-              }
-            }
-          } else if (fa->sources && fa->sources->length() > 0) {
-            // 回退到简化版显示
-            fprintf(output_file, "      Sources:\n");
-            for (unsigned int k = 0; k < fa->sources->length(); k++) {
-              fprintf(output_file, "        - %s\n", (*fa->sources)[k]);
-            }
-          }
-        }
-      }
-      
-      if (field->is_array_candidate) {
-        array_candidates++;
-        fprintf(output_file, "  - DETECTED: This is likely an owned array member!\n");
-        fprintf(output_file, "  - Reason: All functions have single assignment from function call\n");
-      } else {
-        // 说明为什么不是数组候选
-        if (field->source_count == 0) {
-          fprintf(output_file, "  - Reason: No assignment sources found\n");
-        } else if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
-          fprintf(output_file, "  - Reason: Conflicting assignments detected\n");
-          for (unsigned int j = 0; j < field->conflicting_assigns->length(); j++) {
-            fprintf(output_file, "    - %s\n", (*field->conflicting_assigns)[j]);
-          }
-        } else {
-          // 检查是否是多个函数中的赋值来源不同
-          bool has_multiple_functions = (field->function_assignments && 
-                                        field->function_assignments->length() > 1);
-          bool has_multiple_assignments_in_function = false;
-          if (field->function_assignments) {
-            for (unsigned int j = 0; j < field->function_assignments->length(); j++) {
-              FunctionAssignment* fa = (*field->function_assignments)[j];
-              if (fa && fa->assignment_count > 1) {
-                has_multiple_assignments_in_function = true;
-                break;
-              }
-            }
-          }
-          
-          if (has_multiple_assignments_in_function) {
-            fprintf(output_file, "  - Reason: Some function has multiple assignments\n");
-          } else if (has_multiple_functions) {
-            fprintf(output_file, "  - Reason: Assignments in multiple functions with different sources\n");
-          } else {
-            fprintf(output_file, "  - Reason: Source is not a function call\n");
-          }
-        }
-      }
-    } else {
-      fprintf(output_file, "  - Array candidate: no (not a pointer)\n");
-    }
-    
-    fprintf(output_file, "\n");
-  }
-  
-  // 写入汇总信息
-  fprintf(output_file, "--- Array Member Detection Results ---\n");
-  fprintf(output_file, "Total fields analyzed: %zu\n", total_fields);
-  fprintf(output_file, "Array candidates: %zu\n", array_candidates);
-  
-  // 按类型分组输出
-  fprintf(output_file, "\n--- Results by Type ---\n");
-  for (size_t i = 0; i < total_fields; i++) {
-    FieldInfo* field = detector->get_field(i);
-    if (!field) continue;
-    
-    fprintf(output_file, "\nType: %s\n", field->containing_type);
-    fprintf(output_file, "  Field: %s - Is pointer: %s - Is array candidate: %s\n",
-            field->field_name,
-            field->is_pointer ? "Yes" : "No",
-            field->is_array_candidate ? "Yes" : "No");
-  }
-  
-  fclose(output_file);
-  ecode = OK;
-  RET;
-} CUTIE_FUNCTION_END
-
-} // namespace cutie_ns
+#include "info-print.cc"
 
 // ----------------------------------------------------------------------------
 // 辅助函数
 // ----------------------------------------------------------------------------
 
-  // 获取类型名称
+// 获取类型名称
 static const char* get_type_name(tree type) {
   if (!type) return "<unknown>";
   
@@ -1068,7 +670,7 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
 
 namespace cutie_ns {
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_TRY (initWithStderr(CUTIE_ARGS, nullptr));
+  CUTIE_TRY (initWithStderr(CUTIE_ARGS));
   
   CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
   
@@ -1122,7 +724,7 @@ class pass_array_detect : public ipa_opt_pass_d {
 }  // anonymous namespace
 
 // ----------------------------------------------------------------------------
-// 插件初始化 - 仅在非独立模式下定义
+// 插件初始化
 // ----------------------------------------------------------------------------
 
 int plugin_init(struct plugin_name_args* plugin_info,
@@ -1134,7 +736,7 @@ int plugin_init(struct plugin_name_args* plugin_info,
 
   struct register_pass_info pass_info;
   pass_info.pass = new pass_array_detect(g);
-  pass_info.reference_pass_name = "cdtor";  // 在此 pass 之后插入
+  pass_info.reference_pass_name = "cdtor";        // 在此 pass 之后插入
   pass_info.ref_pass_instance_number = 1;         // 符合规则
   pass_info.pos_op = PASS_POS_INSERT_AFTER;
 
