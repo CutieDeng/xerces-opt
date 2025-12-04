@@ -3,6 +3,85 @@
 #include "info.hh"
 
 namespace gcc_ext_util {
+
+// 安全字符串复制函数，防止缓冲区溢出
+void safe_string_copy(char* dest, size_t dest_size, const char* src) {
+  if (dest_size == 0) return;
+  if (!src) {
+    dest[0] = '\0';
+    return;
+  }
+  
+  // 使用strncpy确保不会溢出，并确保字符串以null结尾
+  strncpy(dest, src, dest_size - 1);
+  dest[dest_size - 1] = '\0';
+}
+
+// 新增辅助函数：获取详细的源码位置信息
+// 使用预分配的缓冲区，避免动态内存分配
+void get_source_location_string(location_t loc, char* buffer, size_t buffer_size) {
+  if (loc == UNKNOWN_LOCATION) {
+    snprintf(buffer, buffer_size, "<unknown location>");
+    return;
+  }
+  
+  expanded_location xloc = expand_location(loc);
+  
+  if (xloc.file) {
+    // 输出格式改为 a.cc +linenumber colnumber 的形式
+    if (xloc.line > 0) {
+      if (xloc.column > 0) {
+        snprintf(buffer, buffer_size, "%s +%d %d", xloc.file, xloc.line, xloc.column);
+      } else {
+        snprintf(buffer, buffer_size, "%s +%d", xloc.file, xloc.line);
+      }
+    } else {
+      snprintf(buffer, buffer_size, "%s", xloc.file);
+    }
+  } else {
+    snprintf(buffer, buffer_size, "<unknown location>");
+  }
+}
+
+// 新增辅助函数：获取指定位置的源码行内容
+// 使用预分配的缓冲区，避免动态内存分配
+void get_source_line_content(location_t loc, char* buffer, size_t buffer_size) {
+  if (loc == UNKNOWN_LOCATION) {
+    snprintf(buffer, buffer_size, "&lt;source line content not available&gt;");
+    return;
+  }
+  
+  expanded_location xloc = expand_location(loc);
+  
+  if (xloc.file && xloc.line > 0) {
+    // 尝试读取源代码文件的指定行
+    FILE* file = fopen(xloc.file, "r");
+    if (file) {
+      char line_buffer[1024];
+      size_t current_line = 0;
+      while (fgets(line_buffer, sizeof(line_buffer), file) && current_line < xloc.line) {
+        current_line++;
+        if (current_line == xloc.line) {
+          // 移除行尾的换行符
+          size_t len = strlen(line_buffer);
+          if (len > 0 && line_buffer[len-1] == '\n') {
+            line_buffer[len-1] = '\0';
+          }
+          // 复制到输出缓冲区，注意不要溢出
+          strncpy(buffer, line_buffer, buffer_size - 1);
+          buffer[buffer_size - 1] = '\0';
+          fclose(file);
+          return;
+        }
+      }
+      fclose(file);
+    }
+  }
+  
+  // 如果无法读取源代码行，则返回默认值
+  snprintf(buffer, buffer_size, "<source line content not available>");
+}
+
 namespace {
 
 CutieErrorCode get_call_expr_name(CUTIE_FUNC_ARGS, tree call_expr, char const *&result) CUTIE_FUNCTION_BEGIN {
@@ -193,14 +272,15 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
      rhs_desc = "other";
   }
 
-  char loc_buf[256];
-  expanded_location xloc = expand_location(gimple_location(stmt));
-  if (xloc.file) {
-      snprintf(loc_buf, sizeof(loc_buf), "%s:%d", xloc.file, xloc.line);
-  } else {
-      strcpy(loc_buf, "<unknown location>");
-  }
-  const char* loc_str = ggc_strdup(loc_buf);
+  // 获取详细的源码位置信息
+  char loc_str_buffer[512];
+  get_source_location_string(gimple_location(stmt), loc_str_buffer, sizeof(loc_str_buffer));
+  const char* loc_str = loc_str_buffer;
+  
+  // 获取源码行内容
+  char source_line_buffer[1024];
+  get_source_line_content(gimple_location(stmt), source_line_buffer, sizeof(source_line_buffer));
+  const char* source_line = source_line_buffer;
  
   AssignmentDetail* detail = ggc_alloc<AssignmentDetail>();
   detail->source = source;
@@ -254,6 +334,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   CUTIE_DEBUG_PRINT("      Field: %s::%s", field_info->containing_type, field_info->field_name);
   CUTIE_DEBUG_PRINT("      Assignment source: %s (%s)", source, rhs_desc);
   CUTIE_DEBUG_PRINT("      Location: %s", loc_str);
+  CUTIE_DEBUG_PRINT("      Source line: %s", source_line);
   CUTIE_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
 
   CUTIE_RETURNV(OK);
@@ -370,5 +451,4 @@ CutieErrorCode is_field_access(CUTIE_FUNC_ARGS, tree expr, tree* field_decl_out,
   }
   CUTIE_RETURNS (false);
 } CUTIE_FUNCTION_END
-
-} // namespace gcc_ext_util
+}
