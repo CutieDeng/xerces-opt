@@ -40,6 +40,5 @@ clean:
 	rm -rv out/*
 
 test: out/plugin-array-detect.dylib
-	cd ../test/test-xercese
-	racket build-xercese.rkt
+	cd ../test/test-xercese; racket build-xercese.rkt
 

@@ -160,8 +160,8 @@
 
 (define (write-test)
   (printf "test: ~a~n" output-so-path)
-  (printf "\tcd ../test/test-xercese~n")
-  (printf "\tracket build-xercese.rkt~n")
+  (printf "\tcd ../test/test-xercese; ")
+  (printf "racket build-xercese.rkt~n")
   (printf "~n")
 )
 
