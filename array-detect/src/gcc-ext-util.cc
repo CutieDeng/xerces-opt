@@ -66,6 +66,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
     CUTIE_RETURNV(OK);
   }
 
+  CUTIE_DEBUG_PRINT("  Analyzing assignment statement:");
   tree lhs = gimple_assign_lhs(stmt);
   tree rhs = gimple_assign_rhs1(stmt);
 
@@ -74,19 +75,61 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   bool is_field_access0;
   CUTIE_TRY (is_field_access(CUTIE_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
+    CUTIE_DEBUG_PRINT("    Not a field access, skipping");
     CUTIE_RETURNV(OK);
   }
 
+  // 获取字段信息
+  const char* field_name;
+  CUTIE_TRY (gcc_field_desc(CUTIE_ARGS, field_decl, field_name));
+  tree field_type = TREE_TYPE(field_decl);
+  const char* field_type_name;
+  CUTIE_TRY (get_type_name(CUTIE_ARGS, field_type, field_type_name));
+  
+  // 获取对象类型信息
+  tree object_type = TREE_TYPE(object);
+  const char* object_type_name;
+  CUTIE_TRY (get_type_name(CUTIE_ARGS, object_type, object_type_name));
+  
+  CUTIE_DEBUG_PRINT("    Field: %s", field_name);
+  CUTIE_DEBUG_PRINT("    Field type: %s", field_type_name);
+  CUTIE_DEBUG_PRINT("    Object type: %s", object_type_name);
+  // 使用gimple_assign_rhs_code获取RHS的树节点类型，并手动转换为字符串
+  enum tree_code rhs_code = gimple_assign_rhs_code(stmt);
+  const char* rhs_code_str = "UNKNOWN";
+  
+  // 使用switch语句转换为字符串表示
+  switch (rhs_code) {
+    case INTEGER_CST: rhs_code_str = "INTEGER_CST"; break;
+    case REAL_CST: rhs_code_str = "REAL_CST"; break;
+    case STRING_CST: rhs_code_str = "STRING_CST"; break;
+    case SSA_NAME: rhs_code_str = "SSA_NAME"; break;
+    case VAR_DECL: rhs_code_str = "VAR_DECL"; break;
+    case PARM_DECL: rhs_code_str = "PARM_DECL"; break;
+    case CALL_EXPR: rhs_code_str = "CALL_EXPR"; break;
+    case COMPONENT_REF: rhs_code_str = "COMPONENT_REF"; break;
+    case POINTER_PLUS_EXPR: rhs_code_str = "POINTER_PLUS_EXPR"; break;
+    case PLUS_EXPR: rhs_code_str = "PLUS_EXPR"; break;
+    case MINUS_EXPR: rhs_code_str = "MINUS_EXPR"; break;
+    case MULT_EXPR: rhs_code_str = "MULT_EXPR"; break;
+    case RDIV_EXPR: rhs_code_str = "RDIV_EXPR"; break;
+    default: rhs_code_str = "UNKNOWN"; break;
+  }
+  CUTIE_DEBUG_PRINT("    RHS code: %s", rhs_code_str);
+
   FieldInfo* field_info = NULL;
+  CUTIE_DEBUG_PRINT("    Looking for existing field info...");
   for (size_t i = 0; i < get_field_count(*detector); i++) {
     FieldInfo* fi = get_field(*detector, i);
     if (fi && fi->field_decl == field_decl) {
       field_info = fi;
+      CUTIE_DEBUG_PRINT("    Found existing field info for %s", fi->field_name);
       break;
     }
   }
 
   if (!field_info) {
+    CUTIE_DEBUG_PRINT("    Field info not found, trying to create...");
     tree object_type = TREE_TYPE(object);
     if (object_type) {
       if (TREE_CODE(object_type) == REFERENCE_TYPE) object_type = TREE_TYPE(object_type);
@@ -101,18 +144,22 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
                FieldInfo* fi = get_field(*detector, i);
                if (fi && fi->field_decl == field_decl) {
                  field_info = fi;
+                 CUTIE_DEBUG_PRINT("    Created new field info for %s", fi->field_name);
                  break;
                }
             }
         }
       }
     }
-    if (!field_info) CUTIE_RETURNV(OK);
+    if (!field_info) {
+      CUTIE_DEBUG_PRINT("    Failed to find or create field info, skipping");
+      CUTIE_RETURNV(OK);
+    }
   }
 
   const char* source = "UNKNOWN";
   bool is_call = false;
-  enum tree_code rhs_code = gimple_assign_rhs_code(stmt);
+  // rhs_code已经在前面定义过
   const char* rhs_desc = "";
 
   if (rhs_code == INTEGER_CST) {
@@ -198,6 +245,12 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
       field_info->sources->create(0);
   }
   field_info->sources->safe_push(source);
+  
+  CUTIE_DEBUG_PRINT("    Assignment processed successfully:");
+  CUTIE_DEBUG_PRINT("      Field: %s::%s", field_info->containing_type, field_info->field_name);
+  CUTIE_DEBUG_PRINT("      Assignment source: %s (%s)", source, rhs_desc);
+  CUTIE_DEBUG_PRINT("      Location: %s", loc_str);
+  CUTIE_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
 
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END

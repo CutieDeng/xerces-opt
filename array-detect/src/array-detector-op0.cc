@@ -101,21 +101,31 @@ CutieErrorCode analyze_field_assignments_in_functions(ArrayDetector &detector, C
       CUTIE_DEBUG_PRINT("Analyzing function: %s", func_name);
     }
     
+    // 添加函数基本信息调试
+    CUTIE_DEBUG_PRINT("Function has %d basic blocks", n_basic_blocks_for_fn(fn));
+    
     // 遍历函数中的所有基本块
     basic_block bb;
     FOR_EACH_BB_FN(bb, fn) {
+      CUTIE_DEBUG_PRINT("Processing basic block %d", bb->index);
       gimple_stmt_iterator gsi;
       for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
         gimple* stmt = gsi_stmt(gsi);
+        CUTIE_DEBUG_PRINT("  Statement type: %s", gimple_code_name[gimple_code(stmt)]);
         
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
+          CUTIE_DEBUG_PRINT("  Found assignment statement, analyzing...");
           gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, &detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {
+          CUTIE_DEBUG_PRINT("  Found call statement, skipping for now");
           // 这里可以处理通过函数调用返回值的赋值
           // 简化处理：暂时跳过
+        }
+        else {
+          CUTIE_DEBUG_PRINT("  Skipping statement type: %s", gimple_code_name[gimple_code(stmt)]);
         }
       }
     }

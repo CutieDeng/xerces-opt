@@ -45,19 +45,34 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
   
   // 方法：遍历所有函数，从函数体中的字段访问提取类型
   struct cgraph_node* node;
+  size_t func_count = 0;
+  size_t field_access_count = 0;
+  
+  CUTIE_DEBUG_PRINT("Starting function traversal...");
   FOR_EACH_FUNCTION_WITH_GIMPLE_BODY(node) {
     function* fn = node->get_fun();
     if (!fn) continue;
     
+    func_count++;
+    // 获取函数名称
+    const char* func_name = node->name();
+    tree decl = node->decl;
+    if (decl && DECL_NAME(decl)) {
+      func_name = IDENTIFIER_POINTER(DECL_NAME(decl));
+    }
+    CUTIE_DEBUG_PRINT("Processing function %zu: %s", func_count, func_name);
+    
     // 遍历函数中的语句，查找字段访问
     basic_block bb;
     FOR_EACH_BB_FN(bb, fn) {
+      CUTIE_DEBUG_PRINT("  Processing basic block %d", bb->index);
       gimple_stmt_iterator gsi;
       for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
         gimple* stmt = gsi_stmt(gsi);
         
         // 检查赋值语句中的类型
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
+          CUTIE_DEBUG_PRINT("  Found assignment statement");
           tree lhs = gimple_assign_lhs(stmt);
           
           // 检查是否是字段访问
@@ -66,6 +81,9 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
           bool is_field_access0;
           CUTIE_TRY (gcc_ext_util::is_field_access (CUTIE_ARGS, lhs, &field_decl, &object, is_field_access0));
           if (is_field_access0) {
+            field_access_count++;
+            CUTIE_DEBUG_PRINT("  Found field access (total: %zu)", field_access_count);
+            
             // 找到字段访问，获取包含类型
             tree object_type = TREE_TYPE(object);
             if (!object_type) continue;
@@ -73,15 +91,26 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
             // 如果是引用类型，获取其基础类型
             if (TREE_CODE(object_type) == REFERENCE_TYPE) {
               object_type = TREE_TYPE(object_type);
+              CUTIE_DEBUG_PRINT("  Resolved reference type to: %s", TREE_CODE(object_type) == RECORD_TYPE ? "RECORD_TYPE" : 
+                                                                 TREE_CODE(object_type) == UNION_TYPE ? "UNION_TYPE" :
+                                                                 TREE_CODE(object_type) == POINTER_TYPE ? "POINTER_TYPE" :
+                                                                 "OTHER_TYPE");
             }
             
             // 如果是指针类型，获取其指向的类型
             if (TREE_CODE(object_type) == POINTER_TYPE) {
               object_type = TREE_TYPE(object_type);
+              CUTIE_DEBUG_PRINT("  Resolved pointer type to: %s", TREE_CODE(object_type) == RECORD_TYPE ? "RECORD_TYPE" : 
+                                                                 TREE_CODE(object_type) == UNION_TYPE ? "UNION_TYPE" :
+                                                                 "OTHER_TYPE");
             }
             
             tree containing_type = TYPE_MAIN_VARIANT(object_type);
             if (containing_type) {
+              const char* type_name;
+              CUTIE_TRY(gcc_ext_util::get_type_name(CUTIE_ARGS, containing_type, type_name));
+              CUTIE_DEBUG_PRINT("  Processing type: %s", type_name ? type_name : "<unknown>");
+              
               CUTIE_TRY (gcc_ext_util::process_type_fields (CUTIE_ARGS, containing_type, detector, &processed_types));
             }
           }
@@ -89,6 +118,8 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
       }
     }
   }
+  
+  CUTIE_DEBUG_PRINT("Collection complete: %zu functions processed, %zu field accesses found", func_count, field_access_count);
   
   // hash_set使用GCC的垃圾回收，不需要显式释放
   CUTIE_RETURNV(OK);
