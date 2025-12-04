@@ -8,49 +8,186 @@
 
 namespace cutie_ns {
 
-CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_TRY (initWithStderr(CUTIE_ARGS));
+// 直接执行分析：接收已初始化的 ArrayDetector 对象
+// 语义：跳过对象创建，直接执行分析流程
+// 调用者负责：对象的创建和初始化
+// 本函数负责：分析执行和清理
+CutieErrorCode array_detect_execute_with_detector(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+  CUTIE_DEBUG_PRINT("Starting array member detection with provided detector");
   
-  CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
+  // 检查 detector 是否有效
+  if (detector == nullptr) {
+    CUTIE_DEBUG_PRINT("Error: detector is null");
+    CUTIE_RETURNV(LOGICAL_ERROR);
+  }
   
-  CUTIE_RETURNV(OK);
-  cleanup:
-  deinit(CUTIE_ARGS);
-} CUTIE_FUNCTION_END2
-
-CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  // 重命名标签以避免与宏中的cleanup冲突
-  CUTIE_DEBUG_PRINT("Starting array member detection analysis");
+  // 第一步：收集所有类型和字段
+  // 语义：遍历所有函数，提取类型和字段信息
+  CUTIE_TRY_LABEL(collect_all_types_and_fields(CUTIE_ARGS, detector), analysis_cleanup);
   
-  // 创建数组检测器
-  array_detector::ArrayDetector detector;
+  // 第二步：追踪字段赋值
+  // 语义：分析字段的赋值来源，判断是否为 owned 数组
+  CUTIE_TRY_LABEL(trace_field_assignments(CUTIE_ARGS, detector), analysis_cleanup);
   
-  // 执行分析
-  CUTIE_TRY_LABEL(trace_field_assignments(CUTIE_ARGS, &detector), analysis_cleanup);
-  
-  CUTIE_TRY_LABEL(cutie_ns::print_results(CUTIE_ARGS, &detector), analysis_cleanup);
+  // 第三步：输出分析结果
+  // 语义：生成并输出分析报告
+  CUTIE_TRY_LABEL(cutie_ns::print_results(CUTIE_ARGS, detector), analysis_cleanup);
   
   analysis_cleanup:
-  // 使用显式清理函数替代析构函数
-  deinit(detector);
+  CUTIE_DEBUG_PRINT("Array member detection completed");
+  CUTIE_RETURNV(OK);
+} CUTIE_FUNCTION_END
+
+// 原始分析入口（保留以兼容）
+// 语义：创建 ArrayDetector 对象并执行分析
+CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+  CUTIE_DEBUG_PRINT("Starting array member detection analysis");
+  
+  // 创建数组检测器对象（在栈上）
+  // 语义：分配 ArrayDetector 结构体，初始化为 nullptr
+  array_detector::ArrayDetector detector;
+  
+  // 延迟初始化：在使用前分配 vec 指针
+  // 语义：分配 GCC 管理的 vec 容器，用于存储字段信息
+  CUTIE_TRY_LABEL(array_detector::init(detector, CUTIE_ARGS), analysis_cleanup);
+  
+  // 执行分析流程
+  // 语义：调用优化后的执行函数
+  CUTIE_TRY_LABEL(array_detect_execute_with_detector(CUTIE_ARGS, &detector), analysis_cleanup);
+  
+  analysis_cleanup:
+  // 清理资源
+  // 语义：释放 vec 容器，设置指针为 nullptr
+  array_detector::deinit(detector);
   
   CUTIE_DEBUG_PRINT("Array member detection analysis completed");
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
+// 字段赋值追踪：分析字段赋值来源
+// 语义：执行两步分析 - 赋值分析 -> 候选判断
+// 前置条件：字段已通过 collect_all_types_and_fields 收集
 CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
-  // 追踪字段的赋值操作
   CUTIE_DEBUG_PRINT("Tracing field assignments");
   
-  // 第一步：收集所有类型和字段
-  CUTIE_TRY (collect_all_types_and_fields (CUTIE_ARGS, detector));
+  // 检查 detector 是否有效
+  if (detector == nullptr) {
+    CUTIE_DEBUG_PRINT("Error: detector is null");
+    CUTIE_RETURNV(LOGICAL_ERROR);
+  }
   
-  // 第二步：分析字段赋值
-  CUTIE_TRY (analyze_field_assignments_in_functions (*detector, CUTIE_ARGS));
+  // 第一步：分析字段赋值
+  // 语义：遍历所有函数，追踪字段的赋值操作和来源
+  CUTIE_TRY(analyze_field_assignments_in_functions(*detector, CUTIE_ARGS));
 
-  // 第三步：分析使用情况，判断是否是数组候选
-  CUTIE_TRY (analyze_usage (*detector, CUTIE_ARGS));
+  // 第二步：分析使用情况，判断是否是数组候选
+  // 语义：根据赋值来源判断字段是否为 owned 数组
+  CUTIE_TRY(analyze_usage(*detector, CUTIE_ARGS));
 
+  CUTIE_RETURNV(OK);
+} CUTIE_FUNCTION_END
+
+// 收集所有类型和字段：遍历编译单元提取类型信息
+// 语义：扫描所有函数，从字段访问中提取类型和字段定义
+// 输出：填充 detector->m_fields 容器
+// 垃圾回收：使用 ggc_alloc 分配的 hash_set 由 GCC 自动管理
+CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+  CUTIE_DEBUG_PRINT("Collecting all types and fields");
+  
+  // 检查 detector 是否有效
+  if (detector == nullptr) {
+    CUTIE_DEBUG_PRINT("Error: detector is null");
+    CUTIE_RETURNV(LOGICAL_ERROR);
+  }
+  
+  // 使用 hash_set 避免重复处理同一类型
+  // 语义：维护已处理类型集合，防止重复分析
+  // 垃圾回收：create_ggc(0) 使用 GCC 的垃圾回收系统
+  hash_set<tree> processed_types;
+  processed_types.create_ggc(0);
+  
+  // 方法：遍历所有函数，从函数体中的字段访问提取类型
+  struct cgraph_node* node;
+  size_t func_count = 0;
+  size_t field_access_count = 0;
+  
+  CUTIE_DEBUG_PRINT("Starting function traversal...");
+  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY(node) {
+    function* fn = node->get_fun();
+    if (!fn) continue;
+    
+    func_count++;
+    // 获取函数名称
+    const char* func_name = node->name();
+    tree decl = node->decl;
+    if (decl && DECL_NAME(decl)) {
+      func_name = IDENTIFIER_POINTER(DECL_NAME(decl));
+    }
+    CUTIE_DEBUG_PRINT("Processing function %zu: %s", func_count, func_name);
+    
+    // 遍历函数中的语句，查找字段访问
+    basic_block bb;
+    FOR_EACH_BB_FN(bb, fn) {
+      CUTIE_DEBUG_PRINT("  Processing basic block %d", bb->index);
+      gimple_stmt_iterator gsi;
+      for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
+        gimple* stmt = gsi_stmt(gsi);
+        
+        // 检查赋值语句中的类型
+        if (gimple_code(stmt) == GIMPLE_ASSIGN) {
+          CUTIE_DEBUG_PRINT("  Found assignment statement");
+          // 打印具体的赋值语句代码
+          fprintf(ctx.debug_file, "  Assignment statement code:\n");
+          print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
+          tree lhs = gimple_assign_lhs(stmt);
+          
+          // 检查是否是字段访问
+          tree field_decl = NULL_TREE;
+          tree object = NULL_TREE;
+          bool is_field_access0;
+          CUTIE_TRY (gcc_ext_util::is_field_access (CUTIE_ARGS, lhs, &field_decl, &object, is_field_access0));
+          if (is_field_access0) {
+            field_access_count++;
+            CUTIE_DEBUG_PRINT("  Found field access (total: %zu)", field_access_count);
+            
+            // 找到字段访问，获取包含类型
+            tree object_type = TREE_TYPE(object);
+            if (!object_type) continue;
+            
+            // 如果是引用类型，获取其基础类型
+            if (TREE_CODE(object_type) == REFERENCE_TYPE) {
+              object_type = TREE_TYPE(object_type);
+              CUTIE_DEBUG_PRINT("  Resolved reference type to: %s", TREE_CODE(object_type) == RECORD_TYPE ? "RECORD_TYPE" : 
+                                                                 TREE_CODE(object_type) == UNION_TYPE ? "UNION_TYPE" :
+                                                                 TREE_CODE(object_type) == POINTER_TYPE ? "POINTER_TYPE" :
+                                                                 "OTHER_TYPE");
+            }
+            
+            // 如果是指针类型，获取其指向的类型
+            if (TREE_CODE(object_type) == POINTER_TYPE) {
+              object_type = TREE_TYPE(object_type);
+              CUTIE_DEBUG_PRINT("  Resolved pointer type to: %s", TREE_CODE(object_type) == RECORD_TYPE ? "RECORD_TYPE" : 
+                                                                 TREE_CODE(object_type) == UNION_TYPE ? "UNION_TYPE" :
+                                                                 "OTHER_TYPE");
+            }
+            
+            tree containing_type = TYPE_MAIN_VARIANT(object_type);
+            if (containing_type) {
+              const char* type_name;
+              CUTIE_TRY(gcc_ext_util::get_type_name(CUTIE_ARGS, containing_type, type_name));
+              CUTIE_DEBUG_PRINT("  Processing type: %s", type_name ? type_name : "<unknown>");
+              
+              CUTIE_TRY (gcc_ext_util::process_type_fields (CUTIE_ARGS, containing_type, detector, &processed_types));
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  CUTIE_DEBUG_PRINT("Collection complete: %zu functions processed, %zu field accesses found", func_count, field_access_count);
+  
+  // hash_set使用GCC的垃圾回收，不需要显式释放
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 

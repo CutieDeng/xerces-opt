@@ -21,24 +21,24 @@ void deinit(ArrayDetector &self);
 size_t get_field_count(ArrayDetector const &self);
 FieldInfo* get_field(ArrayDetector const &self, size_t index);
 
+CutieErrorCode init (ArrayDetector &self, CUTIE_FUNC_ARGS);
+
 }
 
 namespace array_detector {
 
-class ArrayDetector {
+struct ArrayDetector {
 
-private:
   friend size_t get_field_count(ArrayDetector const &self);
   friend FieldInfo* get_field(ArrayDetector const &self, size_t index);
   friend ::cutie_ns::CutieErrorCode analyze_usage(ArrayDetector &self, CUTIE_FUNC_ARGS);
   friend void deinit(ArrayDetector &self);
   friend ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info);
 
-  vec<FieldInfo*> m_fields; // 使用GCC框架的vec容器存储字段信息
+  vec<FieldInfo*>* m_fields; // 使用指针类型，延迟初始化
 
-public:
-  ArrayDetector() {
-    m_fields.create(0); // 提供初始大小参数
+  ArrayDetector() : m_fields(nullptr) {
+    // 不在构造函数中初始化，使用延迟初始化
   }
   
 };

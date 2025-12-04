@@ -44,16 +44,20 @@ CutieErrorCode gcc_field_desc(CUTIE_FUNC_ARGS, tree field, char const *&result) 
 
 namespace gcc_ext_util {
 
-// 获取类型名称
+// 获取类型名称：从 GCC tree 节点提取类型名称字符串
+// 语义：返回类型的可读名称，用于调试和报告
+// 垃圾回收：返回的指针指向 GCC 内部管理的字符串，无需释放
 CutieErrorCode get_type_name (CUTIE_FUNC_ARGS, tree type, char const *&result) CUTIE_FUNCTION_BEGIN {
   if (!type) CUTIE_RETURNS("<unknown>");
   
   if (TYPE_NAME(type)) {
     if (TREE_CODE(TYPE_NAME(type)) == IDENTIFIER_NODE) {
+      // 返回 GCC 内部管理的标识符指针
       CUTIE_RETURNS(IDENTIFIER_POINTER(TYPE_NAME(type)));
     } else if (TREE_CODE(TYPE_NAME(type)) == TYPE_DECL) {
       tree name = DECL_NAME(TYPE_NAME(type));
       if (name) {
+        // 返回 GCC 内部管理的声明名称指针
         CUTIE_RETURNS(IDENTIFIER_POINTER(name));
       }
     }
@@ -255,6 +259,9 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
+// 处理类型字段：提取类型的所有字段定义
+// 语义：遍历类型的字段，创建 FieldInfo 对象并添加到 detector
+// 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
 CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
   if (!type) {
     CUTIE_RETURNV(OK);
@@ -265,7 +272,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     CUTIE_RETURNV(OK);
   }
   
-  // 检查是否已处理过
+  // 检查是否已处理过（避免重复处理）
   if (!processed_types->add(type)) {
     // 已处理过，跳过
     CUTIE_RETURNV(OK);
@@ -275,7 +282,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
   CUTIE_TRY (gcc_ext_util::get_type_name(CUTIE_ARGS, type, type_name));
   CUTIE_DEBUG_PRINT("Processing type: %s", type_name);
   
-  // 遍历字段
+  // 遍历类型的所有字段
   tree field;
   for (field = TYPE_FIELDS(type); field; field = DECL_CHAIN(field)) {
     if (TREE_CODE(field) != FIELD_DECL) continue;
@@ -283,7 +290,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     const char* field_name;
     CUTIE_TRY (gcc_field_desc(CUTIE_ARGS, field, field_name));
     
-    // 跳过虚函数表指针
+    // 跳过虚函数表指针（编译器生成的内部字段）
     if (strstr(field_name, "_vptr") != NULL) {
       continue;
     }
@@ -294,43 +301,51 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     
     CUTIE_DEBUG_PRINT("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
     
-    // 创建字段信息（使用GCC的内存分配）
-    FieldInfo* field_info = (FieldInfo*)ggc_alloc<FieldInfo>();
+    // 创建字段信息结构体（使用 GCC 垃圾回收分配）
+    // 语义：分配 FieldInfo 结构体，由 GCC 自动管理生命周期
+    FieldInfo* field_info = ggc_alloc<FieldInfo>();
     if (!field_info) {
       CUTIE_RETURNV(MEMORY_ERROR);
     }
-    // 初始化字段
+    // 初始化字段为零
     memset(field_info, 0, sizeof(FieldInfo));
     
+    // 设置字段基本信息
     field_info->field_name = field_name;
     field_info->containing_type = type_name;
     field_info->field_decl = field;
     field_info->containing_type_tree = type;
     field_info->is_pointer = is_ptr;
-        field_info->is_array_candidate = false;
-        field_info->source_count = 0;
-        field_info->sources = new vec<const char*>();
-        field_info->sources->create(0);
-        field_info->conflicting_assigns = new vec<const char*>();
-        field_info->conflicting_assigns->create(0);
-        field_info->function_assignments = new vec<FunctionAssignment*>();
-        field_info->function_assignments->create(0);
+    field_info->is_array_candidate = false;
+    field_info->source_count = 0;
     
+    // 分配 vec 容器（使用 GCC 垃圾回收）
+    // 语义：为字段分配三个 vec 容器，用于存储赋值信息
+    field_info->sources = ggc_alloc<vec<const char*>>();
+    field_info->sources->create(0);
+    
+    field_info->conflicting_assigns = ggc_alloc<vec<const char*>>();
+    field_info->conflicting_assigns->create(0);
+    
+    field_info->function_assignments = ggc_alloc<vec<FunctionAssignment*>>();
+    field_info->function_assignments->create(0);
+    
+    // 添加字段到 detector
+    // 语义：将字段信息添加到全局字段列表
     CUTIE_TRY_LABEL (add_field (*detector, CUTIE_ARGS, field_info), field_init_error);
     continue;
 
     field_init_error:
+    // 错误处理：释放已分配的 vec 容器
+    // 注意：FieldInfo 本身由 GCC 管理，不需要 delete
     if (field_info->sources) {
       field_info->sources->release();
-      delete field_info->sources;
     }
     if (field_info->conflicting_assigns) {
       field_info->conflicting_assigns->release();
-      delete field_info->conflicting_assigns;
     }
     if (field_info->function_assignments) {
       field_info->function_assignments->release();
-      delete field_info->function_assignments;
     }
     CUTIE_RETURNR;
   }

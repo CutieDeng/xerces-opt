@@ -4,8 +4,24 @@
 
 namespace array_detector {
 
+CutieErrorCode init (ArrayDetector &self, CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+  CUTIE_ARGS_WARN_DENY;
+  // 延迟初始化：在 init 函数中分配 vec 指针
+  if (self.m_fields == nullptr) {
+    self.m_fields = ggc_alloc<vec<FieldInfo*>>();
+    if (self.m_fields == nullptr) {
+      CUTIE_RETURNV(MEMORY_ERROR);
+    }
+    self.m_fields->create(0); // 初始化 vec 容器
+    CUTIE_DEBUG_PRINT("ArrayDetector initialized: m_fields allocated and created");
+  } else {
+    CUTIE_DEBUG_PRINT("ArrayDetector already initialized");
+  }
+  CUTIE_RETURNV(OK);
+} CUTIE_FUNCTION_END
+
 bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
-  (void)self; // Unused parameter
+  (void)self;
   CUTIE_ARGS_WARN_DENY;
   if (!field || !field->function_assignments) return false;
 
@@ -70,9 +86,16 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
 ::cutie_ns::CutieErrorCode analyze_usage(ArrayDetector &self, CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   (void )ctx;
   CUTIE_DEBUG_PRINT ("start analyze fields usage");
+  
+  // 检查 m_fields 是否已初始化
+  if (self.m_fields == nullptr) {
+    CUTIE_DEBUG_PRINT("Warning: ArrayDetector not initialized, m_fields is null");
+    CUTIE_RETURNV(OK);
+  }
+  
   // 分析使用情况，判断是否是数组候选
-  for (unsigned int i = 0; i < self.m_fields.length(); i++) {
-    FieldInfo* field = self.m_fields[i];
+  for (unsigned int i = 0; i < self.m_fields->length(); i++) {
+    FieldInfo* field = (*self.m_fields)[i];
     // TODO: if null, warning this situation
     if (!field) {
       CUTIE_DEBUG_PRINT("Warning: NULL field at index %u", i);
@@ -128,8 +151,12 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
 
 void deinit(ArrayDetector &self) {
     // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
-    // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
-    self.m_fields.release();
+    if (self.m_fields != nullptr) {
+        self.m_fields->release();
+        // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
+        self.m_fields = nullptr;
+        fprintf(stderr, "[ArrayDetector] Deinitialized: m_fields released\n");
+    }
 }
 
 ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
@@ -138,23 +165,35 @@ void deinit(ArrayDetector &self) {
     CUTIE_RETURNV(OK);
   }
   
+  // 检查 m_fields 是否已初始化
+  if (self.m_fields == nullptr) {
+    CUTIE_DEBUG_PRINT("Error: ArrayDetector not initialized, m_fields is null");
+    CUTIE_RETURNV(LOGICAL_ERROR);
+  }
+  
   // 添加字段信息
-  self.m_fields.safe_push(field_info);
+  self.m_fields->safe_push(field_info);
   // 调试信息：输出字段添加情况
   fprintf(stderr, "[ArrayDetector] Added field: %s::%s (total: %u)\n", 
           field_info->containing_type, field_info->field_name, 
-          (unsigned)self.m_fields.length());
+          (unsigned)self.m_fields->length());
 
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 size_t get_field_count(ArrayDetector const &self) {
-    return self.m_fields.length();
+    if (self.m_fields == nullptr) {
+        return 0;
+    }
+    return self.m_fields->length();
 }
 
 FieldInfo* get_field(ArrayDetector const &self, size_t index) {
-  if (index < self.m_fields.length()) {
-    return self.m_fields[index];
+  if (self.m_fields == nullptr) {
+    return nullptr;
+  }
+  if (index < self.m_fields->length()) {
+    return (*self.m_fields)[index];
   }
   return nullptr;
 }
