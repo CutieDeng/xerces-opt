@@ -73,6 +73,9 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
         // 检查赋值语句中的类型
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
           CUTIE_DEBUG_PRINT("  Found assignment statement");
+          // 打印具体的赋值语句代码
+          fprintf(ctx.debug_file, "  Assignment statement code:\n");
+          print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
           tree lhs = gimple_assign_lhs(stmt);
           
           // 检查是否是字段访问

@@ -116,6 +116,9 @@ CutieErrorCode analyze_field_assignments_in_functions(ArrayDetector &detector, C
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
           CUTIE_DEBUG_PRINT("  Found assignment statement, analyzing...");
+          // 打印具体的赋值语句代码
+          fprintf(ctx.debug_file, "  Assignment statement code:\n");
+          print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
           gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, &detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）

@@ -21,6 +21,7 @@
 #include "gimple-walk.h"
 #include "tree-ssa.h"
 #include "print-tree.h"
+#include "gimple-pretty-print.h"
 
 // Standard C++ Headers usually needed with GCC plugins
 #include <cstdio>
