@@ -14,16 +14,14 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   CUTIE_DEBUG_PRINT("Total fields in detector: %zu", total_fields);
   
   if (total_fields == 0) {
-    ecode = OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
   
   // 打开输出文件（写入模式，每次覆盖，因为每个编译单元独立分析）
   FILE* output_file = fopen("array-detect-results.txt", "w");
   if (!output_file) {
     CUTIE_DEBUG_PRINT("Failed to open output file");
-    ecode = RESOURCE_ERROR;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(RESOURCE_ERROR);
   }
   
   fprintf(output_file, "=== Array Detection Results ===\n\n");
@@ -146,8 +144,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   }
   
   fclose(output_file);
-  ecode = OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 } // namespace cutie_ns

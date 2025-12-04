@@ -91,8 +91,7 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
   }
   
   // hash_set使用GCC的垃圾回收，不需要显式释放
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 } // namespace cutie_ns
 

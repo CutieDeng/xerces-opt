@@ -7,6 +7,7 @@
 #include "gcc-ext-util.hh"
 
 namespace cutie_ns {
+
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   CUTIE_TRY (initWithStderr(CUTIE_ARGS));
   
@@ -57,7 +58,7 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
 
 namespace array_detector {
 
-CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode analyze_field_assignments_in_functions(ArrayDetector &detector, CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   CUTIE_DEBUG_PRINT("Analyzing field assignments in functions");
   
   // 遍历所有函数
@@ -109,7 +110,7 @@ CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDete
         
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
-          gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, detector, func_name, decl);
+          gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, &detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {

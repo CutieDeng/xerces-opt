@@ -14,7 +14,7 @@
 #define CUTIE_FUNCTION_END_FALLTHROUGH \
   cleanup:; CUTIE_FUNCTION_END2
 
-#define CUTIE_RETURN \
+#define CUTIE_RETURNR \
   do { goto cleanup; } while (0)
 
 #define CUTIE_RETURNV(x) \

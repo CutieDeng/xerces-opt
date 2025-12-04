@@ -63,7 +63,7 @@ CutieErrorCode get_type_name (CUTIE_FUNC_ARGS, tree type, char const *&result) C
 
 CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, char const* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
 
   tree lhs = gimple_assign_lhs(stmt);
@@ -74,7 +74,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   bool is_field_access0;
   CUTIE_TRY (is_field_access(CUTIE_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
 
   FieldInfo* field_info = NULL;
@@ -107,7 +107,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
         }
       }
     }
-    if (!field_info) CUTIE_RETURN;
+    if (!field_info) CUTIE_RETURNV(OK);
   }
 
   const char* source = "UNKNOWN";
@@ -199,27 +199,23 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   }
   field_info->sources->safe_push(source);
 
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
   if (!type) {
-    ecode = cutie_ns::OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
   
   // 只处理结构体/类类型
   if (TREE_CODE(type) != RECORD_TYPE && TREE_CODE(type) != UNION_TYPE) {
-    ecode = cutie_ns::OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
   
   // 检查是否已处理过
   if (!processed_types->add(type)) {
     // 已处理过，跳过
-    ecode = cutie_ns::OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
   
   const char* type_name;
@@ -248,8 +244,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     // 创建字段信息（使用GCC的内存分配）
     FieldInfo* field_info = (FieldInfo*)ggc_alloc<FieldInfo>();
     if (!field_info) {
-      ecode = cutie_ns::MEMORY_ERROR;
-      CUTIE_RETURN;
+      CUTIE_RETURNV(MEMORY_ERROR);
     }
     // 初始化字段
     memset(field_info, 0, sizeof(FieldInfo));
@@ -268,7 +263,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
         field_info->function_assignments = new vec<FunctionAssignment*>();
         field_info->function_assignments->create(0);
     
-    CUTIE_TRY_LABEL(add_field(*detector, CUTIE_ARGS, field_info), field_init_error);
+    CUTIE_TRY_LABEL (add_field (*detector, CUTIE_ARGS, field_info), field_init_error);
     continue;
 
     field_init_error:
@@ -284,7 +279,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
       field_info->function_assignments->release();
       delete field_info->function_assignments;
     }
-    CUTIE_RETURN;
+    CUTIE_RETURNR;
   }
   
   CUTIE_RETURNV(OK);

@@ -19,11 +19,9 @@ CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    ecode = RESOURCE_ERROR;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(RESOURCE_ERROR);
   } else {
-    ecode = OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
 } CUTIE_FUNCTION_END
 
@@ -32,19 +30,16 @@ CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) C
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    ecode = RESOURCE_ERROR;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(RESOURCE_ERROR);
   } else {
-    ecode = OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
 } CUTIE_FUNCTION_END
 
 CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
-  ecode = OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 void deinit(CUTIE_FUNC_ARGS) {

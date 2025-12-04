@@ -123,8 +123,7 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
     }
   }
   
-  ecode = ::cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 void deinit(ArrayDetector &self) {
@@ -136,8 +135,7 @@ void deinit(ArrayDetector &self) {
 ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
   (void)ctx;
   if (!field_info) {
-    ecode = cutie_ns::OK;
-    CUTIE_RETURN;
+    CUTIE_RETURNV(OK);
   }
   
   // 添加字段信息
@@ -146,9 +144,8 @@ void deinit(ArrayDetector &self) {
   fprintf(stderr, "[ArrayDetector] Added field: %s::%s (total: %u)\n", 
           field_info->containing_type, field_info->field_name, 
           (unsigned)self.m_fields.length());
-  
-  ecode = ::cutie_ns::OK;
-  CUTIE_RETURN;
+
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 size_t get_field_count(ArrayDetector const &self) {
