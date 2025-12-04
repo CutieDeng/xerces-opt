@@ -8,4 +8,10 @@ char const *ERROR_DESCRIPTION[] = {
 #undef CUTIE_ERROR_DEF
 };
 
+char const *ERROR_S_DESCRIPTION[] = {
+#define CUTIE_ERROR_DEF(e, d) #e,
+#include "cutie-state.txt"
+#undef CUTIE_ERROR_DEF
+};
+
 }

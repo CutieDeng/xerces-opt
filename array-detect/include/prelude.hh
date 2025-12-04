@@ -7,6 +7,11 @@
   return ecode; }
 
 #define CUTIE_FUNCTION_END \
+  CUTIE_DEBUG_PRINT("ERROR: walk reachable tail of the function"); \
+  return ::cutie_ns::UNREACHABLE; \
+  cleanup:; CUTIE_FUNCTION_END2
+
+#define CUTIE_FUNCTION_END_FALLTHROUGH \
   cleanup:; CUTIE_FUNCTION_END2
 
 #define CUTIE_RETURN \
@@ -14,6 +19,9 @@
 
 #define CUTIE_RETURNV(x) \
   do { ecode = ::cutie_ns::x; goto cleanup; } while (0)
+
+#define CUTIE_RETURNS(v) \
+  do { result = (v); ecode = ::cutie_ns::OK; goto cleanup; } while (0)
 
 #define CUTIE_ARGS_WARN_DENY \
   do { (void) ctx; } while (0)

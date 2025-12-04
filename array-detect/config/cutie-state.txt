@@ -7,5 +7,7 @@ CUTIE_ERROR_DEF (RESOURCE_ERROR, "system resource error")
 CUTIE_ERROR_DEF (SYSTEM_ERROR, "unknown syscall error")
 CUTIE_ERROR_DEF (GARBAGE_COLLECTION_ERROR, "corrupted garbage collection system")
 CUTIE_ERROR_DEF (LOGICAL_ERROR, "normal logical error")
+CUTIE_ERROR_DEF (UNREACHABLE, "enter unreachable zone")
+CUTIE_ERROR_DEF (INVALID_ARGUMENT, "invalid argument")
 CUTIE_ERROR_DEF (UNKNOWN_ERROR, "unknown error")
 

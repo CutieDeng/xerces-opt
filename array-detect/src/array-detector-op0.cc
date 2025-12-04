@@ -4,6 +4,7 @@
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "context-init.hh"
+#include "gcc-ext-util.hh"
 
 namespace cutie_ns {
 CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
@@ -11,9 +12,9 @@ CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   
   CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
   
-  ecode = ::cutie_ns::OK;
+  CUTIE_RETURNV(OK);
   cleanup:
-  cutie_ns::deinit(CUTIE_ARGS);
+  deinit(CUTIE_ARGS);
 } CUTIE_FUNCTION_END2
 
 CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
@@ -33,8 +34,7 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   deinit(detector);
   
   CUTIE_DEBUG_PRINT("Array member detection analysis completed");
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
@@ -50,8 +50,7 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
   // 第三步：分析使用情况，判断是否是数组候选
   CUTIE_TRY (analyze_usage (*detector, CUTIE_ARGS));
 
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 } // namespace cutie_ns
@@ -84,7 +83,7 @@ CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDete
       tree context = DECL_CONTEXT(decl);
       if (context) {
         if (TREE_CODE(context) == RECORD_TYPE || TREE_CODE(context) == UNION_TYPE) {
-          containing_type_name = get_type_name(context);
+          CUTIE_TRY (gcc_ext_util::get_type_name (CUTIE_ARGS, context, containing_type_name));
         } else if (TREE_CODE(context) == NAMESPACE_DECL) {
           // 命名空间中的函数
           if (DECL_NAME(context)) {
@@ -110,7 +109,7 @@ CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDete
         
         // 检查是否是赋值语句
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
-          analyze_gimple_assignment(CUTIE_ARGS, stmt, detector, func_name, decl);
+          gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {
@@ -121,8 +120,7 @@ CutieErrorCode analyze_field_assignments_in_functions(CUTIE_FUNC_ARGS, ArrayDete
     }
   }
   
-  ecode = cutie_ns::OK;
-  CUTIE_RETURN;
+  CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 }

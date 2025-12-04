@@ -12,4 +12,6 @@ enum CutieErrorCode : int64_t {
 
 extern char const *ERROR_DESCRIPTION[];
 
+extern char const *ERROR_S_DESCRIPTION[];
+
 } // namespace cutie_ns
