@@ -137,9 +137,8 @@ CutieErrorCode collect_all_types_and_fields(CUTIE_FUNC_ARGS, ArrayDetector* dete
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
           CUTIE_DEBUG_PRINT("  Found assignment statement");
           // 打印具体的赋值语句代码和位置信息
-          char stmt_loc_buffer[512];
-          gcc_ext_util::get_source_location_string(gimple_location(stmt), stmt_loc_buffer, sizeof(stmt_loc_buffer));
-          fprintf(ctx.debug_file, "  Assignment statement at %s:\n", stmt_loc_buffer);
+          CUTIE_TRY (gcc_ext_util::get_source_location_string (CUTIE_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+          fprintf(ctx.debug_file, "  Assignment statement at %s:\n", ctx.source_location_buffer);
           print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
           tree lhs = gimple_assign_lhs(stmt);
           
@@ -256,9 +255,8 @@ CutieErrorCode analyze_field_assignments_in_functions(ArrayDetector &detector, C
         if (gimple_code(stmt) == GIMPLE_ASSIGN) {
           CUTIE_DEBUG_PRINT("  Found assignment statement, analyzing...");
           // 打印具体的赋值语句代码和位置信息
-          char stmt_loc_buffer[512];
-          gcc_ext_util::get_source_location_string(gimple_location(stmt), stmt_loc_buffer, sizeof(stmt_loc_buffer));
-          fprintf(ctx.debug_file, "  Assignment statement at %s:\n", stmt_loc_buffer);
+          CUTIE_TRY (gcc_ext_util::get_source_location_string (CUTIE_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+          fprintf(ctx.debug_file, "  Assignment statement at %s:\n", ctx.source_location_buffer);
           print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
           gcc_ext_util::analyze_gimple_assignment(CUTIE_ARGS, stmt, &detector, func_name, decl);
         }

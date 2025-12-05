@@ -1,6 +1,7 @@
 #include "prelude.hh"
 #include "state.hh"
 #include "context.hh"
+#include "context-init.hh"
 
 namespace cutie_ns {
 
@@ -19,9 +20,14 @@ CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    CUTIE_RETURNV(RESOURCE_ERROR);
-  } else {
-    CUTIE_RETURNV(OK);
+    CUTIE_RETURNV (RESOURCE_ERROR);
+  }
+  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
+  CUTIE_RETURNV (OK);
+  if (false) {
+    fail0:
+    fclose(ctx.debug_file);
+    CUTIE_RETURNR;
   }
 } CUTIE_FUNCTION_END
 
@@ -30,16 +36,27 @@ CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) C
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    CUTIE_RETURNV(RESOURCE_ERROR);
-  } else {
-    CUTIE_RETURNV(OK);
+    CUTIE_RETURNV (RESOURCE_ERROR);
+  }
+  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
+  CUTIE_RETURNV (OK);
+  if (false) {
+    fail0:
+    fclose(ctx.debug_file);
+    CUTIE_RETURNR;
   }
 } CUTIE_FUNCTION_END
 
 CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
-  CUTIE_RETURNV(OK);
+  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
+  CUTIE_RETURNV (OK);
+  if (false) {
+    fail0:
+    fclose(ctx.debug_file);
+    CUTIE_RETURNR;
+  }
 } CUTIE_FUNCTION_END
 
 void deinit(CUTIE_FUNC_ARGS) {

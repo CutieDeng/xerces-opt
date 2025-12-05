@@ -9,8 +9,10 @@ struct CutieContext {
   void (*debug_file_dtor)(FILE *);
   
   // 预分配的缓冲区用于源码位置信息
-  char source_location_buffer[512];
-  char source_line_buffer[1024];
+  char *source_location_buffer;
+  size_t source_location_buffer_size;
+  char *source_line_buffer;
+  size_t source_line_buffer_size;
 };
 
 extern CutieContext g_cutie_ctx;

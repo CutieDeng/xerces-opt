@@ -20,7 +20,7 @@ CutieErrorCode is_field_access(CUTIE_FUNC_ARGS, tree expr, tree* field_decl_out,
 void safe_string_copy(char* dest, size_t dest_size, const char* src);
 
 // 辅助函数声明
-void get_source_location_string(location_t loc, char* buffer, size_t buffer_size);
+CutieErrorCode get_source_location_string(CUTIE_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size);
 void get_source_line_content(location_t loc, char* buffer, size_t buffer_size);
 
 } // namespace gcc_ext_util

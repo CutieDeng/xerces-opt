@@ -19,10 +19,10 @@ void safe_string_copy(char* dest, size_t dest_size, const char* src) {
 
 // 新增辅助函数：获取详细的源码位置信息
 // 使用预分配的缓冲区，避免动态内存分配
-void get_source_location_string(location_t loc, char* buffer, size_t buffer_size) {
+CutieErrorCode get_source_location_string(CUTIE_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size) CUTIE_FUNCTION_BEGIN {
   if (loc == UNKNOWN_LOCATION) {
     snprintf(buffer, buffer_size, "<unknown location>");
-    return;
+    CUTIE_RETURNV (OK);
   }
   
   expanded_location xloc = expand_location(loc);
@@ -41,7 +41,8 @@ void get_source_location_string(location_t loc, char* buffer, size_t buffer_size
   } else {
     snprintf(buffer, buffer_size, "<unknown location>");
   }
-}
+  CUTIE_RETURNV (OK);
+} CUTIE_FUNCTION_END
 
 // 新增辅助函数：获取指定位置的源码行内容
 // 使用预分配的缓冲区，避免动态内存分配
@@ -59,9 +60,9 @@ void get_source_line_content(location_t loc, char* buffer, size_t buffer_size) {
     if (file) {
       char line_buffer[1024];
       size_t current_line = 0;
-      while (fgets(line_buffer, sizeof(line_buffer), file) && current_line < xloc.line) {
+      while (fgets(line_buffer, sizeof(line_buffer), file) && current_line < ((size_t) xloc.line)) {
         current_line++;
-        if (current_line == xloc.line) {
+        if (current_line == ((size_t) xloc.line)) {
           // 移除行尾的换行符
           size_t len = strlen(line_buffer);
           if (len > 0 && line_buffer[len-1] == '\n') {
@@ -273,14 +274,12 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   }
 
   // 获取详细的源码位置信息
-  char loc_str_buffer[512];
-  get_source_location_string(gimple_location(stmt), loc_str_buffer, sizeof(loc_str_buffer));
-  const char* loc_str = loc_str_buffer;
+  CUTIE_TRY (get_source_location_string (CUTIE_ARGS, gimple_location(stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+  const char* loc_str = ctx.source_location_buffer;
   
   // 获取源码行内容
-  char source_line_buffer[1024];
-  get_source_line_content(gimple_location(stmt), source_line_buffer, sizeof(source_line_buffer));
-  const char* source_line = source_line_buffer;
+  get_source_line_content(gimple_location(stmt), ctx.source_line_buffer, ctx.source_line_buffer_size);
+  const char* source_line = ctx.source_line_buffer;
  
   AssignmentDetail* detail = ggc_alloc<AssignmentDetail>();
   detail->source = source;
