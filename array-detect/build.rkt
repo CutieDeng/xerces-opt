@@ -113,8 +113,8 @@
 (define (find-rel x) (find-relative-path (current-directory) x))
 (define sources
   (append-map
-    (lambda (module)
-      (map find-rel (glob (build-path (module-src-path module) "*.cc"))))
+    (lambda (m)
+      (map find-rel (glob (build-path (module-src-path m) "*.cc"))))
     modules))
 
 (define (find-rel/src x) (find-relative-path "src" x))
@@ -232,8 +232,8 @@
 
 (define (write-clean)
   (printf "clean:~n")
-  (printf "\trm -rv ~a~n" (path->string (build-path object-dir "*")))
-  (printf "\trm -rv ~a~n" (path->string (build-path out-dir "*")))
+  (printf "\trm -rv ~a~n" (build-path object-dir "*"))
+  (printf "\trm -rv ~a~n" (build-path out-dir "*"))
   (printf "~n")
 )
 
