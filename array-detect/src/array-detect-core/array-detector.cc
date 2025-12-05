@@ -149,13 +149,15 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
-void deinit(ArrayDetector &self) {
+void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS) {
     // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
     if (self.m_fields != nullptr) {
         self.m_fields->release();
         // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
         self.m_fields = nullptr;
-        fprintf(stderr, "[ArrayDetector] Deinitialized: m_fields released\n");
+        CUTIE_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
+    } else {
+        CUTIE_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
     }
 }
 
@@ -181,21 +183,44 @@ void deinit(ArrayDetector &self) {
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
-size_t get_field_count(ArrayDetector const &self) {
-    if (self.m_fields == nullptr) {
-        return 0;
-    }
-    return self.m_fields->length();
-}
+::cutie_ns::CutieErrorCode get_field_count(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t* out_count) CUTIE_FUNCTION_BEGIN {
+  if (!out_count) {
+    CUTIE_DEBUG_PRINT("Error: out_count parameter is null");
+    CUTIE_RETURNV(INVALID_PARAMETER);
+  }
 
-FieldInfo* get_field(ArrayDetector const &self, size_t index) {
   if (self.m_fields == nullptr) {
-    return nullptr;
+    *out_count = 0;
+    CUTIE_DEBUG_PRINT("ArrayDetector not initialized, returning 0 fields");
+    CUTIE_RETURNV(OK);
   }
+
+  *out_count = self.m_fields->length();
+  CUTIE_DEBUG_PRINT("ArrayDetector field count retrieved successfully");
+  CUTIE_RETURNV(OK);
+} CUTIE_FUNCTION_END
+
+::cutie_ns::CutieErrorCode get_field(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t index, FieldInfo** out_field) CUTIE_FUNCTION_BEGIN {
+  if (!out_field) {
+    CUTIE_DEBUG_PRINT("Error: out_field parameter is null");
+    CUTIE_RETURNV(INVALID_PARAMETER);
+  }
+
+  if (self.m_fields == nullptr) {
+    *out_field = nullptr;
+    CUTIE_DEBUG_PRINT("ArrayDetector not initialized, returning null field");
+    CUTIE_RETURNV(NOT_INITIALIZED);
+  }
+
   if (index < self.m_fields->length()) {
-    return (*self.m_fields)[index];
+    *out_field = (*self.m_fields)[index];
+    CUTIE_DEBUG_PRINT("ArrayDetector field found successfully");
+    CUTIE_RETURNV(OK);
   }
-  return nullptr;
-}
+
+  *out_field = nullptr;
+  CUTIE_DEBUG_PRINT("ArrayDetector index out of bounds");
+  CUTIE_RETURNV(INDEX_OUT_OF_BOUNDS);
+} CUTIE_FUNCTION_END
 
 } // namespace array_detector

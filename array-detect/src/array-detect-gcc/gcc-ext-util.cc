@@ -203,11 +203,25 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
 
   FieldInfo* field_info = NULL;
   CUTIE_DEBUG_PRINT("    Looking for existing field info...");
-  for (size_t i = 0; i < get_field_count(*detector); i++) {
-    FieldInfo* fi = get_field(*detector, i);
-    if (fi && fi->field_decl == field_decl) {
+
+  size_t field_count = 0;
+  CutieErrorCode count_err = get_field_count(*detector, CUTIE_ARGS, &field_count);
+  if (count_err != OK) {
+    CUTIE_DEBUG_PRINT("    Failed to get field count");
+    ecode = count_err;
+    CUTIE_RETURNR;
+  }
+
+  for (size_t i = 0; i < field_count; i++) {
+    FieldInfo* fi = nullptr;
+    CutieErrorCode field_err = get_field(*detector, CUTIE_ARGS, i, &fi);
+    if (field_err != OK || !fi) {
+      CUTIE_DEBUG_PRINT("    Failed to get field, continuing...");
+      continue;
+    }
+    if (fi->field_decl == field_decl) {
       field_info = fi;
-      CUTIE_DEBUG_PRINT("    Found existing field info for %s", fi->field_name);
+      CUTIE_DEBUG_PRINT("    Found existing field info");
       break;
     }
   }
@@ -224,13 +238,24 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
         temp_processed.create_ggc(0);
         CutieErrorCode err = process_type_fields(CUTIE_ARGS, containing_type, detector, &temp_processed);
         if (err == cutie_ns::OK) {
-            for (size_t i = 0; i < get_field_count(*detector); i++) {
-               FieldInfo* fi = get_field(*detector, i);
-               if (fi && fi->field_decl == field_decl) {
-                 field_info = fi;
-                 CUTIE_DEBUG_PRINT("    Created new field info for %s", fi->field_name);
-                 break;
-               }
+            size_t new_field_count = 0;
+            CutieErrorCode new_count_err = get_field_count(*detector, CUTIE_ARGS, &new_field_count);
+            if (new_count_err != OK) {
+                CUTIE_DEBUG_PRINT("    Failed to get new field count after processing type fields");
+            } else {
+                for (size_t i = 0; i < new_field_count; i++) {
+                   FieldInfo* fi = nullptr;
+                   CutieErrorCode new_field_err = get_field(*detector, CUTIE_ARGS, i, &fi);
+                   if (new_field_err != OK || !fi) {
+                       CUTIE_DEBUG_PRINT("    Failed to get new field, continuing...");
+                       continue;
+                   }
+                   if (fi->field_decl == field_decl) {
+                     field_info = fi;
+                     CUTIE_DEBUG_PRINT("    Created new field info");
+                     break;
+                   }
+                }
             }
         }
       }

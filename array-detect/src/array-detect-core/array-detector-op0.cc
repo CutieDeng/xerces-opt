@@ -58,7 +58,7 @@ CutieErrorCode array_detect_analysis(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   analysis_cleanup:
   // 清理资源
   // 语义：释放 vec 容器，设置指针为 nullptr
-  array_detector::deinit(detector);
+  array_detector::deinit(detector, CUTIE_ARGS);
   
   CUTIE_DEBUG_PRINT("Array member detection analysis completed");
   CUTIE_RETURNV(OK);

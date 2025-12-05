@@ -14,12 +14,12 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
 
 ::cutie_ns::CutieErrorCode analyze_usage(ArrayDetector &self, CUTIE_FUNC_ARGS);
 
-void deinit(ArrayDetector &self);
+void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS);
 
 ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info);
 
-size_t get_field_count(ArrayDetector const &self);
-FieldInfo* get_field(ArrayDetector const &self, size_t index);
+::cutie_ns::CutieErrorCode get_field_count(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t* out_count);
+::cutie_ns::CutieErrorCode get_field(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t index, FieldInfo** out_field);
 
 CutieErrorCode init (ArrayDetector &self, CUTIE_FUNC_ARGS);
 
@@ -29,10 +29,10 @@ namespace array_detector {
 
 struct ArrayDetector {
 
-  friend size_t get_field_count(ArrayDetector const &self);
-  friend FieldInfo* get_field(ArrayDetector const &self, size_t index);
+  friend ::cutie_ns::CutieErrorCode get_field_count(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t* out_count);
+  friend ::cutie_ns::CutieErrorCode get_field(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t index, FieldInfo** out_field);
   friend ::cutie_ns::CutieErrorCode analyze_usage(ArrayDetector &self, CUTIE_FUNC_ARGS);
-  friend void deinit(ArrayDetector &self);
+  friend void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS);
   friend ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info);
 
   vec<FieldInfo*>* m_fields; // 使用指针类型，延迟初始化

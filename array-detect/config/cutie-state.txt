@@ -9,5 +9,8 @@ CUTIE_ERROR_DEF (GARBAGE_COLLECTION_ERROR, "corrupted garbage collection system"
 CUTIE_ERROR_DEF (LOGICAL_ERROR, "normal logical error")
 CUTIE_ERROR_DEF (UNREACHABLE, "enter unreachable zone")
 CUTIE_ERROR_DEF (INVALID_ARGUMENT, "invalid argument")
+CUTIE_ERROR_DEF (INVALID_PARAMETER, "invalid parameter")
+CUTIE_ERROR_DEF (NOT_INITIALIZED, "object not initialized")
+CUTIE_ERROR_DEF (INDEX_OUT_OF_BOUNDS, "array index out of bounds")
 CUTIE_ERROR_DEF (UNKNOWN_ERROR, "unknown error")
 
