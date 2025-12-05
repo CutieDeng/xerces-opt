@@ -1,10 +1,10 @@
 #pragma once
 
-#include "array-detect-utils/prelude.hh"
-#include "array-detect-context/context.hh"
-#include "array-detect-context/state.hh"
+#include "prelude.hh"
+#include "context.hh"
+#include "state.hh"
 #include "array-detector-op0.hh"
-#include "array-detect-utils/info.hh"
+#include "info.hh"
 
 namespace array_detector {
 

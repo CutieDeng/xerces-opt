@@ -1,6 +1,6 @@
 #pragma once
 
-#include "array-detect-gcc/gcc-common.hh"
+#include "gcc-common.hh"
 
 // ============================================================================
 // 字段信息结构 - 垃圾回收说明

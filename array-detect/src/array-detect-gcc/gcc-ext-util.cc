@@ -1,6 +1,6 @@
 #include "gcc-ext-util.hh"
 
-#include "array-detect-utils/info.hh"
+#include "info.hh"
 
 namespace gcc_ext_util {
 

@@ -1,10 +1,10 @@
-#include "array-detect-utils/prelude.hh"
-#include "array-detect-context/state.hh"
+#include "prelude.hh"
+#include "state.hh"
 #include "array-detector-op0.hh"
 #include "array-detector.hh"
-#include "array-detect-utils/info-print.hh"
-#include "array-detect-context/context-init.hh"
-#include "array-detect-gcc/gcc-ext-util.hh"
+#include "info-print.hh"
+#include "context-init.hh"
+#include "gcc-ext-util.hh"
 
 namespace cutie_ns {
 

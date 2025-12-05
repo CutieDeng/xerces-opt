@@ -131,22 +131,20 @@
   "-fno-rtti"
   "-shared"
   "-I"
+  ,c
+  "-I"
   ,plugin-path
   "-I"
   ,(path->string (build-path plugin-path "include"))
-  "-I"
-  ,i
-  "-I"
-  ,c
   ;; Add include paths for each module using include as base
   "-I"
-  ,(path->string (build-path "include" "array-detect-core"))
+  ,(path->string (module-include-path "array-detect-core"))
   "-I"
-  ,(path->string (build-path "include" "array-detect-context"))
+  ,(path->string (module-include-path "array-detect-context"))
   "-I"
-  ,(path->string (build-path "include" "array-detect-gcc"))
+  ,(path->string (module-include-path "array-detect-gcc"))
   "-I"
-  ,(path->string (build-path "include" "array-detect-utils"))
+  ,(path->string (module-include-path "array-detect-utils"))
   "-undefined" "dynamic_lookup"
   "-O2"
   "-Wall"
