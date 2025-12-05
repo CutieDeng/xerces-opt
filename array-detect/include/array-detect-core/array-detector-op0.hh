@@ -1,8 +1,8 @@
 #pragma once
 
-#include "prelude.hh"
-#include "context.hh"
-#include "state.hh"
+#include "array-detect-utils/prelude.hh"
+#include "array-detect-context/context.hh"
+#include "array-detect-context/state.hh"
 
 namespace array_detector {
 

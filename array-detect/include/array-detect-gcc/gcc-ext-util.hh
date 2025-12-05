@@ -1,9 +1,9 @@
 #include "gcc-common.hh"
 
-#include "prelude.hh"
-#include "state.hh"
-#include "context.hh"
-#include "array-detector.hh"
+#include "array-detect-utils/prelude.hh"
+#include "array-detect-context/state.hh"
+#include "array-detect-context/context.hh"
+#include "array-detect-core/array-detector.hh"
 
 namespace gcc_ext_util {
 

@@ -1,16 +1,16 @@
 #include "gcc-common.hh"
 #include "plugin-version.h"
 
-#include "prelude.hh"
-#include "state.hh"
-#include "context.hh"
-#include "context-init.hh"
-#include "array-detector.hh"
-#include "array-detector-op0.hh"
+#include "array-detect-utils/prelude.hh"
+#include "array-detect-context/state.hh"
+#include "array-detect-context/context.hh"
+#include "array-detect-context/context-init.hh"
+#include "array-detect-core/array-detector.hh"
+#include "array-detect-core/array-detector-op0.hh"
 
 #include "gcc-ext-util.hh"
-#include "info.hh"
-#include "info-print.hh"
+#include "array-detect-utils/info.hh"
+#include "array-detect-utils/info-print.hh"
 
 // ----------------------------------------------------------------------------
 // Pass 注册结构

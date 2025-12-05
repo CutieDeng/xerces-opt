@@ -1,6 +1,6 @@
-#include "prelude.hh"
+#include "array-detect-utils/prelude.hh"
 #include "array-detector.hh"
-#include "state.hh"
+#include "array-detect-context/state.hh"
 
 namespace array_detector {
 

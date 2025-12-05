@@ -1,7 +1,7 @@
 #include "gcc-common.hh"
 
-#include "context.hh"
-#include "context-init.hh"
+#include "array-detect-context/context.hh"
+#include "array-detect-context/context-init.hh"
 
 namespace cutie_ns {
 

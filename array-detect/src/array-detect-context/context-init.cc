@@ -1,4 +1,4 @@
-#include "prelude.hh"
+#include "array-detect-utils/prelude.hh"
 #include "state.hh"
 #include "context.hh"
 #include "context-init.hh"
