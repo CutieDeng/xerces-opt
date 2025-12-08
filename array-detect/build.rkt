@@ -18,103 +18,101 @@
 (define i "include")
 (define c "config")
 
-;; Build paths for each module
-(define (module-src-path m) (build-path s m))
-(define (module-include-path m) (build-path i m))
+;; Direct path construction - removed helper functions
 
 ;; Include dependencies for headers
-(define include-related/includes (let ()
+(define include-related/includes
   (hash
     ;; Core module headers
-    (build-path (module-include-path "array-detect-core") "array-detector.hh")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh")
-            (build-path (module-include-path "array-detect-core") "array-detector-op0.hh")
-            (build-path (module-include-path "array-detect-utils") "info.hh"))
+    (build-path i "array-detect-core" "array-detector.hh")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "state.hh")
+            (build-path i "array-detect-core" "array-detector-op0.hh")
+            (build-path i "array-detect-utils" "info.hh"))
 
-    (build-path (module-include-path "array-detect-core") "array-detector-op0.hh")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh"))
+    (build-path i "array-detect-core" "array-detector-op0.hh")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "state.hh"))
 
     ;; Context module headers
-    (build-path (module-include-path "array-detect-context") "context-init.hh")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh"))
+    (build-path i "array-detect-context" "context-init.hh")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "state.hh"))
 
-    (build-path (module-include-path "array-detect-context") "state.hh")
+    (build-path i "array-detect-context" "state.hh")
       (list (build-path c "cutie-state.txt"))
 
     ;; Utils module headers
-    (build-path (module-include-path "array-detect-utils") "info.hh")
-      (list (build-path (module-include-path "array-detect-gcc") "gcc-common.hh"))
+    (build-path i "array-detect-utils" "info.hh")
+      (list (build-path i "array-detect-gcc" "gcc-common.hh"))
 
-    (build-path (module-include-path "array-detect-gcc") "gcc-ext-util.hh")
-      (list (build-path (module-include-path "array-detect-gcc") "gcc-common.hh")
-            (build-path (module-include-path "array-detect-utils") "prelude.hh"))
-  )))
+    (build-path i "array-detect-gcc" "gcc-ext-util.hh")
+      (list (build-path i "array-detect-gcc" "gcc-common.hh")
+            (build-path i "array-detect-utils" "prelude.hh"))
+  ))
 
 ;; Include dependencies for source files
-(define include-related/srcs (let ()
+(define include-related/srcs
   (hash
     ;; Core module sources
-    (build-path (module-src-path "array-detect-core") "array-detector.cc")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-core") "array-detector.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh"))
+    (build-path s "array-detect-core" "array-detector.cc")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-core" "array-detector.hh")
+            (build-path i "array-detect-context" "state.hh"))
 
-    (build-path (module-src-path "array-detect-core") "array-detector-op0.cc")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh")
-            (build-path (module-include-path "array-detect-core") "array-detector-op0.hh")
-            (build-path (module-include-path "array-detect-context") "context-init.hh")
-            (build-path (module-include-path "array-detect-gcc") "gcc-ext-util.hh"))
+    (build-path s "array-detect-core" "array-detector-op0.cc")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "state.hh")
+            (build-path i "array-detect-core" "array-detector-op0.hh")
+            (build-path i "array-detect-context" "context-init.hh")
+            (build-path i "array-detect-gcc" "gcc-ext-util.hh"))
 
     ;; Context module sources
-    (build-path (module-src-path "array-detect-context") "context.cc")
-      (list (build-path (module-include-path "array-detect-context") "context.hh"))
+    (build-path s "array-detect-context" "context.cc")
+      (list (build-path i "array-detect-context" "context.hh"))
 
-    (build-path (module-src-path "array-detect-context") "context-init.cc")
-      (list (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "context-init.hh"))
+    (build-path s "array-detect-context" "context-init.cc")
+      (list (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "state.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "context-init.hh"))
 
-    (build-path (module-src-path "array-detect-context") "state.cc")
-      (list (build-path (module-include-path "array-detect-context") "state.hh"))
+    (build-path s "array-detect-context" "state.cc")
+      (list (build-path i "array-detect-context" "state.hh"))
 
     ;; GCC module sources
-    (build-path (module-src-path "array-detect-gcc") "context-init-gcc.cc")
-      (list (build-path (module-include-path "array-detect-gcc") "gcc-common.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "context-init.hh"))
+    (build-path s "array-detect-gcc" "context-init-gcc.cc")
+      (list (build-path i "array-detect-gcc" "gcc-common.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "context-init.hh"))
 
-    (build-path (module-src-path "array-detect-gcc") "gcc-ext-util.cc")
-      (list (build-path (module-include-path "array-detect-gcc") "gcc-ext-util.hh")
-            (build-path (module-include-path "array-detect-utils") "info.hh"))
+    (build-path s "array-detect-gcc" "gcc-ext-util.cc")
+      (list (build-path i "array-detect-gcc" "gcc-ext-util.hh")
+            (build-path i "array-detect-utils" "info.hh"))
 
-    (build-path (module-src-path "array-detect-gcc") "plugin-top.cc")
-      (list (build-path (module-include-path "array-detect-gcc") "gcc-common.hh")
-            (build-path (module-include-path "array-detect-utils") "prelude.hh")
-            (build-path (module-include-path "array-detect-context") "state.hh")
-            (build-path (module-include-path "array-detect-context") "context.hh")
-            (build-path (module-include-path "array-detect-context") "context-init.hh")
-            (build-path (module-include-path "array-detect-core") "array-detector.hh")
-            (build-path (module-include-path "array-detect-core") "array-detector-op0.hh"))
+    (build-path s "array-detect-gcc" "plugin-top.cc")
+      (list (build-path i "array-detect-gcc" "gcc-common.hh")
+            (build-path i "array-detect-utils" "prelude.hh")
+            (build-path i "array-detect-context" "state.hh")
+            (build-path i "array-detect-context" "context.hh")
+            (build-path i "array-detect-context" "context-init.hh")
+            (build-path i "array-detect-core" "array-detector.hh")
+            (build-path i "array-detect-core" "array-detector-op0.hh"))
 
     ;; Utils module sources
-    (build-path (module-src-path "array-detect-utils") "info-print.cc")
-      (list (build-path (module-include-path "array-detect-utils") "info-print.hh"))
-  )))
+    (build-path s "array-detect-utils" "info-print.cc")
+      (list (build-path i "array-detect-utils" "info-print.hh"))
+  ))
 
 ;; Collect all source files from all modules
 (define (find-rel x) (find-relative-path (current-directory) x))
 (define sources
   (append-map
     (lambda (m)
-      (map find-rel (glob (build-path (module-src-path m) "*.cc"))))
+      (map find-rel (glob (build-path s m "*.cc"))))
     modules))
 
 (define (find-rel/src x) (find-relative-path "src" x))
@@ -138,13 +136,13 @@
   ,(path->string (build-path plugin-path "include"))
   ;; Add include paths for each module using include as base
   "-I"
-  ,(path->string (module-include-path "array-detect-core"))
+  ,(path->string (build-path "include/array-detect-core"))
   "-I"
-  ,(path->string (module-include-path "array-detect-context"))
+  ,(path->string (build-path "include/array-detect-context"))
   "-I"
-  ,(path->string (module-include-path "array-detect-gcc"))
+  ,(path->string (build-path "include/array-detect-gcc"))
   "-I"
-  ,(path->string (module-include-path "array-detect-utils"))
+  ,(path->string (build-path "include/array-detect-utils"))
   "-undefined" "dynamic_lookup"
   "-O2"
   "-Wall"
@@ -251,13 +249,57 @@
   (printf "~n")
 )
 
-(define (run)
+(define (calc-dependency filename)
+  (define c (make-custodian))
+  (with-handlers ([exn:fail? (lambda (_e) (custodian-shutdown-all c) (raise _e))])
+    (parameterize ([current-custodian c])
+      (match-define `(,i ,o ,p ,i2 ,h) (apply process* (append `(,cxx . ,args^) `("-M" ,filename))))
+      (h 'wait)
+      (define is (sequence->list (in-lines i)))
+      (match (h 'status)
+        ['done-ok
+          (for/list ([j (in-naturals)] [f (in-list is)])
+            (define f^ (cond [(equal? (+ j 1) (length is)) f] [else (string-trim f " \\" #:left? #f)]))
+            (define f^^ (cond [(equal? j 0) (define loc (string-find f^ ": ")) (substring f^ (+ loc 2))] [else (string-trim f^ #:right? #f #:repeat? #t)]))
+            f^^
+          )]
+        ['done-error
+          (raise-user-error 'calc-dependency "failed to calc '~a' by ~a'" filename cxx)])
+    )
+  )
+)
+
+(define (exists-up? path)
+  (match-define-values (base name must-be-dir?) (split-path path))
+  (match* (base name)
+    [(_ 'up) #t]
+    [((or #f 'relative) _) #f]
+    [(_ _) (exists-up? base)]
+  )
+)
+
+(define (write-deps2)
+  (for ([s sources] [t targets])
+    (define ds (calc-dependency s))
+    (define ds^ (map (compose find-rel simple-form-path) ds))
+    (define ds^^ (filter (compose not exists-up?) ds^))
+    (printf "~a: \\~n" t)
+    (for ([d ds^^])
+      (printf "  ~a \\~n" d))
+    (printf "~n")
+  )
+  (printf "~a:" output-so-path)
+  (for ([t targets]) (printf " ~a" t))
+  (printf "~n~n")
+)
+
+(define (write-makefile)
   (call-with-atomic-output-file "Makefile" (lambda (o _p) (parameterize ([current-output-port o])
     (write-plugin)
     (write-compiles)
-    (write-deps)
+    (write-deps2)
     (write-clean)
     (write-test)
   ))))
 
-(module+ main (run))
+(module+ main (write-makefile))
