@@ -1,6 +1,10 @@
 #pragma once
 
+// 默认版本，不包含 GCC context 栈帧操作
 #define CUTIE_FUNCTION_BEGIN \
+  { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
+
+#define CUTIE_FUNCTION_BEGIN2 \
   { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
 
 #define CUTIE_FUNCTION_END2 \
@@ -97,7 +101,56 @@
   } while (0)
 
 #define CUTIE_FUNC_ARGS \
-  ::cutie_ns::CutieContext &ctx
+  ::cutie_ns::CutieContext &ctx, ::cutie_ns::CutieContextGcc &gcc_ctx
 
 #define CUTIE_ARGS \
-  ctx
+  ctx, gcc_ctx
+
+
+// Enhanced stack frame management macros
+// 注意：以下宏仅用于需要手动控制栈帧的特殊情况
+
+#define CUTIE_GCC_ENTER_FUNCTION(func_ptr) \
+  do { \
+    CUTIE_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::enter_function(ctx, ::cutie_ns::get_cutie_context_gcc_safe(), (func_ptr)); \
+    } \
+  } while (0)
+
+#define CUTIE_GCC_EXIT_FUNCTION() \
+  do { \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::exit_function(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    } \
+  } while (0)
+
+// 手动栈帧操作 - 仅在需要特殊控制时使用
+#define CUTIE_GCC_PUSH_STACK_FRAME(frame_id) \
+  do { \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::push_stack_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe(), (frame_id)); \
+    } \
+  } while (0)
+
+#define CUTIE_GCC_POP_STACK_FRAME() \
+  do { \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::pop_stack_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    } \
+  } while (0)
+
+// Debug macros with GCC context integration
+#define CUTIE_GCC_PRINT_STACK_FRAMES() \
+  do { \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::print_stack_frames(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    } \
+  } while (0)
+
+#define CUTIE_GCC_PRINT_CURRENT_FRAME() \
+  do { \
+    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
+      ::cutie_ns::print_current_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    } \
+  } while (0)

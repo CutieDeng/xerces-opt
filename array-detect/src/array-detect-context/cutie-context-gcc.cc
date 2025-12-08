@@ -4,53 +4,59 @@
 
 namespace cutie_ns {
 
-// Stack frame management
-void push_stack_frame(CutieContextGcc& self, uint64_t frame_id) {
-  self.stack_frames.safe_push(frame_id);
+// Stack frame management - 直接使用所有 context 参数
+void push_stack_frame(CutieContext& ctx, CutieContextGcc& gcc_ctx, uint64_t frame_id) {
+  (void)ctx; // Suppress unused parameter warning
+  gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
-void pop_stack_frame(CutieContextGcc& self) {
-  if (!self.stack_frames.is_empty()) {
-    self.stack_frames.pop();
+void pop_stack_frame(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  (void)ctx; // Suppress unused parameter warning
+  if (!gcc_ctx.stack_frames.is_empty()) {
+    gcc_ctx.stack_frames.pop();
   }
 }
 
-void clear_stack_frames(CutieContextGcc& self) {
-  self.stack_frames.truncate(0);
+void clear_stack_frames(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  (void)ctx; // Suppress unused parameter warning
+  gcc_ctx.stack_frames.truncate(0);
 }
 
-// Stack frame query
-size_t get_stack_depth(CutieContextGcc const &self) {
-  return self.stack_frames.length();
+// Stack frame query functions
+size_t get_stack_depth(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  (void)ctx; // Suppress unused parameter warning
+  return gcc_ctx.stack_frames.length();
 }
 
-bool is_stack_empty(CutieContextGcc const &self) {
-  return self.stack_frames.is_empty();
-}
-
-uint64_t get_current_frame(CutieContextGcc const &self) {
-  if (self.stack_frames.is_empty()) {
+uint64_t get_current_frame(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  (void)ctx; // Suppress unused parameter warning
+  if (gcc_ctx.stack_frames.is_empty()) {
     return 0;
   }
-  return const_cast<vec<uint64_t>&>(self.stack_frames).last();
+  return const_cast<vec<uint64_t>&>(gcc_ctx.stack_frames).last();
+}
+
+bool is_stack_empty(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  (void)ctx; // Suppress unused parameter warning
+  return gcc_ctx.stack_frames.is_empty();
 }
 
 // Debug output functions
-void print_stack_frames(CutieContextGcc const &self, CutieContext& ctx) {
+void print_stack_frames(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
   if (!ctx.debug_file) return;
 
   fprintf(ctx.debug_file, "=== GCC Stack Frame Information ===\n");
-  fprintf(ctx.debug_file, "Stack depth: %zu\n", get_stack_depth(self));
+  fprintf(ctx.debug_file, "Stack depth: %zu\n", get_stack_depth(ctx, gcc_ctx));
 
-  if (self.stack_frames.is_empty()) {
+  if (gcc_ctx.stack_frames.is_empty()) {
     fprintf(ctx.debug_file, "Stack is empty\n");
   } else {
     fprintf(ctx.debug_file, "Stack frames (top to bottom):\n");
 
-    for (int i = (int)self.stack_frames.length() - 1; i >= 0; i--) {
-      uint64_t frame_id = self.stack_frames[i];
+    for (int i = (int)gcc_ctx.stack_frames.length() - 1; i >= 0; i--) {
+      uint64_t frame_id = gcc_ctx.stack_frames[i];
       fprintf(ctx.debug_file, "  [%d] Frame ID: 0x%016lx\n",
-              self.stack_frames.length() - i - 1, (unsigned long)frame_id);
+              gcc_ctx.stack_frames.length() - i - 1, (unsigned long)frame_id);
 
       // 尝试获取函数名（如果可用）
       tree frame_tree = (tree)frame_id;
@@ -63,16 +69,16 @@ void print_stack_frames(CutieContextGcc const &self, CutieContext& ctx) {
   fprintf(ctx.debug_file, "========================================\n");
 }
 
-void print_current_frame(CutieContextGcc const &self, CutieContext& ctx) {
+void print_current_frame(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
   if (!ctx.debug_file) return;
 
-  if (self.stack_frames.is_empty()) {
+  if (gcc_ctx.stack_frames.is_empty()) {
     fprintf(ctx.debug_file, "Current: No active stack frame\n");
     return;
   }
 
-  uint64_t current_frame = get_current_frame(self);
-  int stack_pos = self.stack_frames.length();
+  uint64_t current_frame = get_current_frame(ctx, gcc_ctx);
+  int stack_pos = gcc_ctx.stack_frames.length();
 
   fprintf(ctx.debug_file, "Current stack frame: [depth=%d] id=0x%016lx",
           stack_pos - 1, (unsigned long)current_frame);
@@ -87,24 +93,9 @@ void print_current_frame(CutieContextGcc const &self, CutieContext& ctx) {
   fprintf(ctx.debug_file, "\n");
 }
 
-// Get current function's stack frame depth
-size_t get_function_depth(CutieContextGcc const &self) {
-  return get_stack_depth(self);
-}
-
-// Check if currently in specified function (for depth analysis)
-bool is_in_function(CutieContextGcc const &self, uint64_t function_ptr) {
-  for (unsigned int i = 0; i < self.stack_frames.length(); i++) {
-    if (self.stack_frames[i] == function_ptr) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Convenience functions for function tracking
-void enter_function(CutieContextGcc& self, uint64_t function_ptr, CutieContext& ctx) {
-  push_stack_frame(self, function_ptr);
+void enter_function(CutieContext& ctx, CutieContextGcc& gcc_ctx, uint64_t function_ptr) {
+  push_stack_frame(ctx, gcc_ctx, function_ptr);
 
   if (ctx.debug_file) {
     const char* func_name = "<unknown>";
@@ -114,13 +105,13 @@ void enter_function(CutieContextGcc& self, uint64_t function_ptr, CutieContext& 
     }
 
     fprintf(ctx.debug_file, "[%s +%d] %s: Entering function (ptr: 0x%016lx) - function: %s - stack depth: %zu\n",
-            __FILE__, __LINE__, __func__, (unsigned long)function_ptr, func_name, get_function_depth(self));
+            __FILE__, __LINE__, __func__, (unsigned long)function_ptr, func_name, get_function_depth(ctx, gcc_ctx));
   }
 }
 
-void exit_function(CutieContextGcc& self, CutieContext& ctx) {
-  if (ctx.debug_file && !self.stack_frames.is_empty()) {
-    uint64_t leaving_frame = get_current_frame(self);
+void exit_function(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  if (ctx.debug_file && !gcc_ctx.stack_frames.is_empty()) {
+    uint64_t leaving_frame = get_current_frame(ctx, gcc_ctx);
     const char* func_name = "<unknown>";
 
     tree leaving_tree = (tree)leaving_frame;
@@ -129,10 +120,25 @@ void exit_function(CutieContextGcc& self, CutieContext& ctx) {
     }
 
     fprintf(ctx.debug_file, "[%s +%d] %s: Exiting function (ptr: 0x%016lx) - function: %s - stack depth after: %zu\n",
-            __FILE__, __LINE__, __func__, (unsigned long)leaving_frame, func_name, get_function_depth(self) - 1);
+            __FILE__, __LINE__, __func__, (unsigned long)leaving_frame, func_name, get_function_depth(ctx, gcc_ctx) - 1);
   }
 
-  pop_stack_frame(self);
+  pop_stack_frame(ctx, gcc_ctx);
+}
+
+// Function depth analysis
+size_t get_function_depth(CutieContext& ctx, CutieContextGcc& gcc_ctx) {
+  return get_stack_depth(ctx, gcc_ctx);
+}
+
+bool is_in_function(CutieContext& ctx, CutieContextGcc& gcc_ctx, uint64_t function_ptr) {
+  (void)ctx; // Suppress unused parameter warning
+  for (unsigned int i = 0; i < gcc_ctx.stack_frames.length(); i++) {
+    if (gcc_ctx.stack_frames[i] == function_ptr) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Utility function to get function pointer from GCC tree

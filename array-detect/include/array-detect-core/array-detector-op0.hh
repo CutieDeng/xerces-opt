@@ -31,4 +31,7 @@ CutieErrorCode trace_field_assignments(CUTIE_FUNC_ARGS, ArrayDetector* detector)
 // 语义：跳过 array_detect_analysis 的创建步骤，直接执行分析
 CutieErrorCode array_detect_execute_with_detector(CUTIE_FUNC_ARGS, ArrayDetector* detector);
 
+// GCC 专用的执行入口函数
+CutieErrorCode array_detect_execute_with_gcc_context(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx, ArrayDetector* detector);
+
 } // namespace cutie_ns

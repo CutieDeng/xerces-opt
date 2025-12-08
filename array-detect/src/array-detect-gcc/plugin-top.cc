@@ -7,6 +7,7 @@
 #include "context-init.hh"
 #include "array-detector.hh"
 #include "array-detector-op0.hh"
+#include "cutie-context-gcc.hh"
 
 #include "gcc-ext-util.hh"
 #include "info.hh"
@@ -61,7 +62,13 @@ class pass_array_detect : public ipa_opt_pass_d {
 
   unsigned int execute(function*) override {
     // Regular IPA passes in WPA mode call execute() with NULL function
-    return array_detect_execute (cutie_ns::g_cutie_ctx) != ::cutie_ns::OK;
+    // 使用局部上下文，避免全局状态问题
+    ::cutie_ns::CutieContext local_ctx;
+    ::cutie_ns::CutieContextGcc local_gcc_ctx;
+
+    // 直接执行分析
+    ::cutie_ns::CutieErrorCode result = array_detect_execute (local_ctx, local_gcc_ctx);
+    return result != ::cutie_ns::OK;
   }
 };
 

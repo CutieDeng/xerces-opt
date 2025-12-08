@@ -2,6 +2,7 @@
 #include "state.hh"
 #include "context.hh"
 #include "context-init.hh"
+#include "cutie-context-gcc-manager.h"
 
 namespace cutie_ns {
 
@@ -22,6 +23,7 @@ CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   if (ctx.debug_file == nullptr) {
     CUTIE_RETURNV (RESOURCE_ERROR);
   }
+  CUTIE_TRY_LABEL (init_cutie_context_gcc_internal (CUTIE_ARGS), fail0);
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
   CUTIE_RETURNV (OK);
   if (false) {
@@ -38,6 +40,7 @@ CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) C
   if (ctx.debug_file == nullptr) {
     CUTIE_RETURNV (RESOURCE_ERROR);
   }
+  CUTIE_TRY_LABEL (init_cutie_context_gcc_internal (CUTIE_ARGS), fail0);
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
   CUTIE_RETURNV (OK);
   if (false) {
@@ -50,6 +53,7 @@ CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) C
 CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
+  CUTIE_TRY_LABEL (init_cutie_context_gcc_internal (CUTIE_ARGS), fail0);
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
   CUTIE_RETURNV (OK);
   if (false) {
@@ -61,6 +65,7 @@ CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
 
 void deinit(CUTIE_FUNC_ARGS) {
   ctx.debug_file_dtor(ctx.debug_file);
+  deinit_cutie_context_gcc_internal (CUTIE_ARGS);
 }
 
 }
