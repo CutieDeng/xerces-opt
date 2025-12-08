@@ -32,7 +32,8 @@ obj/array-detect-core/array-detector-op0.o: \
   src/array-detect-core/array-detector-op0.cc \
   include/array-detect-utils/prelude.hh \
   include/array-detect-context/state.hh \
-  config/cutie-state.txt include/array-detect-core/array-detector-op0.hh \
+  config/cutie-state.txt \
+  include/array-detect-core/array-detector-op0.hh \
   include/array-detect-context/context.hh \
   include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
@@ -47,7 +48,8 @@ obj/array-detect-core/array-detector.o: \
   include/array-detect-core/array-detector.hh \
   include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
-  config/cutie-state.txt include/array-detect-core/array-detector-op0.hh \
+  config/cutie-state.txt \
+  include/array-detect-core/array-detector-op0.hh \
   include/array-detect-utils/info.hh \
   include/array-detect-gcc/gcc-common.hh \
 
@@ -55,7 +57,8 @@ obj/array-detect-context/context-init.o: \
   src/array-detect-context/context-init.cc \
   include/array-detect-utils/prelude.hh \
   include/array-detect-context/state.hh \
-  config/cutie-state.txt include/array-detect-context/context.hh \
+  config/cutie-state.txt \
+  include/array-detect-context/context.hh \
   include/array-detect-context/context-init.hh \
 
 obj/array-detect-context/context.o: \
@@ -73,14 +76,16 @@ obj/array-detect-gcc/context-init-gcc.o: \
   include/array-detect-context/context.hh \
   include/array-detect-context/context-init.hh \
   include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh config/cutie-state.txt \
+  include/array-detect-context/state.hh \
+  config/cutie-state.txt \
 
 obj/array-detect-gcc/gcc-ext-util.o: \
   src/array-detect-gcc/gcc-ext-util.cc \
   include/array-detect-gcc/gcc-ext-util.hh \
   include/array-detect-gcc/gcc-common.hh \
   include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh config/cutie-state.txt \
+  include/array-detect-context/state.hh \
+  config/cutie-state.txt \
   include/array-detect-context/context.hh \
   include/array-detect-core/array-detector.hh \
   include/array-detect-core/array-detector-op0.hh \
@@ -90,7 +95,8 @@ obj/array-detect-gcc/plugin-top.o: \
   src/array-detect-gcc/plugin-top.cc \
   include/array-detect-gcc/gcc-common.hh \
   include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh config/cutie-state.txt \
+  include/array-detect-context/state.hh \
+  config/cutie-state.txt \
   include/array-detect-context/context.hh \
   include/array-detect-context/context-init.hh \
   include/array-detect-core/array-detector.hh \
@@ -106,7 +112,8 @@ obj/array-detect-utils/info-print.o: \
   include/array-detect-core/array-detector.hh \
   include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
-  config/cutie-state.txt include/array-detect-core/array-detector-op0.hh \
+  config/cutie-state.txt \
+  include/array-detect-core/array-detector-op0.hh \
   include/array-detect-utils/info.hh \
   include/array-detect-gcc/gcc-common.hh \
 
