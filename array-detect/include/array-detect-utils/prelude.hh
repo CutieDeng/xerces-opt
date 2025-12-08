@@ -18,10 +18,7 @@
   return ecode; }
 
 #define CUTIE_FUNCTION_END \
-  do { \
-    ::cutie_ns::controlflow::popStackFrame(CUTIE_ARGS); \
-  } while (0); \
-  return ::cutie_ns::UNREACHABLE; \
+  CUTIE_RETURNV (UNREACHABLE); \
   cleanup:; \
   CUTIE_FUNCTION_END2
 
@@ -120,46 +117,34 @@
 #define CUTIE_GCC_ENTER_FUNCTION(func_ptr) \
   do { \
     CUTIE_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::enterFunction(CUTIE_ARGS, (func_ptr)); \
-    } \
+    ::cutie_ns::enterFunction(CUTIE_ARGS, (func_ptr)); \
   } while (0)
 
 #define CUTIE_GCC_EXIT_FUNCTION() \
   do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::exitFunction(CUTIE_ARGS); \
-    } \
+    ::cutie_ns::exitFunction(CUTIE_ARGS); \
   } while (0)
 
 // Debug macros with GCC context integration
 #define CUTIE_GCC_PRINT_STACK_FRAMES() \
   do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printStackFrames(CUTIE_ARGS); \
-    } \
+    ::cutie_ns::printStackFrames(CUTIE_ARGS); \
   } while (0)
 
 #define CUTIE_GCC_PRINT_CURRENT_FRAME() \
   do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printCurrentFrame(CUTIE_ARGS); \
-    } \
+    ::cutie_ns::printCurrentFrame(CUTIE_ARGS); \
   } while (0)
 
 // Enhanced macros with source code location information
 #define CUTIE_GCC_PRINT_STACK_WITH_SOURCE() \
   do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
-    } \
+    ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
   } while (0)
 
 #define CUTIE_GCC_PRINT_FRAME_SOURCE(frame_addr) \
   do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printStackFrameSource(CUTIE_ARGS, (frame_addr)); \
-    } \
+    ::cutie_ns::printStackFrameSource(CUTIE_ARGS, (frame_addr)); \
   } while (0)
 
 // Macro to print current call stack with source locations
@@ -170,28 +155,3 @@
     CUTIE_DEBUG_PRINT("=== End Call Stack ==="); \
   } while (0)
 
-// ============================================================================
-// 便利宏 - 自动栈帧管理
-// ============================================================================
-
-// 自动调用栈转储
-#define CUTIE_AUTO_DUMP_CALL_STACK() \
-  do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      CUTIE_DEBUG_PRINT("=== Auto Call Stack Dump ==="); \
-      ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
-      CUTIE_DEBUG_PRINT("=== End Auto Call Stack ==="); \
-    } \
-  } while (0)
-
-// 栈帧深度断言 - 调试时使用
-#define CUTIE_ASSERT_STACK_DEPTH(expected_depth) \
-  do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      size_t actual_depth = ::cutie_ns::getStackDepth(CUTIE_ARGS); \
-      if (actual_depth != (expected_depth)) { \
-        CUTIE_DEBUG_PRINT("Stack depth assertion failed: expected %zu, got %zu", (expected_depth), actual_depth); \
-        ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
-      } \
-    } \
-  } while (0)

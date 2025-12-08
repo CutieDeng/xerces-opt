@@ -18,10 +18,12 @@ namespace controlflow {
 
 // Stack frame management functions
 void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id) {
+  CUTIE_ARGS_WARN_DENY;
   gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
 void popStackFrame(CUTIE_FUNC_ARGS) {
+  CUTIE_ARGS_WARN_DENY;
   if (!gcc_ctx.stack_frames.is_empty()) {
     gcc_ctx.stack_frames.pop();
   }
