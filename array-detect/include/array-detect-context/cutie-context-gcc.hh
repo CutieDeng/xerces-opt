@@ -9,37 +9,33 @@
 
 namespace cutie_ns {
 
-// GCC上下文管理函数 - 公开接口
-::cutie_ns::CutieErrorCode init_cutie_context_gcc(CUTIE_FUNC_ARGS);
-void deinit_cutie_context_gcc(CUTIE_FUNC_ARGS);
-bool is_cutie_context_gcc_initialized();
-
-// 内部函数 - 不暴露给外部使用
-::cutie_ns::CutieErrorCode init_cutie_context_gcc_internal(CUTIE_FUNC_ARGS);
-void deinit_cutie_context_gcc_internal(CUTIE_FUNC_ARGS);
-bool is_cutie_context_gcc_initialized_internal();
+// GCC上下文管理函数 - 使用常规 aBC 命名法
+::cutie_ns::CutieErrorCode initCutieContextGcc(CUTIE_FUNC_ARGS);
+void deinitCutieContextGcc(CUTIE_FUNC_ARGS);
+bool isCutieContextGccInitialized();
+CutieContextGcc& getCutieContextGccSafe();
 
 // Stack frame management functions - 使用统一宏
-void push_stack_frame(CUTIE_FUNC_ARGS, uint64_t frame_id);
-void pop_stack_frame(CUTIE_FUNC_ARGS);
-void clear_stack_frames(CUTIE_FUNC_ARGS);
+void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id);
+void popStackFrame(CUTIE_FUNC_ARGS);
+void clearStackFrames(CUTIE_FUNC_ARGS);
 
 // Stack frame query functions
-size_t get_stack_depth(CUTIE_FUNC_ARGS);
-uint64_t get_current_frame(CUTIE_FUNC_ARGS);
-bool is_stack_empty(CUTIE_FUNC_ARGS);
+size_t getStackDepth(CUTIE_FUNC_ARGS);
+uint64_t getCurrentFrame(CUTIE_FUNC_ARGS);
+bool isStackEmpty(CUTIE_FUNC_ARGS);
 
 // Debug output functions
-void print_stack_frames(CUTIE_FUNC_ARGS);
-void print_current_frame(CUTIE_FUNC_ARGS);
+void printStackFrames(CUTIE_FUNC_ARGS);
+void printCurrentFrame(CUTIE_FUNC_ARGS);
 
 // Convenience functions for function tracking
-void enter_function(CUTIE_FUNC_ARGS, uint64_t function_ptr);
-void exit_function(CUTIE_FUNC_ARGS);
+void enterFunction(CUTIE_FUNC_ARGS, uint64_t function_ptr);
+void exitFunction(CUTIE_FUNC_ARGS);
 
 // Function depth analysis
-size_t get_function_depth(CUTIE_FUNC_ARGS);
-bool is_in_function(CUTIE_FUNC_ARGS, uint64_t function_ptr);
+size_t getFunctionDepth(CUTIE_FUNC_ARGS);
+bool isInFunction(CUTIE_FUNC_ARGS, uint64_t function_ptr);
 
 // GCC特定上下文类型 - 使用 public 变量，无访问控制
 struct CutieContextGcc {
@@ -48,6 +44,6 @@ struct CutieContextGcc {
 };
 
 // 内部全局对象，不暴露给外部
-extern CutieContextGcc g_cutie_ctx_gcc;
+extern CutieContextGcc gCutieContextGcc;
 
 } // namespace cutie_ns

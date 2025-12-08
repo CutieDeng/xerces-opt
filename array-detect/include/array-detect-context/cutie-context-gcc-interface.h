@@ -9,16 +9,16 @@ namespace cutie_ns {
 struct CutieContextGcc;
 
 // 公开的 GCC context 管理函数
-::cutie_ns::CutieErrorCode init_cutie_context_gcc(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
-void deinit_cutie_context_gcc(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
-bool is_cutie_context_gcc_initialized();
+::cutie_ns::CutieErrorCode initCutieContextGcc(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
+void deinitCutieContextGcc(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
+bool isCutieContextGccInitialized();
 
 // 安全访问函数
-CutieContextGcc& get_cutie_context_gcc_safe();
+CutieContextGcc& getCutieContextGccSafe();
 
 // 基础栈帧管理函数（如果其他模块需要）
-void push_stack_frame(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx, uint64_t frame_id);
-void pop_stack_frame(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
-bool is_stack_empty(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
+void pushStackFrame(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx, uint64_t frame_id);
+void popStackFrame(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
+bool isStackEmpty(::cutie_ns::CutieContext& ctx, ::cutie_ns::CutieContextGcc& gcc_ctx);
 
 } // namespace cutie_ns

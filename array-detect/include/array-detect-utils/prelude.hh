@@ -113,44 +113,44 @@
 #define CUTIE_GCC_ENTER_FUNCTION(func_ptr) \
   do { \
     CUTIE_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::enter_function(ctx, ::cutie_ns::get_cutie_context_gcc_safe(), (func_ptr)); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::enterFunction(ctx, ::cutie_ns::getCutieContextGccSafe(), (func_ptr)); \
     } \
   } while (0)
 
 #define CUTIE_GCC_EXIT_FUNCTION() \
   do { \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::exit_function(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::exitFunction(ctx, ::cutie_ns::getCutieContextGccSafe()); \
     } \
   } while (0)
 
 // 手动栈帧操作 - 仅在需要特殊控制时使用
 #define CUTIE_GCC_PUSH_STACK_FRAME(frame_id) \
   do { \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::push_stack_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe(), (frame_id)); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::pushStackFrame(ctx, ::cutie_ns::getCutieContextGccSafe(), (frame_id)); \
     } \
   } while (0)
 
 #define CUTIE_GCC_POP_STACK_FRAME() \
   do { \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::pop_stack_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::popStackFrame(ctx, ::cutie_ns::getCutieContextGccSafe()); \
     } \
   } while (0)
 
 // Debug macros with GCC context integration
 #define CUTIE_GCC_PRINT_STACK_FRAMES() \
   do { \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::print_stack_frames(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::printStackFrames(ctx, ::cutie_ns::getCutieContextGccSafe()); \
     } \
   } while (0)
 
 #define CUTIE_GCC_PRINT_CURRENT_FRAME() \
   do { \
-    if (::cutie_ns::is_cutie_context_gcc_initialized()) { \
-      ::cutie_ns::print_current_frame(ctx, ::cutie_ns::get_cutie_context_gcc_safe()); \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::printCurrentFrame(ctx, ::cutie_ns::getCutieContextGccSafe()); \
     } \
   } while (0)
