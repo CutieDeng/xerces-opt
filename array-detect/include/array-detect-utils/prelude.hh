@@ -12,7 +12,7 @@
   do { \
     ::cutie_ns::controlflow::popStackFrame(CUTIE_ARGS); \
   } while (0); \
-  return ecode; }
+  CUTIE_FUNCTION_END3
 
 #define CUTIE_FUNCTION_END3 \
   return ecode; }

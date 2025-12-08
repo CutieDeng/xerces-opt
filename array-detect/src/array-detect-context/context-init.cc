@@ -25,8 +25,6 @@ CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
     CUTIE_RETURNV (RESOURCE_ERROR);
   }
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  // 初始化 GCC 特定上下文
-  initCutieContextGcc(CUTIE_ARGS);
   CUTIE_RETURNV (OK);
   if (false) {
     fail0:
@@ -43,8 +41,6 @@ CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) C
     CUTIE_RETURNV (RESOURCE_ERROR);
   }
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  // 初始化 GCC 特定上下文
-  initCutieContextGcc(CUTIE_ARGS);
   CUTIE_RETURNV (OK);
   if (false) {
     fail0:
@@ -57,8 +53,6 @@ CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
   CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  // 初始化 GCC 特定上下文
-  initCutieContextGcc(CUTIE_ARGS);
   CUTIE_RETURNV (OK);
   if (false) {
     fail0:

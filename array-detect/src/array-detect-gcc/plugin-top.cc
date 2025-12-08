@@ -19,13 +19,14 @@
 
 namespace cutie_ns {
 
-CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN2 {
+  initCutieContextGcc (CUTIE_ARGS);
   CUTIE_ETRY2 (initWithStderr (CUTIE_ARGS), cleanup, false, true, "Failed to init context: %s");
   CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
   CUTIE_RETURNV(OK);
   cleanup:
   deinit(CUTIE_ARGS);
-} CUTIE_FUNCTION_END2
+} CUTIE_FUNCTION_END3
 
 }
 

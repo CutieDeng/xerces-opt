@@ -7,18 +7,13 @@
 namespace cutie_ns {
 
 // Global GCC-specific context instance - 复杂对象，不是指针
-CutieContextGcc gCutieContextGcc = { nullptr };
+CutieContextGcc gCutieContextGcc;
 
 // Initialize GCC context
 void initCutieContextGcc(CUTIE_FUNC_ARGS) {
   CUTIE_ARGS_WARN_DENY;
-  // 延迟初始化：分配 vec 容器
-  if (gcc_ctx.stack_frames == nullptr) {
-    gcc_ctx.stack_frames = ggc_alloc<vec<uint64_t>>();
-    if (gcc_ctx.stack_frames != nullptr) {
-      gcc_ctx.stack_frames->create(0);
-    }
-  }
+  // 直接初始化 vec 容器
+  gcc_ctx.stack_frames.create(0);
 }
 
 // Cleanup GCC context
@@ -31,13 +26,13 @@ namespace controlflow {
 // Stack frame management functions
 void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id) {
   CUTIE_ARGS_WARN_DENY;
-  gcc_ctx.stack_frames->safe_push(frame_id);
+  gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
 void popStackFrame(CUTIE_FUNC_ARGS) {
   CUTIE_ARGS_WARN_DENY;
-  if (!gcc_ctx.stack_frames->is_empty()) {
-    gcc_ctx.stack_frames->pop();
+  if (!gcc_ctx.stack_frames.is_empty()) {
+    gcc_ctx.stack_frames.pop();
   }
 }
 
@@ -45,34 +40,35 @@ void popStackFrame(CUTIE_FUNC_ARGS) {
 
 void clearStackFrames(CUTIE_FUNC_ARGS) {
   CUTIE_ARGS_WARN_DENY;
-  gcc_ctx.stack_frames->truncate(0);
+  // gcc_ctx.stack_frames.truncate(0);
+  // gcc_ctx.stack_frames.release ();
 }
 
 size_t getStackDepth(CUTIE_FUNC_ARGS) {
   CUTIE_ARGS_WARN_DENY;
-  return gcc_ctx.stack_frames->length();
+  return gcc_ctx.stack_frames.length();
 }
 
 void getCurrentFrame(CUTIE_FUNC_ARGS, uint64_t &result, bool &is_exists) {
   CUTIE_ARGS_WARN_DENY;
-  if (gcc_ctx.stack_frames->is_empty()) {
+  if (gcc_ctx.stack_frames.is_empty()) {
     is_exists = false;
     return ;
   }
-  result = gcc_ctx.stack_frames->last();
+  result = gcc_ctx.stack_frames.last();
   is_exists = true;
 }
 
 bool isStackEmpty(CUTIE_FUNC_ARGS) {
   CUTIE_ARGS_WARN_DENY;
-  return gcc_ctx.stack_frames->is_empty();
+  return gcc_ctx.stack_frames.is_empty();
 }
 
 // Debug output functions
 void printStackFrames(CUTIE_FUNC_ARGS) {
   CUTIE_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(CUTIE_ARGS));
-  for (size_t i = 0; i < gcc_ctx.stack_frames->length(); ++i) {
-    CUTIE_DEBUG_PRINT("\t[%zu]: 0x%lx", i, (unsigned long)(*gcc_ctx.stack_frames)[i]);
+  for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
+    CUTIE_DEBUG_PRINT("\t[%zu]: 0x%lx", i, (unsigned long)gcc_ctx.stack_frames[i]);
   }
 }
 
@@ -91,8 +87,8 @@ void printCurrentFrame(CUTIE_FUNC_ARGS) {
 // Enhanced debug with source code locations
 void printStackFramesWithSource(CUTIE_FUNC_ARGS) {
   CUTIE_DEBUG_PRINT("Call stack with source locations (depth: %zu):", getStackDepth(CUTIE_ARGS));
-  for (size_t i = 0; i < gcc_ctx.stack_frames->length(); ++i) {
-    uint64_t frame_addr = (*gcc_ctx.stack_frames)[i];
+  for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
+    uint64_t frame_addr = gcc_ctx.stack_frames[i];
     char source_buf[256];
     bool has_source = getFrameSourceLocation(CUTIE_ARGS, frame_addr, source_buf, sizeof(source_buf));
 

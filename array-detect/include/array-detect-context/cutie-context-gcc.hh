@@ -48,7 +48,7 @@ bool isInFunction (CUTIE_FUNC_ARGS, uint64_t function_ptr);
 // GCC特定上下文类型 - 使用 public 变量，无访问控制
 struct CutieContextGcc {
   // 栈帧信息 - 用于跟踪函数调用栈，使用指针类型以支持延迟初始化
-  vec<uint64_t> *stack_frames;
+  vec<uint64_t> stack_frames;
 };
 
 // 内部全局对象，不暴露给外部
