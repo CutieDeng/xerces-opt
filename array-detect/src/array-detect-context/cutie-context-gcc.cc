@@ -9,33 +9,22 @@ namespace cutie_ns {
 // Global GCC-specific context instance - 复杂对象，不是指针
 CutieContextGcc gCutieContextGcc;
 
-// Initialize GCC context
-::cutie_ns::CutieErrorCode initCutieContextGcc(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  // TODO: init
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
-
 // Cleanup GCC context
 void deinitCutieContextGcc(CUTIE_FUNC_ARGS) {
-  if (!isStackEmpty(CUTIE_ARGS)) {
-    CUTIE_DEBUG_PRINT("Warning: GCC context has non-empty stack during cleanup");
-    printStackFrames(CUTIE_ARGS);
-  }
   clearStackFrames(CUTIE_ARGS);
-  CUTIE_DEBUG_PRINT("GCC context deinitialized");
 }
 
 namespace controlflow {
 
 // Stack frame management functions
 void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id) {
-  CUTIE_ARGS_WARN_DENY;
   gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
 void popStackFrame(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
-  gcc_ctx.stack_frames.pop();
+  if (!gcc_ctx.stack_frames.is_empty()) {
+    gcc_ctx.stack_frames.pop();
+  }
 }
 
 } // namespace controlflow

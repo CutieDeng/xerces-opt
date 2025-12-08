@@ -10,10 +10,7 @@
 namespace cutie_ns {
 
 // GCC上下文管理函数 - 使用常规 aBC 命名法
-::cutie_ns::CutieErrorCode initCutieContextGcc(CUTIE_FUNC_ARGS);
 void deinitCutieContextGcc(CUTIE_FUNC_ARGS);
-bool isCutieContextGccInitialized();
-CutieContextGcc& getCutieContextGccSafe();
 
 namespace controlflow {
 
