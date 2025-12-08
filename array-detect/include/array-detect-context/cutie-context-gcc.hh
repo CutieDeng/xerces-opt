@@ -15,19 +15,29 @@ void deinitCutieContextGcc(CUTIE_FUNC_ARGS);
 bool isCutieContextGccInitialized();
 CutieContextGcc& getCutieContextGccSafe();
 
-// Stack frame management functions - 使用统一宏
+namespace controlflow {
+
 void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id);
 void popStackFrame(CUTIE_FUNC_ARGS);
+
+} // namespace controlflow
+
+// Stack frame management functions - 使用统一宏
 void clearStackFrames(CUTIE_FUNC_ARGS);
 
 // Stack frame query functions
 size_t getStackDepth(CUTIE_FUNC_ARGS);
-uint64_t getCurrentFrame(CUTIE_FUNC_ARGS);
+void getCurrentFrame(CUTIE_FUNC_ARGS, uint64_t &result, bool &is_exists);
 bool isStackEmpty(CUTIE_FUNC_ARGS);
 
 // Debug output functions
 void printStackFrames(CUTIE_FUNC_ARGS);
 void printCurrentFrame(CUTIE_FUNC_ARGS);
+
+// Enhanced debug with source code locations
+void printStackFramesWithSource(CUTIE_FUNC_ARGS);
+void printStackFrameSource(CUTIE_FUNC_ARGS, uint64_t frame_addr);
+bool getFrameSourceLocation(CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
 
 // Convenience functions for function tracking
 void enterFunction(CUTIE_FUNC_ARGS, uint64_t function_ptr);

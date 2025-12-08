@@ -5,6 +5,7 @@
 #include "state.hh"
 #include "array-detector-op0.hh"
 #include "info.hh"
+#include "cutie-context-gcc-interface.hh"
 
 namespace array_detector {
 

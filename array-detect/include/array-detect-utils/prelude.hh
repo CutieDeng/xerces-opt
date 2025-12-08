@@ -1,22 +1,29 @@
 #pragma once
 
-// 默认版本，不包含 GCC context 栈帧操作
 #define CUTIE_FUNCTION_BEGIN \
-  { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
+  { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT; \
+    void *cutie_auto_ret_addr = (void*)((uintptr_t)__builtin_return_address(0) - 4); \
+      ::cutie_ns::controlflow::pushStackFrame(CUTIE_ARGS, (uint64_t)cutie_auto_ret_addr); \
 
 #define CUTIE_FUNCTION_BEGIN2 \
   { ::cutie_ns::CutieErrorCode ecode = ::cutie_ns::UNINIT;
 
 #define CUTIE_FUNCTION_END2 \
+  do { \
+    ::cutie_ns::controlflow::popStackFrame(CUTIE_ARGS); \
+  } while (0); \
+  return ecode; }
+
+#define CUTIE_FUNCTION_END3 \
   return ecode; }
 
 #define CUTIE_FUNCTION_END \
-  CUTIE_DEBUG_PRINT("ERROR: walk reachable tail of the function"); \
+  do { \
+    ::cutie_ns::controlflow::popStackFrame(CUTIE_ARGS); \
+  } while (0); \
   return ::cutie_ns::UNREACHABLE; \
-  cleanup:; CUTIE_FUNCTION_END2
-
-#define CUTIE_FUNCTION_END_FALLTHROUGH \
-  cleanup:; CUTIE_FUNCTION_END2
+  cleanup:; \
+  CUTIE_FUNCTION_END2
 
 #define CUTIE_RETURNR \
   do { goto cleanup; } while (0)
@@ -28,7 +35,7 @@
   do { result = (v); ecode = ::cutie_ns::OK; goto cleanup; } while (0)
 
 #define CUTIE_ARGS_WARN_DENY \
-  do { (void) ctx; } while (0)
+  do { (void) ctx; (void) gcc_ctx; } while (0)
 
 #define CUTIE_DEBUG_PRINT2(file, fmt_msg, ...) \
   do { \
@@ -106,37 +113,22 @@
 #define CUTIE_ARGS \
   ctx, gcc_ctx
 
-
-// Enhanced stack frame management macros
-// 注意：以下宏仅用于需要手动控制栈帧的特殊情况
+// ============================================================================
+// 手动栈帧管理宏 - 用于特殊控制需求
+// ============================================================================
 
 #define CUTIE_GCC_ENTER_FUNCTION(func_ptr) \
   do { \
     CUTIE_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
     if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::enterFunction(ctx, ::cutie_ns::getCutieContextGccSafe(), (func_ptr)); \
+      ::cutie_ns::enterFunction(CUTIE_ARGS, (func_ptr)); \
     } \
   } while (0)
 
 #define CUTIE_GCC_EXIT_FUNCTION() \
   do { \
     if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::exitFunction(ctx, ::cutie_ns::getCutieContextGccSafe()); \
-    } \
-  } while (0)
-
-// 手动栈帧操作 - 仅在需要特殊控制时使用
-#define CUTIE_GCC_PUSH_STACK_FRAME(frame_id) \
-  do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::pushStackFrame(ctx, ::cutie_ns::getCutieContextGccSafe(), (frame_id)); \
-    } \
-  } while (0)
-
-#define CUTIE_GCC_POP_STACK_FRAME() \
-  do { \
-    if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::popStackFrame(ctx, ::cutie_ns::getCutieContextGccSafe()); \
+      ::cutie_ns::exitFunction(CUTIE_ARGS); \
     } \
   } while (0)
 
@@ -144,13 +136,62 @@
 #define CUTIE_GCC_PRINT_STACK_FRAMES() \
   do { \
     if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printStackFrames(ctx, ::cutie_ns::getCutieContextGccSafe()); \
+      ::cutie_ns::printStackFrames(CUTIE_ARGS); \
     } \
   } while (0)
 
 #define CUTIE_GCC_PRINT_CURRENT_FRAME() \
   do { \
     if (::cutie_ns::isCutieContextGccInitialized()) { \
-      ::cutie_ns::printCurrentFrame(ctx, ::cutie_ns::getCutieContextGccSafe()); \
+      ::cutie_ns::printCurrentFrame(CUTIE_ARGS); \
+    } \
+  } while (0)
+
+// Enhanced macros with source code location information
+#define CUTIE_GCC_PRINT_STACK_WITH_SOURCE() \
+  do { \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
+    } \
+  } while (0)
+
+#define CUTIE_GCC_PRINT_FRAME_SOURCE(frame_addr) \
+  do { \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      ::cutie_ns::printStackFrameSource(CUTIE_ARGS, (frame_addr)); \
+    } \
+  } while (0)
+
+// Macro to print current call stack with source locations
+#define CUTIE_GCC_DUMP_CALL_STACK() \
+  do { \
+    CUTIE_DEBUG_PRINT("=== Call Stack Dump ==="); \
+    CUTIE_GCC_PRINT_STACK_WITH_SOURCE(); \
+    CUTIE_DEBUG_PRINT("=== End Call Stack ==="); \
+  } while (0)
+
+// ============================================================================
+// 便利宏 - 自动栈帧管理
+// ============================================================================
+
+// 自动调用栈转储
+#define CUTIE_AUTO_DUMP_CALL_STACK() \
+  do { \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      CUTIE_DEBUG_PRINT("=== Auto Call Stack Dump ==="); \
+      ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
+      CUTIE_DEBUG_PRINT("=== End Auto Call Stack ==="); \
+    } \
+  } while (0)
+
+// 栈帧深度断言 - 调试时使用
+#define CUTIE_ASSERT_STACK_DEPTH(expected_depth) \
+  do { \
+    if (::cutie_ns::isCutieContextGccInitialized()) { \
+      size_t actual_depth = ::cutie_ns::getStackDepth(CUTIE_ARGS); \
+      if (actual_depth != (expected_depth)) { \
+        CUTIE_DEBUG_PRINT("Stack depth assertion failed: expected %zu, got %zu", (expected_depth), actual_depth); \
+        ::cutie_ns::printStackFramesWithSource(CUTIE_ARGS); \
+      } \
     } \
   } while (0)

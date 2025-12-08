@@ -1,87 +1,67 @@
-#include <cstdlib>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "cutie-context-gcc.hh"
+#include "cutie-context-gcc-interface.hh"
 
 namespace cutie_ns {
 
 // Global GCC-specific context instance - 复杂对象，不是指针
 CutieContextGcc gCutieContextGcc;
-static bool gCutieContextGccInitialized = false;
 
 // Initialize GCC context
 ::cutie_ns::CutieErrorCode initCutieContextGcc(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  if (gCutieContextGccInitialized) {
-    CUTIE_DEBUG_PRINT("GCC context already initialized, cleaning up first");
-    deinitCutieContextGcc(CUTIE_ARGS);
-  }
-
-  // 初始化复杂对象（如果需要）
-  // gCutieContextGcc 的 vec 会被自动初始化为空
-
-  gCutieContextGccInitialized = true;
-  CUTIE_DEBUG_PRINT("GCC context initialized successfully");
+  // TODO: init
   CUTIE_RETURNV(OK);
 } CUTIE_FUNCTION_END
 
 // Cleanup GCC context
 void deinitCutieContextGcc(CUTIE_FUNC_ARGS) {
-  if (gCutieContextGccInitialized) {
-    if (!isStackEmpty(CUTIE_ARGS)) {
-      CUTIE_DEBUG_PRINT("Warning: GCC context has non-empty stack during cleanup");
-      printStackFrames(CUTIE_ARGS);
-    }
-
-    // 清理复杂对象状态
-    clearStackFrames(CUTIE_ARGS);
-
-    gCutieContextGccInitialized = false;
-    CUTIE_DEBUG_PRINT("GCC context deinitialized");
+  if (!isStackEmpty(CUTIE_ARGS)) {
+    CUTIE_DEBUG_PRINT("Warning: GCC context has non-empty stack during cleanup");
+    printStackFrames(CUTIE_ARGS);
   }
+  clearStackFrames(CUTIE_ARGS);
+  CUTIE_DEBUG_PRINT("GCC context deinitialized");
 }
 
-// Check if GCC context is initialized
-bool isCutieContextGccInitialized() {
-  return gCutieContextGccInitialized;
-}
-
-// Get GCC context or assert if not initialized
-CutieContextGcc& getCutieContextGccSafe() {
-  if (!gCutieContextGccInitialized) {
-    // In debug mode, this would cause an assertion failure
-    // In production, this should return a safe default or throw
-    fprintf(stderr, "FATAL: GCC context not initialized!\n");
-    abort();
-  }
-  return gCutieContextGcc;
-}
+namespace controlflow {
 
 // Stack frame management functions
 void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id) {
+  CUTIE_ARGS_WARN_DENY;
   gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
 void popStackFrame(CUTIE_FUNC_ARGS) {
-  if (!gcc_ctx.stack_frames.is_empty()) {
-    gcc_ctx.stack_frames.pop();
-  }
+  CUTIE_ARGS_WARN_DENY;
+  gcc_ctx.stack_frames.pop();
 }
 
+} // namespace controlflow
+
 void clearStackFrames(CUTIE_FUNC_ARGS) {
+  CUTIE_ARGS_WARN_DENY;
   gcc_ctx.stack_frames.truncate(0);
 }
 
-// Stack frame query functions
 size_t getStackDepth(CUTIE_FUNC_ARGS) {
+  CUTIE_ARGS_WARN_DENY;
   return gcc_ctx.stack_frames.length();
 }
 
-uint64_t getCurrentFrame(CUTIE_FUNC_ARGS) {
+void getCurrentFrame(CUTIE_FUNC_ARGS, uint64_t &result, bool &is_exists) {
+  CUTIE_ARGS_WARN_DENY;
   if (gcc_ctx.stack_frames.is_empty()) {
-    return 0;
+    is_exists = false;
+    return ;
   }
-  return gcc_ctx.stack_frames.last();
+  result = gcc_ctx.stack_frames.last();
+  is_exists = true;
 }
 
 bool isStackEmpty(CUTIE_FUNC_ARGS) {
+  CUTIE_ARGS_WARN_DENY;
   return gcc_ctx.stack_frames.is_empty();
 }
 
@@ -89,45 +69,71 @@ bool isStackEmpty(CUTIE_FUNC_ARGS) {
 void printStackFrames(CUTIE_FUNC_ARGS) {
   CUTIE_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(CUTIE_ARGS));
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
-    CUTIE_DEBUG_PRINT("  [%zu]: 0x%lx", i, (unsigned long)gcc_ctx.stack_frames[i]);
+    CUTIE_DEBUG_PRINT("\t[%zu]: 0x%lx", i, (unsigned long)gcc_ctx.stack_frames[i]);
   }
 }
 
 void printCurrentFrame(CUTIE_FUNC_ARGS) {
+  CUTIE_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(CUTIE_ARGS));
   if (!isStackEmpty(CUTIE_ARGS)) {
-    CUTIE_DEBUG_PRINT("Current frame: 0x%lx", (unsigned long)getCurrentFrame(CUTIE_ARGS));
+    bool is_exists;
+    uint64_t v;
+    getCurrentFrame(CUTIE_ARGS, v, is_exists);
+    CUTIE_DEBUG_PRINT("Current frame: 0x%lx", ((unsigned long) (is_exists ? v : 0)));
   } else {
-    CUTIE_DEBUG_PRINT("Stack is empty");
+    CUTIE_DEBUG_PRINT("Current frame: <null>");
   }
 }
 
-// Convenience functions for function tracking
-void enterFunction(CUTIE_FUNC_ARGS, uint64_t function_ptr) {
-  CUTIE_DEBUG_PRINT("Entering function (ptr: %lx)", (unsigned long)function_ptr);
-  pushStackFrame(CUTIE_ARGS, function_ptr);
-}
-
-void exitFunction(CUTIE_FUNC_ARGS) {
-  if (!isStackEmpty(CUTIE_ARGS)) {
-    uint64_t current_frame = getCurrentFrame(CUTIE_ARGS);
-    CUTIE_DEBUG_PRINT("Exiting function (ptr: %lx)", (unsigned long)current_frame);
-  }
-  popStackFrame(CUTIE_ARGS);
-}
-
-// Function depth analysis
-size_t getFunctionDepth(CUTIE_FUNC_ARGS) {
-  return getStackDepth(CUTIE_ARGS);
-}
-
-bool isInFunction(CUTIE_FUNC_ARGS, uint64_t function_ptr) {
-  // Check if the function pointer is in the call stack
+// Enhanced debug with source code locations
+void printStackFramesWithSource(CUTIE_FUNC_ARGS) {
+  CUTIE_DEBUG_PRINT("Call stack with source locations (depth: %zu):", getStackDepth(CUTIE_ARGS));
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
-    if (gcc_ctx.stack_frames[i] == function_ptr) {
-      return true;
+    uint64_t frame_addr = gcc_ctx.stack_frames[i];
+    char source_buf[256];
+    bool has_source = getFrameSourceLocation(CUTIE_ARGS, frame_addr, source_buf, sizeof(source_buf));
+
+    if (has_source) {
+      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_buf);
+    } else {
+      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> <unknown source>", i, (unsigned long)frame_addr);
     }
   }
-  return false;
+}
+
+void printStackFrameSource(CUTIE_FUNC_ARGS, uint64_t frame_addr) {
+  char source_buf[256];
+  bool has_source = getFrameSourceLocation(CUTIE_ARGS, frame_addr, source_buf, sizeof(source_buf));
+  if (has_source) {
+    CUTIE_DEBUG_PRINT("Frame 0x%016lx -> %s", (unsigned long)frame_addr, source_buf);
+  } else {
+    CUTIE_DEBUG_PRINT("Frame 0x%016lx -> <unknown source>", (unsigned long)frame_addr);
+  }
+}
+
+bool getFrameSourceLocation(CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) {
+  CUTIE_ARGS_WARN_DENY;
+  if (!buffer || buffer_size == 0) {
+    return false;
+  }
+
+  // Initialize buffer
+  buffer[0] = '\0';
+
+  // Try to get source location using GCC's debug information
+  // This is a simplified implementation - in a real scenario you might want to use
+  // libbfd, libdw, or other debugging libraries to resolve addresses to symbols
+
+  // For now, we'll provide a basic format
+  snprintf(buffer, buffer_size, "return_addr:0x%lx", (unsigned long)frame_addr);
+
+  // In a complete implementation, you could:
+  // 1. Use dladdr() to get symbol information
+  // 2. Use libdw (DWARF) to get exact source line
+  // 3. Use GCC's internal debug information APIs
+  // 4. Integrate with addr2line functionality
+
+  return true;
 }
 
 } // namespace cutie_ns

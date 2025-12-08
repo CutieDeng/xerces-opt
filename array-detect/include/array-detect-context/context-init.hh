@@ -1,6 +1,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"
+#include "cutie-context-gcc.hh"
 
 namespace cutie_ns {
 

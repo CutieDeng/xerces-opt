@@ -149,6 +149,7 @@
               (string-split f^^)
             )]
           ['done-error
+            (for ([el (in-lines i2)]) (eprintf "\t~a~n" el)) (eprintf "~n")
             (raise-user-error 'calc-dependency "failed to calc '~a' by ~a'" filename cxx)]))
     )
   )
@@ -178,6 +179,15 @@
   (printf "~n~n")
 )
 
+(define (write-prepare)
+  (printf "prepare:~n")
+  (for ([m modules])
+    (printf "\tmkdir -p ~a~n" (build-path object-dir m))
+  )
+  (printf "\tmkdir -p ~a~n" (build-path out-dir))
+  (printf "~n")
+)
+
 (define (write-makefile)
   (call-with-atomic-output-file "Makefile" (lambda (o _p) (parameterize ([current-output-port o])
     (write-plugin)
@@ -185,6 +195,7 @@
     (write-deps2)
     (write-clean)
     (write-test)
+    (write-prepare)
   ))))
 
 (module+ main (write-makefile))

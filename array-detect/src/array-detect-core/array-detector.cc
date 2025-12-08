@@ -150,19 +150,20 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
 } CUTIE_FUNCTION_END
 
 void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS) {
-    // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
-    if (self.m_fields != nullptr) {
-        self.m_fields->release();
-        // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
-        self.m_fields = nullptr;
-        CUTIE_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
-    } else {
-        CUTIE_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
-    }
+  CUTIE_ARGS_WARN_DENY;
+  // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
+  if (self.m_fields != nullptr) {
+    self.m_fields->release();
+    // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
+    self.m_fields = nullptr;
+    CUTIE_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
+  } else {
+    CUTIE_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
+  }
 }
 
 ::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
-  (void)ctx;
+  CUTIE_ARGS_WARN_DENY;
   if (!field_info) {
     CUTIE_RETURNV(OK);
   }

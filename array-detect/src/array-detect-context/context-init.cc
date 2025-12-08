@@ -3,6 +3,7 @@
 #include "context.hh"
 #include "context-init.hh"
 #include "cutie-context-gcc.hh"
+#include "cutie-context-gcc-interface.hh"
 
 namespace cutie_ns {
 

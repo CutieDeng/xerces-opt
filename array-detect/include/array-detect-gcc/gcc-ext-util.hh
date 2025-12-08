@@ -4,6 +4,7 @@
 #include "state.hh"
 #include "context.hh"
 #include "array-detector.hh"
+#include "cutie-context-gcc-interface.hh"
 
 namespace gcc_ext_util {
 

@@ -3,6 +3,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"
+#include "cutie-context-gcc-interface.hh"
 
 namespace array_detector {
 
