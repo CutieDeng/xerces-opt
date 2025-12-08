@@ -37,6 +37,12 @@ void printStackFramesWithSource (CUTIE_FUNC_ARGS);
 void printStackFrameSource (CUTIE_FUNC_ARGS, uint64_t frame_addr);
 bool getFrameSourceLocation (CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
 
+// 引入增强的地址解析器
+#include "address-resolver.hh"
+
+// 使用新地址解析器的便捷包装
+bool getFrameSourceLocationEnhanced (CUTIE_FUNC_ARGS, uint64_t frame_addr, const char*& result);
+
 // Convenience functions for function tracking
 void enterFunction (CUTIE_FUNC_ARGS, uint64_t function_ptr);
 void exitFunction (CUTIE_FUNC_ARGS);

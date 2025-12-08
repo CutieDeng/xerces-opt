@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <dlfcn.h>
 
 #include "cutie-context-gcc.hh"
 #include "cutie-context-gcc-interface.hh"
@@ -89,11 +90,11 @@ void printStackFramesWithSource(CUTIE_FUNC_ARGS) {
   CUTIE_DEBUG_PRINT("Call stack with source locations (depth: %zu):", getStackDepth(CUTIE_ARGS));
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
     uint64_t frame_addr = gcc_ctx.stack_frames[i];
-    char source_buf[256];
-    bool has_source = getFrameSourceLocation(CUTIE_ARGS, frame_addr, source_buf, sizeof(source_buf));
+    const char* source_info;
+    bool has_source = getFrameSourceLocationEnhanced(CUTIE_ARGS, frame_addr, source_info);
 
     if (has_source) {
-      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_buf);
+      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_info);
     } else {
       CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> <unknown source>", i, (unsigned long)frame_addr);
     }
@@ -119,20 +120,40 @@ bool getFrameSourceLocation(CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, 
   // Initialize buffer
   buffer[0] = '\0';
 
-  // Try to get source location using GCC's debug information
-  // This is a simplified implementation - in a real scenario you might want to use
-  // libbfd, libdw, or other debugging libraries to resolve addresses to symbols
-
-  // For now, we'll provide a basic format
+  // 保持原有简单实现
   snprintf(buffer, buffer_size, "return_addr:0x%lx", (unsigned long)frame_addr);
-
-  // In a complete implementation, you could:
-  // 1. Use dladdr() to get symbol information
-  // 2. Use libdw (DWARF) to get exact source line
-  // 3. Use GCC's internal debug information APIs
-  // 4. Integrate with addr2line functionality
-
   return true;
+}
+
+// 使用新地址解析器的增强版本
+bool getFrameSourceLocationEnhanced(CUTIE_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
+  CUTIE_ARGS_WARN_DENY;
+
+  // 使用 Context 中的 source_location_buffer
+  if (!ctx.source_location_buffer || ctx.source_location_buffer_size == 0) {
+    result = "<no buffer>";
+    return false;
+  }
+
+  // 直接使用 dladdr 进行地址解析
+  if (frame_addr == 0) {
+    snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
+    result = ctx.source_location_buffer;
+    return false;
+  }
+
+  Dl_info info;
+  if (dladdr((void*)frame_addr, &info) && info.dli_sname) {
+    snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size,
+             "%s+0x%lx", info.dli_sname,
+             (unsigned long)((char*)frame_addr - (char*)info.dli_saddr));
+    result = ctx.source_location_buffer;
+    return true;
+  }
+
+  snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
+  result = ctx.source_location_buffer;
+  return false;
 }
 
 } // namespace cutie_ns

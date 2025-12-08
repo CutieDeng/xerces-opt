@@ -31,7 +31,7 @@ CutieErrorCode array_detect_execute_with_detector(CUTIE_FUNC_ARGS, ArrayDetector
   
   // 第三步：输出分析结果
   // 语义：生成并输出分析报告
-  CUTIE_TRY_LABEL(cutie_ns::print_results(CUTIE_ARGS, detector), analysis_cleanup);
+  CUTIE_TRY_LABEL(::cutie_ns::print_results(CUTIE_ARGS, detector), analysis_cleanup);
   
   analysis_cleanup:
   CUTIE_DEBUG_PRINT("Array member detection completed");
