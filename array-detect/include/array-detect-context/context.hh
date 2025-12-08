@@ -17,4 +17,8 @@ struct CutieContext {
 
 extern CutieContext g_cutie_ctx;
 
+// Forward declaration for GCC-specific context
+struct CutieContextGcc;
+extern CutieContextGcc* g_cutie_ctx_gcc;
+
 } // namespace cutie_ns

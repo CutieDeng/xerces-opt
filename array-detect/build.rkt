@@ -261,7 +261,11 @@
           ['done-ok
             (for/list ([j (in-naturals)] [f (in-list is)])
               (define f^ (cond [(equal? (+ j 1) (length is)) f] [else (string-trim f " \\" #:left? #f)]))
-              (define f^^ (cond [(equal? j 0) (define loc (string-find f^ ": ")) (substring f^ (+ loc 2))] [else (string-trim f^ #:right? #f #:repeat? #t)]))
+              (define f^^ (cond [(equal? j 0)
+                  (define loc (string-find f^ ": "))
+                  (cond [loc (substring f^ (+ loc 2))] [else ""])
+                ]
+                [else (string-trim f^ #:right? #f #:repeat? #t)]))
               (string-split f^^)
             )]
           ['done-error
