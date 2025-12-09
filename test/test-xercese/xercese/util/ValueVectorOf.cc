@@ -1,225 +1,194 @@
 #pragma once
 
 template <typename TElem>
-xercese::ValueVectorOf<TElem>::ValueVectorOf(unsigned maxElems, MemoryManager *mgr, bool toCallDestructor)
+xercese::ValueVectorOf<TElem>::ValueVectorOf (unsigned maxElems, MemoryManager *mgr, bool toCallDestructor)
     : fCallDestructor(toCallDestructor)
     , fCurCount(0)
     , fMaxCount(maxElems)
+    , fElemList(0)
     , fMemoryManager(mgr)
 {
-    if (fMemoryManager == nullptr) {
-        fMemoryManager = XMLPlatformUtils::fgMemoryManager;
-    }
-
-    if (maxElems > 0) {
-        fELemList = (TElem*)fMemoryManager->allocate(maxElems * sizeof(TElem));
-    } else {
-        fELemList = nullptr;
-    }
+  fElemList = (TElem *) fMemoryManager->allocate (fMaxCount * sizeof (TElem));
+  memset (fElemList, 0, fMaxCount * sizeof (TElem));
 }
 
 template <typename TElem>
-xercese::ValueVectorOf<TElem>::ValueVectorOf(ValueVectorOf<TElem> const &toCopy)
-    : fCallDestructor(toCopy.fCallDestructor)
-    , fCurCount(toCopy.fCurCount)
-    , fMaxCount(toCopy.fMaxCount)
-    , fMemoryManager(toCopy.fMemoryManager)
+xercese::ValueVectorOf<TElem>::ValueVectorOf (ValueVectorOf<TElem> const &toCopy)
+    : XMemory (toCopy)
+    , fCallDestructor (toCopy.fCallDestructor)
+    , fCurCount (toCopy.fCurCount)
+    , fMaxCount (toCopy.fMaxCount)
+    , fMemoryManager (toCopy.fMemoryManager)
+    , fElemList (0)
 {
-    if (fMaxCount > 0) {
-        fELemList = (TElem*)fMemoryManager->allocate(fMaxCount * sizeof(TElem));
-        for (unsigned i = 0; i < fCurCount; ++i) {
-            new (&fELemList[i]) TElem(toCopy.fELemList[i]);
-        }
-    } else {
-        fELemList = nullptr;
-    }
+  fElemList = (TElem *) fMaxCount->allocate (fMaxCount * sizeof (TElem));
+  memset (fElemList, 0, fMaxCount * sizeof (TElem));
+  for (unsigned int index = 0; index < fCurCount; index += 1) {
+    fElemList[index] = toCopy.fElemList[index];
+  }
 }
 
 template <typename TElem>
-xercese::ValueVectorOf<TElem>::~ValueVectorOf()
+xercese::ValueVectorOf<TElem>::~ValueVectorOf ()
 {
-    removeAllElements();
-    if (fELemList != nullptr) {
-        fMemoryManager->deallocate(fELemList);
-        fELemList = nullptr;
+  if (fCallDestructor) {
+    for (int index = fMaxCount - 1; index >= 0; index -= 1) {
+      fElemList[index].~TElem ();
     }
+  }
+  fMemoryManager->deallocate (fElemList);
 }
 
 template <typename TElem>
-xercese::ValueVectorOf<TElem> &xercese::ValueVectorOf<TElem>::operator=(ValueVectorOf<TElem> const &toAssign)
+xercese::ValueVectorOf<TElem> &xercese::ValueVectorOf<TElem>::operator= (ValueVectorOf<TElem> const &toAssign)
 {
-    if (this != &toAssign) {
-        // 创建临时副本然后交换
-        ValueVectorOf<TElem> temp(toAssign);
-
-        // 交换成员变量
-        std::swap(fCallDestructor, temp.fCallDestructor);
-        std::swap(fCurCount, temp.fCurCount);
-        std::swap(fMaxCount, temp.fMaxCount);
-        std::swap(fELemList, temp.fELemList);
-        std::swap(fMemoryManager, temp.fMemoryManager);
-    }
+  if (this == &toAssign) {
     return *this;
+  }
+  if (fMaxCount < toAssign.fCurCount) {
+    fMemoryManager->deallocate (fElemList);
+    fElemList = (TElem *) fMemoryManager->allocate (toAssign.fMaxCount * sizeof (TElem));
+    fMaxCount = toAssign.fMaxCount;
+  }
+  fCurCount = toAssign.fCurCount;
+  for (unsigned int index = 0; index < fCurCount; index += 1) {
+    fElemList[index] = toAssign.fElemList[index];
+  }
+  return *this;
 }
 
 template <typename TElem>
-void xercese::ValueVectorOf<TElem>::addElement(TElem const &toAdd)
+void xercese::ValueVectorOf<TElem>::addElement (TElem const &toAdd)
 {
-    ensureExtraCapacity(1);
-    new (&fELemList[fCurCount]) TElem(toAdd);
-    fCurCount++;
+  ensureExtraCapacity (1);
+  fElemList[fCurCount] = toAdd; 
+  fCurCount += 1;
 }
 
 template <typename TElem>
-void xercese::ValueVectorOf<TElem>::setElementAt(TElem const &toSet, unsigned setAt)
+void xercese::ValueVectorOf<TElem>::setElementAt (TElem const &toSet, unsigned setAt)
 {
-    if (setAt >= fCurCount) {
-        // 索引越界
-        return;
-    }
-
-    // 如果需要调用析构函数，先调用原对象的析构函数
-    if (fCallDestructor) {
-        fELemList[setAt].~TElem();
-    }
-
-    // 放置新对象
-    new (&fELemList[setAt]) TElem(toSet);
+  if (setAt >= fCurCount) {
+    // TODO: ThrowXMLwithMemMgr
+    return;
+  }
+  fElemList[setAt] = toSet;
 }
 
 template <typename TElem>
-void xercese::ValueVectorOf<TElem>::insertElementAt(TElem const &toInsert, unsigned insertAt)
+void xercese::ValueVectorOf<TElem>::insertElementAt (TElem const &toInsert, unsigned insertAt)
 {
-    if (insertAt > fCurCount) {
-        insertAt = fCurCount;
-    }
-
-    ensureExtraCapacity(1);
-
-    // 移动元素腾出空间
-    for (unsigned i = fCurCount; i > insertAt; --i) {
-        new (&fELemList[i]) TElem(fELemList[i-1]);
-        if (fCallDestructor) {
-            fELemList[i-1].~TElem();
-        }
-    }
-
-    // 插入新元素
-    new (&fELemList[insertAt]) TElem(toInsert);
-    fCurCount++;
+  if (insertAt == fCurCount) {
+    addElement (toInsert);
+    return ;
+  }
+  if (insertAt > fCurCount) {
+    // TODO: ThrowXMLwithMemMgr
+    return ;
+  }
+  ensureExtraCapacity(1);
+  // 移动元素腾出空间
+  for (unsigned int i = fCurCount; i > insertAt; i -= 1) {
+    fElemList[i] = fElemList[i-1];
+  }
+  fElemList[insertAt] = toInsert;
+  fCurCount += 1;
 }
 
 template <typename TElem>
-void xercese::ValueVectorOf<TElem>::removeElementAt(unsigned removeAt)
+void xercese::ValueVectorOf<TElem>::removeElementAt (unsigned removeAt)
 {
-    if (removeAt >= fCurCount) {
-        return;
-    }
-
-    // 调用析构函数
-    if (fCallDestructor) {
-        fELemList[removeAt].~TElem();
-    }
-
-    // 移动后续元素
-    for (unsigned i = removeAt; i < fCurCount - 1; ++i) {
-        if (fCallDestructor) {
-            fELemList[i].~TElem();
-        }
-        new (&fELemList[i]) TElem(fELemList[i+1]);
-    }
-
-    fCurCount--;
+  if (removeAt >= fCurCount) {
+    // TODO: ThrowXMLwithMemMgr
+    return;
+  }
+  if (removeAt == fCurCount - 1) {
+    fCurCount -= 1;
+    return ;
+  }
+  for (unsigned int i = removeAt; i < fCurCount - 1; i += 1) {
+      fElemList[i] = fElemList[i+1];
+  }
+  fCurCount -= 1;
 }
 
 template <typename TElem>
-void xercese::ValueVectorOf<TElem>::removeAllElements()
+void xercese::ValueVectorOf<TElem>::removeAllElements ()
 {
-    if (fCallDestructor) {
-        for (unsigned i = 0; i < fCurCount; ++i) {
-            fELemList[i].~TElem();
-        }
-    }
     fCurCount = 0;
 }
 
 template <typename TElem>
-bool xercese::ValueVectorOf<TElem>::containsElement(TElem const &toCheck, unsigned startIndex)
+bool xercese::ValueVectorOf<TElem>::containsElement (TElem const &toCheck, unsigned startIndex)
 {
-    for (unsigned i = startIndex; i < fCurCount; ++i) {
-        if (fELemList[i] == toCheck) {
-            return true;
-        }
+  for (unsigned int i = startIndex; i < fCurCount; i += 1) {
+    if (fElemList[i] == toCheck) {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 template <typename TElem>
-TElem const &xercese::ValueVectorOf<TElem>::elementAt(unsigned getAt) const
+TElem const &xercese::ValueVectorOf<TElem>::elementAt (unsigned getAt) const
 {
-    // 在实际应用中应该添加越界检查
-    return fELemList[getAt];
+  if (getAt >= fCurCount) {
+    // ThrowXMLWithMemMgr
+    __builtin_trap ();
+  }
+  return fElemList[getAt];
 }
 
 template <typename TElem>
 TElem &xercese::ValueVectorOf<TElem>::elementAt(unsigned getAt)
 {
-    // 在实际应用中应该添加越界检查
-    return fELemList[getAt];
+  if (getAt >= fCurCount) {
+    // ThrowXMLWithMemMgr
+    __builtin_trap ();
+  }
+  return fElemList[getAt];
 }
 
 template <typename TElem>
 unsigned xercese::ValueVectorOf<TElem>::curCapacity() const
 {
-    return fMaxCount;
+  return fMaxCount;
 }
 
 template <typename TElem>
 unsigned xercese::ValueVectorOf<TElem>::size() const
 {
-    return fCurCount;
+  return fCurCount;
 }
 
 template <typename TElem>
 xercese::MemoryManager *xercese::ValueVectorOf<TElem>::getMemoryManager() const
 {
-    return fMemoryManager;
+  return fMemoryManager;
 }
 
 template <typename TElem>
 void xercese::ValueVectorOf<TElem>::ensureExtraCapacity(unsigned extraNeeded)
 {
-    if (fCurCount + extraNeeded > fMaxCount) {
-        // 计算新容量，这里简单地翻倍，或者至少加上所需的额外空间
-        unsigned newCapacity = fMaxCount * 2;
-        if (newCapacity < fCurCount + extraNeeded) {
-            newCapacity = fCurCount + extraNeeded;
-        }
-
-        // 分配新内存
-        TElem *newList = (TElem*)fMemoryManager->allocate(newCapacity * sizeof(TElem));
-
-        // 拷贝现有元素
-        for (unsigned i = 0; i < fCurCount; ++i) {
-            new (&newList[i]) TElem(fELemList[i]);
-            if (fCallDestructor) {
-                fELemList[i].~TElem();
-            }
-        }
-
-        // 释放旧内存
-        if (fELemList != nullptr) {
-            fMemoryManager->deallocate(fELemList);
-        }
-
-        // 更新成员变量
-        fELemList = newList;
-        fMaxCount = newCapacity;
-    }
+  unsigned int newMax = fCurCount + extraNeeded;
+  if (newMax <= fMaxCount) {
+    return ;
+  }
+  unsigned int minNewMax = (unsigned int ) ((double) fCurCount * 1.25);
+  if (newMax < minNewMax) {
+    newMax = minNewMax;
+  }
+  TElem *newList = (TElem *) fMemoryManager->allocate (newMax * sizeof (TElem));
+  for (unsigned int index = 0; index < fCurCount; index += 1) {
+    newList[index] = fElemList[index];
+  }
+  fMemoryManager->deallocate (fElemList);
+  fElemList = newList;
+  fMaxCount = newMax;
 }
 
 template <typename TElem>
 TElem const *xercese::ValueVectorOf<TElem>::rawData() const
 {
-    return fELemList;
+  return fElemList;
 }

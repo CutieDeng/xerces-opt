@@ -28,7 +28,7 @@ struct ValueVectorOf : XMemory {
   bool fCallDestructor;
   unsigned fCurCount;
   unsigned fMaxCount;
-  TElem *fELemList;
+  TElem *fElemList;
   MemoryManager *fMemoryManager;
 };
 
