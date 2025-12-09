@@ -21,7 +21,7 @@ xercese::ValueVectorOf<TElem>::ValueVectorOf (ValueVectorOf<TElem> const &toCopy
     , fMemoryManager (toCopy.fMemoryManager)
     , fElemList (0)
 {
-  fElemList = (TElem *) fMaxCount->allocate (fMaxCount * sizeof (TElem));
+  fElemList = (TElem *) fMemoryManager->allocate (fMaxCount * sizeof (TElem));
   memset (fElemList, 0, fMaxCount * sizeof (TElem));
   for (unsigned int index = 0; index < fCurCount; index += 1) {
     fElemList[index] = toCopy.fElemList[index];
