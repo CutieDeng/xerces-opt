@@ -11,14 +11,14 @@ namespace array_detect_ns {
 ArrayDetectContextGcc gArrayDetectContextGcc;
 
 // Initialize GCC context
-void initArrayDetectContextGcc(AD_FUNC_ARGS) {
+void initGccContext(AD_FUNC_ARGS) {
   AD_ARGS_WARN_DENY;
   // 直接初始化 vec 容器
   gcc_ctx.stack_frames.create(0);
 }
 
 // Cleanup GCC context
-void deinitArrayDetectContextGcc(AD_FUNC_ARGS) {
+void deinitGccContext(AD_FUNC_ARGS) {
   clearStackFrames(AD_ARGS);
 }
 
@@ -91,7 +91,7 @@ void printStackFramesWithSource(AD_FUNC_ARGS) {
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
     uint64_t frame_addr = gcc_ctx.stack_frames[i];
     const char* source_info;
-    bool has_source = getFrameSourceLocationEnhanced(AD_ARGS, frame_addr, source_info);
+    bool has_source = resolveFrameAddressToSource(AD_ARGS, frame_addr, source_info);
 
     if (has_source) {
       AD_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_info);
@@ -126,7 +126,7 @@ bool getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, siz
 }
 
 // 使用新地址解析器的增强版本
-bool getFrameSourceLocationEnhanced(AD_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
+bool resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
   AD_ARGS_WARN_DENY;
 
   // 使用 Context 中的 source_location_buffer

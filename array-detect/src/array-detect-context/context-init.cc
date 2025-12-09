@@ -18,13 +18,13 @@ void nothingWithFile(FILE *) {
 
 }
 
-ArrayDetectErrorCode initWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
     AD_RETURNV (RESOURCE_ERROR);
   }
-  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
   AD_RETURNV (OK);
   if (false) {
     fail0:
@@ -33,14 +33,14 @@ ArrayDetectErrorCode initWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   }
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode initWithNamedFile(AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextWithNamedFile(AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
     AD_RETURNV (RESOURCE_ERROR);
   }
-  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
   AD_RETURNV (OK);
   if (false) {
     fail0:
@@ -49,10 +49,10 @@ ArrayDetectErrorCode initWithNamedFile(AD_FUNC_ARGS, char const *debug_file_path
   }
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode initWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
-  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
   AD_RETURNV (OK);
   if (false) {
     fail0:
@@ -61,9 +61,9 @@ ArrayDetectErrorCode initWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   }
 } AD_FUNCTION_END
 
-void deinit(AD_FUNC_ARGS) {
+void deinitContext(AD_FUNC_ARGS) {
   ctx.debug_file_dtor(ctx.debug_file);
-  deinitArrayDetectContextGcc (AD_ARGS);
+  deinitGccContext (AD_ARGS);
 }
 
 }

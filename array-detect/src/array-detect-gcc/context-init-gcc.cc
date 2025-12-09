@@ -6,7 +6,7 @@
 
 namespace array_detect_ns {
 
-ArrayDetectErrorCode initCapacityImpl(AD_FUNC_ARGS, size_t capacity) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextBuffers(AD_FUNC_ARGS, size_t capacity) AD_FUNCTION_BEGIN {
   ctx.source_location_buffer_size = capacity;
   ctx.source_location_buffer = (char*)ggc_alloc_atomic(capacity);
   if (!ctx.source_location_buffer) {

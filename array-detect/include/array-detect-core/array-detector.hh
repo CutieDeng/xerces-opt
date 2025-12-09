@@ -11,18 +11,25 @@ namespace array_detector {
 
 class ArrayDetector;
 
-bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source);
+// 检查字段的所有赋值是否来自同一源（用于判断数组候选）
+bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source);
 
-::array_detect_ns::ArrayDetectErrorCode analyze_usage(ArrayDetector &self, AD_FUNC_ARGS);
+// 分析字段的使用模式
+::array_detect_ns::ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS);
 
-void deinit(ArrayDetector &self, AD_FUNC_ARGS);
+// 清理检测器资源
+void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS);
 
-::array_detect_ns::ArrayDetectErrorCode add_field(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
+// 添加字段到检测器
+::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
 
-::array_detect_ns::ArrayDetectErrorCode get_field_count(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
-::array_detect_ns::ArrayDetectErrorCode get_field(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
+// 获取检测器中的字段数量
+::array_detect_ns::ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
+// 通过索引获取字段信息
+::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
 
-ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS);
+// 初始化检测器
+ArrayDetectErrorCode initializeDetector (ArrayDetector &self, AD_FUNC_ARGS);
 
 }
 
@@ -30,11 +37,11 @@ namespace array_detector {
 
 struct ArrayDetector {
 
-  friend ::array_detect_ns::ArrayDetectErrorCode get_field_count(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
-  friend ::array_detect_ns::ArrayDetectErrorCode get_field(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
-  friend ::array_detect_ns::ArrayDetectErrorCode analyze_usage(ArrayDetector &self, AD_FUNC_ARGS);
-  friend void deinit(ArrayDetector &self, AD_FUNC_ARGS);
-  friend ::array_detect_ns::ArrayDetectErrorCode add_field(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
+  friend ::array_detect_ns::ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
+  friend ::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
+  friend ::array_detect_ns::ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS);
+  friend void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS);
+  friend ::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
 
   vec<FieldInfo*>* m_fields; // 使用指针类型，延迟初始化
 

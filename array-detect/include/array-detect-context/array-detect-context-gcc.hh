@@ -9,9 +9,9 @@
 
 namespace array_detect_ns {
 
-// GCC上下文管理函数 - 使用常规 aBC 命名法
-void initArrayDetectContextGcc (AD_FUNC_ARGS);
-void deinitArrayDetectContextGcc (AD_FUNC_ARGS);
+// GCC上下文管理函数
+void initGccContext (AD_FUNC_ARGS);
+void deinitGccContext (AD_FUNC_ARGS);
 
 namespace controlflow {
 
@@ -35,17 +35,18 @@ void printCurrentFrame (AD_FUNC_ARGS);
 // Enhanced debug with source code locations
 void printStackFramesWithSource (AD_FUNC_ARGS);
 void printStackFrameSource (AD_FUNC_ARGS, uint64_t frame_addr);
+// 将栈帧地址解析为源码位置字符串（使用内部缓冲区）
 bool getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
 
 // 引入增强的地址解析器
 #include "address-resolver.hh"
 
-// 使用新地址解析器的便捷包装
-bool getFrameSourceLocationEnhanced (AD_FUNC_ARGS, uint64_t frame_addr, const char*& result);
+// 将栈帧地址解析为源码位置字符串（使用上下文缓冲区，更高效）
+bool resolveFrameAddressToSource (AD_FUNC_ARGS, uint64_t frame_addr, const char*& result);
 
 // Convenience functions for function tracking
-void enterFunction (AD_FUNC_ARGS, uint64_t function_ptr);
-void exitFunction (AD_FUNC_ARGS);
+void pushFunctionCall (AD_FUNC_ARGS, uint64_t function_ptr);
+void popFunctionCall (AD_FUNC_ARGS);
 
 // Function depth analysis
 size_t getFunctionDepth (AD_FUNC_ARGS);

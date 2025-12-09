@@ -117,12 +117,12 @@
 #define AD_GCC_ENTER_FUNCTION(func_ptr) \
   do { \
     AD_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
-    ::array_detect_ns::enterFunction(AD_ARGS, (func_ptr)); \
+    ::array_detect_ns::pushFunctionCall(AD_ARGS, (func_ptr)); \
   } while (0)
 
 #define AD_GCC_EXIT_FUNCTION() \
   do { \
-    ::array_detect_ns::exitFunction(AD_ARGS); \
+    ::array_detect_ns::popFunctionCall(AD_ARGS); \
   } while (0)
 
 // Debug macros with GCC context integration

@@ -20,12 +20,12 @@
 namespace array_detect_ns {
 
 ArrayDetectErrorCode array_detect_execute (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
-  initArrayDetectContextGcc (AD_ARGS);
-  AD_ETRY2 (initWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
-  AD_TRY (array_detect_analysis (AD_ARGS));
+  initGccContext (AD_ARGS);
+  AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
+  AD_TRY (analyzeArrayDetection (AD_ARGS));
   AD_RETURNV(OK);
   cleanup:
-  deinit(AD_ARGS);
+  deinitContext(AD_ARGS);
 } AD_FUNCTION_END3
 
 }

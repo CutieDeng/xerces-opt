@@ -12,7 +12,7 @@ namespace array_detect_ns {
 // 语义：跳过对象创建，直接执行分析流程
 // 调用者负责：对象的创建和初始化
 // 本函数负责：分析执行和清理
-ArrayDetectErrorCode array_detect_execute_with_detector(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Starting array member detection with provided detector");
 
   // 打印调用栈信息进行调试
@@ -29,11 +29,11 @@ ArrayDetectErrorCode array_detect_execute_with_detector(AD_FUNC_ARGS, ArrayDetec
   
   // 第一步：收集所有类型和字段
   // 语义：遍历所有函数，提取类型和字段信息
-  AD_TRY_LABEL(collect_all_types_and_fields(AD_ARGS, detector), analysis_cleanup);
+  AD_TRY_LABEL(collectTypesAndFields(AD_ARGS, detector), analysis_cleanup);
   
   // 第二步：追踪字段赋值
   // 语义：分析字段的赋值来源，判断是否为 owned 数组
-  AD_TRY_LABEL(trace_field_assignments(AD_ARGS, detector), analysis_cleanup);
+  AD_TRY_LABEL(traceFieldAssignments(AD_ARGS, detector), analysis_cleanup);
   
   // 第三步：输出分析结果
   // 语义：生成并输出分析报告
@@ -46,7 +46,7 @@ ArrayDetectErrorCode array_detect_execute_with_detector(AD_FUNC_ARGS, ArrayDetec
 
 // 原始分析入口（保留以兼容）
 // 语义：创建 ArrayDetector 对象并执行分析
-ArrayDetectErrorCode array_detect_analysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Starting array member detection analysis");
   
   // 创建数组检测器对象（在栈上）
@@ -55,16 +55,16 @@ ArrayDetectErrorCode array_detect_analysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   
   // 延迟初始化：在使用前分配 vec 指针
   // 语义：分配 GCC 管理的 vec 容器，用于存储字段信息
-  AD_TRY_LABEL(array_detector::init(detector, AD_ARGS), analysis_cleanup);
+  AD_TRY_LABEL(array_detector::initializeDetector(detector, AD_ARGS), analysis_cleanup);
   
   // 执行分析流程
   // 语义：调用优化后的执行函数
-  AD_TRY_LABEL(array_detect_execute_with_detector(AD_ARGS, &detector), analysis_cleanup);
+  AD_TRY_LABEL(analyzeWithDetector(AD_ARGS, &detector), analysis_cleanup);
   
   analysis_cleanup:
   // 清理资源
   // 语义：释放 vec 容器，设置指针为 nullptr
-  array_detector::deinit(detector, AD_ARGS);
+  array_detector::cleanupDetector(detector, AD_ARGS);
   
   AD_DEBUG_PRINT("Array member detection analysis completed");
   AD_RETURNV(OK);
@@ -72,8 +72,8 @@ ArrayDetectErrorCode array_detect_analysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
 // 字段赋值追踪：分析字段赋值来源
 // 语义：执行两步分析 - 赋值分析 -> 候选判断
-// 前置条件：字段已通过 collect_all_types_and_fields 收集
-ArrayDetectErrorCode trace_field_assignments(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+// 前置条件：字段已通过 collectTypesAndFields 收集
+ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Tracing field assignments");
   
   // 检查 detector 是否有效
@@ -84,11 +84,11 @@ ArrayDetectErrorCode trace_field_assignments(AD_FUNC_ARGS, ArrayDetector* detect
   
   // 第一步：分析字段赋值
   // 语义：遍历所有函数，追踪字段的赋值操作和来源
-  AD_TRY(analyze_field_assignments_in_functions(*detector, AD_ARGS));
+  AD_TRY(analyzeFieldAssignmentsInFunctions(*detector, AD_ARGS));
 
   // 第二步：分析使用情况，判断是否是数组候选
   // 语义：根据赋值来源判断字段是否为 owned 数组
-  AD_TRY(analyze_usage(*detector, AD_ARGS));
+  AD_TRY(analyzeFieldUsage(*detector, AD_ARGS));
 
   AD_RETURNV(OK);
 } AD_FUNCTION_END
@@ -97,7 +97,7 @@ ArrayDetectErrorCode trace_field_assignments(AD_FUNC_ARGS, ArrayDetector* detect
 // 语义：扫描所有函数，从字段访问中提取类型和字段定义
 // 输出：填充 detector->m_fields 容器
 // 垃圾回收：使用 ggc_alloc 分配的 hash_set 由 GCC 自动管理
-ArrayDetectErrorCode collect_all_types_and_fields(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Collecting all types and fields");
   
   // 检查 detector 是否有效
@@ -202,7 +202,7 @@ ArrayDetectErrorCode collect_all_types_and_fields(AD_FUNC_ARGS, ArrayDetector* d
 
 namespace array_detector {
 
-ArrayDetectErrorCode analyze_field_assignments_in_functions(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Analyzing field assignments in functions");
   
   // 遍历所有函数

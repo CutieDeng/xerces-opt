@@ -4,7 +4,7 @@
 
 namespace array_detector {
 
-ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initializeDetector (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   // 延迟初始化：在 init 函数中分配 vec 指针
   if (self.m_fields == nullptr) {
@@ -20,7 +20,7 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN 
   AD_RETURNV(OK);
 } AD_FUNCTION_END
 
-bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
+bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
   (void)self;
   AD_ARGS_WARN_DENY;
   if (!field || !field->function_assignments) return false;
@@ -83,7 +83,7 @@ bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, c
   return all_from_function_call;
 }
 
-::array_detect_ns::ArrayDetectErrorCode analyze_usage(ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void )ctx;
   AD_DEBUG_PRINT ("start analyze fields usage");
   
@@ -134,7 +134,7 @@ bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, c
     // TODO: wrap in a new function to check the all src values
     // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
     const char* unique_source = NULL;
-    bool all_from_function_call = check_all_src_values (self, AD_ARGS, field, &unique_source);
+    bool all_from_function_call = checkAllAssignmentsFromSameSource (self, AD_ARGS, field, &unique_source);
     
     // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
     if (all_from_function_call && unique_source) {
@@ -149,7 +149,7 @@ bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, c
   AD_RETURNV(OK);
 } AD_FUNCTION_END
 
-void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
+void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS) {
   AD_ARGS_WARN_DENY;
   // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
   if (self.m_fields != nullptr) {
@@ -162,7 +162,7 @@ void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
   }
 }
 
-::array_detect_ns::ArrayDetectErrorCode add_field(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info) AD_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!field_info) {
     AD_RETURNV(OK);
@@ -184,7 +184,7 @@ void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
   AD_RETURNV(OK);
 } AD_FUNCTION_END
 
-::array_detect_ns::ArrayDetectErrorCode get_field_count(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count) AD_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count) AD_FUNCTION_BEGIN {
   if (!out_count) {
     AD_DEBUG_PRINT("Error: out_count parameter is null");
     AD_RETURNV(INVALID_PARAMETER);
@@ -201,7 +201,7 @@ void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
   AD_RETURNV(OK);
 } AD_FUNCTION_END
 
-::array_detect_ns::ArrayDetectErrorCode get_field(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field) AD_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field) AD_FUNCTION_BEGIN {
   if (!out_field) {
     AD_DEBUG_PRINT("Error: out_field parameter is null");
     AD_RETURNV(INVALID_PARAMETER);

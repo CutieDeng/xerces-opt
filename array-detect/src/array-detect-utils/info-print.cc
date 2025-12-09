@@ -11,7 +11,7 @@ ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUN
   
   // 统计信息
   size_t total_fields = 0;
-  ArrayDetectErrorCode count_err = get_field_count(*detector, AD_ARGS, &total_fields);
+  ArrayDetectErrorCode count_err = getFieldCount(*detector, AD_ARGS, &total_fields);
   if (count_err != OK) {
     AD_DEBUG_PRINT("Error: Failed to get field count");
     ecode = count_err;
@@ -37,7 +37,7 @@ ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUN
   // 遍历所有字段，输出分析结果
   for (size_t i = 0; i < total_fields; i++) {
     FieldInfo* field = nullptr;
-    ArrayDetectErrorCode field_err = get_field(*detector, AD_ARGS, i, &field);
+    ArrayDetectErrorCode field_err = getField(*detector, AD_ARGS, i, &field);
     if (field_err != OK || !field) {
       AD_DEBUG_PRINT("Warning: Failed to get field");
       continue;
@@ -144,7 +144,7 @@ ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUN
   fprintf(output_file, "\n--- Results by Type ---\n");
   for (size_t i = 0; i < total_fields; i++) {
     FieldInfo* field = nullptr;
-    ArrayDetectErrorCode field_err = get_field(*detector, AD_ARGS, i, &field);
+    ArrayDetectErrorCode field_err = getField(*detector, AD_ARGS, i, &field);
     if (field_err != OK || !field) {
       AD_DEBUG_PRINT("Warning: Failed to get field for type summary");
       continue;
