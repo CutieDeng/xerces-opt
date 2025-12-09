@@ -57,19 +57,19 @@
   (system (path->string (build-path bin-dir out-main)))
 )
 
-(define cont (box #f))
+(define cont (make-parameter #f))
 
 (define (run)
   (and
     (clean)
-    (let/cc k (set-box! cont k) #t)
+    (let/cc k (cont k) #t)
     (pre-build)
-    (let/cc k (set-box! cont k) #t)
-    (for/and ([s sources]) (and (compile-source s) (let/cc k (set-box! cont k) #t)))
+    (let/cc k (cont k) #t)
+    (for/and ([s sources]) (and (compile-source s) (let/cc k (cont k) #t)))
     (link-objects)
-    (let/cc k (set-box! cont k) #t)
+    (let/cc k (cont k) #t)
     (run-test)
-    (let/cc k (set-box! cont k) #t)
+    (let/cc k (cont k) #t)
   ))
 
 (module+ main (run))

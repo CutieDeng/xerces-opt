@@ -7,54 +7,33 @@
 using namespace xercese;
 using namespace std;
 
-// 定义一个简单的测试类用于测试ValueVectorOf
-class TestObject {
-private:
-    int m_value;
-    char* m_name;
+// 定义一个简单的测试对象，使用POD类型避免memset警告
+struct TestObject {
+    int value;
+    int id;
+    double score;
 
-public:
-    TestObject(int value = 0, const char* name = "default") : m_value(value) {
-        if (name) {
-            m_name = new char[strlen(name) + 1];
-            strcpy(m_name, name);
-        } else {
-            m_name = new char[1];
-            m_name[0] = '\0';
-        }
+    // 使用聚合初始化，保持trivially copyable
+    static TestObject create(int v, int i = 0, double s = 0.0) {
+        TestObject obj;
+        obj.value = v;
+        obj.id = i;
+        obj.score = s;
+        return obj;
     }
 
-    TestObject(const TestObject& other) : m_value(other.m_value) {
-        m_name = new char[strlen(other.m_name) + 1];
-        strcpy(m_name, other.m_name);
-    }
-
-    ~TestObject() {
-        delete[] m_name;
-    }
-
-    TestObject& operator=(const TestObject& other) {
-        if (this != &other) {
-            m_value = other.m_value;
-            delete[] m_name;
-            m_name = new char[strlen(other.m_name) + 1];
-            strcpy(m_name, other.m_name);
-        }
-        return *this;
-    }
-
+    // 比较操作符
     bool operator==(const TestObject& other) const {
-        return m_value == other.m_value && strcmp(m_name, other.m_name) == 0;
+        return value == other.value && id == other.id && score == other.score;
     }
 
-    int getValue() const { return m_value; }
-    const char* getName() const { return m_name; }
+    bool operator!=(const TestObject& other) const {
+        return !(*this == other);
+    }
 
-    void setValue(int value) { m_value = value; }
-    void setName(const char* name) {
-        delete[] m_name;
-        m_name = new char[strlen(name) + 1];
-        strcpy(m_name, name);
+    // 用于调试和验证的方法
+    void display() const {
+        std::cout << "TestObject(value=" << value << ", id=" << id << ", score=" << score << ")";
     }
 };
 
@@ -67,7 +46,7 @@ int main() {
         // 测试1: 基本操作测试 - 整数类型
         cout << "\n=== Testing ValueVectorOf<int> ===" << endl;
         // 使用正确的构造函数参数
-        ValueVectorOf<int> intVector(5, nullptr, false);  // 最大容量5，不需要调用析构函数的基本类型
+        ValueVectorOf<int> intVector(5, XMLPlatformUtils::fgMemoryManager, false);  // 最大容量5，不需要调用析构函数的基本类型
 
         // 测试添加元素
         cout << "Adding elements..." << endl;
@@ -119,19 +98,21 @@ int main() {
         // 测试2: 自定义对象类型测试
         cout << "\n=== Testing ValueVectorOf<TestObject> ===" << endl;
         // 使用正确的构造函数参数
-        ValueVectorOf<TestObject> objVector(3, nullptr, true);  // 最大容量3，需要调用析构函数的对象类型
+        ValueVectorOf<TestObject> objVector(3, XMLPlatformUtils::fgMemoryManager, false);  // 最大容量3，POD类型无需调用析构函数
 
         // 添加自定义对象
         cout << "Adding TestObjects..." << endl;
-        objVector.addElement(TestObject(1, "Object1"));
-        objVector.addElement(TestObject(2, "Object2"));
-        objVector.addElement(TestObject(3, "Object3"));
+        objVector.addElement(TestObject::create(1, 100, 95.5));
+        objVector.addElement(TestObject::create(2, 200, 87.3));
+        objVector.addElement(TestObject::create(3, 300, 92.8));
 
         // 显示对象
         cout << "TestObjects in vector: " << endl;
         for (unsigned i = 0; i < objVector.size(); i++) {
             const TestObject& obj = objVector.elementAt(i);
-            cout << "Object " << i << ": value=" << obj.getValue() << ", name=" << obj.getName() << endl;
+            cout << "Object " << i << ": ";
+            obj.display();
+            cout << endl;
         }
 
         // 测试拷贝构造函数
@@ -142,21 +123,28 @@ int main() {
         // 修改拷贝的元素，验证深拷贝
         cout << "Modifying element in copy..." << endl;
         TestObject& obj = objVectorCopy.elementAt(1);
-        obj.setValue(99);
-        obj.setName("ModifiedObject");
+        obj.value = 99;
+        obj.id = 999;
+        obj.score = 99.9;
 
         // 验证原向量和拷贝向量的元素是否不同
-        cout << "Original vector element 1: value=" << objVector.elementAt(1).getValue() << ", name=" << objVector.elementAt(1).getName() << endl;
-        cout << "Copy vector element 1: value=" << objVectorCopy.elementAt(1).getValue() << ", name=" << objVectorCopy.elementAt(1).getName() << endl;
+        cout << "Original vector element 1: ";
+        objVector.elementAt(1).display();
+        cout << endl;
+        cout << "Copy vector element 1: ";
+        objVectorCopy.elementAt(1).display();
+        cout << endl;
 
         // 测试赋值操作符
         cout << "\nTesting assignment operator..." << endl;
-        ValueVectorOf<TestObject> objVectorAssign(1, nullptr, true);  // 最大容量1
-        objVectorAssign.addElement(TestObject(999, "TempObject"));
+        ValueVectorOf<TestObject> objVectorAssign(1, XMLPlatformUtils::fgMemoryManager, false);  // 最大容量1，POD类型无需调用析构函数
+        objVectorAssign.addElement(TestObject::create(999, 888, 77.7));
         objVectorAssign = objVector;  // 赋值操作
 
         cout << "Assigned vector size: " << objVectorAssign.size() << endl;
-        cout << "Assigned vector element 0: value=" << objVectorAssign.elementAt(0).getValue() << ", name=" << objVectorAssign.elementAt(0).getName() << endl;
+        cout << "Assigned vector element 0: ";
+        objVectorAssign.elementAt(0).display();
+        cout << endl;
 
         // 测试removeAllElements
         cout << "\nTesting removeAllElements..." << endl;
