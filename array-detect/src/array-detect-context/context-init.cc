@@ -2,10 +2,10 @@
 #include "state.hh"
 #include "context.hh"
 #include "context-init.hh"
-#include "cutie-context-gcc.hh"
-#include "cutie-context-gcc-interface.hh"
+#include "array-detect-context-gcc.hh"
+#include "array-detect-context-gcc-interface.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
 namespace {
 
@@ -18,52 +18,52 @@ void nothingWithFile(FILE *) {
 
 }
 
-CutieErrorCode initWithTmpFile(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode initWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    CUTIE_RETURNV (RESOURCE_ERROR);
+    AD_RETURNV (RESOURCE_ERROR);
   }
-  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  CUTIE_RETURNV (OK);
+  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_RETURNV (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
-} CUTIE_FUNCTION_END
+} AD_FUNCTION_END
 
-CutieErrorCode initWithNamedFile(CUTIE_FUNC_ARGS, char const *debug_file_path) CUTIE_FUNCTION_BEGIN {
-  CUTIE_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
+ArrayDetectErrorCode initWithNamedFile(AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    CUTIE_RETURNV (RESOURCE_ERROR);
+    AD_RETURNV (RESOURCE_ERROR);
   }
-  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  CUTIE_RETURNV (OK);
+  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_RETURNV (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
-} CUTIE_FUNCTION_END
+} AD_FUNCTION_END
 
-CutieErrorCode initWithStderr(CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode initWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
-  CUTIE_TRY_LABEL (initCapacityImpl (CUTIE_ARGS, 512), fail0);
-  CUTIE_RETURNV (OK);
+  AD_TRY_LABEL (initCapacityImpl (AD_ARGS, 512), fail0);
+  AD_RETURNV (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
-} CUTIE_FUNCTION_END
+} AD_FUNCTION_END
 
-void deinit(CUTIE_FUNC_ARGS) {
+void deinit(AD_FUNC_ARGS) {
   ctx.debug_file_dtor(ctx.debug_file);
-  deinitCutieContextGcc (CUTIE_ARGS);
+  deinitArrayDetectContextGcc (AD_ARGS);
 }
 
 }

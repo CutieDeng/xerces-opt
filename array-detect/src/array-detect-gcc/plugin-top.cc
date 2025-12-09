@@ -7,7 +7,7 @@
 #include "context-init.hh"
 #include "array-detector.hh"
 #include "array-detector-op0.hh"
-#include "cutie-context-gcc.hh"
+#include "array-detect-context-gcc.hh"
 
 #include "gcc-ext-util.hh"
 #include "info.hh"
@@ -17,16 +17,16 @@
 // Pass 注册结构
 // ----------------------------------------------------------------------------
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
-CutieErrorCode array_detect_execute (CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN2 {
-  initCutieContextGcc (CUTIE_ARGS);
-  CUTIE_ETRY2 (initWithStderr (CUTIE_ARGS), cleanup, false, true, "Failed to init context: %s");
-  CUTIE_TRY (array_detect_analysis (CUTIE_ARGS));
-  CUTIE_RETURNV(OK);
+ArrayDetectErrorCode array_detect_execute (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
+  initArrayDetectContextGcc (AD_ARGS);
+  AD_ETRY2 (initWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
+  AD_TRY (array_detect_analysis (AD_ARGS));
+  AD_RETURNV(OK);
   cleanup:
-  deinit(CUTIE_ARGS);
-} CUTIE_FUNCTION_END3
+  deinit(AD_ARGS);
+} AD_FUNCTION_END3
 
 }
 
@@ -64,12 +64,19 @@ class pass_array_detect : public ipa_opt_pass_d {
   unsigned int execute(function*) override {
     // Regular IPA passes in WPA mode call execute() with NULL function
     // 使用局部上下文，避免全局状态问题
-    ::cutie_ns::CutieContext local_ctx;
-    ::cutie_ns::CutieContextGcc local_gcc_ctx;
+    ::array_detect_ns::ArrayDetectContext local_ctx;
+    ::array_detect_ns::ArrayDetectContextGcc local_gcc_ctx;
+
+    // 简单的调试输出，显示插件开始执行
+    fprintf(stderr, "\n=== Plugin Array Detect - Starting Analysis ===\n");
 
     // 直接执行分析
-    ::cutie_ns::CutieErrorCode result = array_detect_execute (local_ctx, local_gcc_ctx);
-    return result != ::cutie_ns::OK;
+    ::array_detect_ns::ArrayDetectErrorCode result = array_detect_execute (local_ctx, local_gcc_ctx);
+
+    // 简单的调试输出，显示插件执行完成
+    fprintf(stderr, "=== Plugin Array Detect - Analysis Complete ===\n\n");
+
+    return result != ::array_detect_ns::OK;
   }
 };
 

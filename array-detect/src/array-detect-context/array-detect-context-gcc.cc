@@ -2,36 +2,36 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
-#include "cutie-context-gcc.hh"
-#include "cutie-context-gcc-interface.hh"
+#include "array-detect-context-gcc.hh"
+#include "array-detect-context-gcc-interface.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
 // Global GCC-specific context instance - 复杂对象，不是指针
-CutieContextGcc gCutieContextGcc;
+ArrayDetectContextGcc gArrayDetectContextGcc;
 
 // Initialize GCC context
-void initCutieContextGcc(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+void initArrayDetectContextGcc(AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   // 直接初始化 vec 容器
   gcc_ctx.stack_frames.create(0);
 }
 
 // Cleanup GCC context
-void deinitCutieContextGcc(CUTIE_FUNC_ARGS) {
-  clearStackFrames(CUTIE_ARGS);
+void deinitArrayDetectContextGcc(AD_FUNC_ARGS) {
+  clearStackFrames(AD_ARGS);
 }
 
 namespace controlflow {
 
 // Stack frame management functions
-void pushStackFrame(CUTIE_FUNC_ARGS, uint64_t frame_id) {
-  CUTIE_ARGS_WARN_DENY;
+void pushStackFrame(AD_FUNC_ARGS, uint64_t frame_id) {
+  AD_ARGS_WARN_DENY;
   gcc_ctx.stack_frames.safe_push(frame_id);
 }
 
-void popStackFrame(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+void popStackFrame(AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   if (!gcc_ctx.stack_frames.is_empty()) {
     gcc_ctx.stack_frames.pop();
   }
@@ -39,19 +39,19 @@ void popStackFrame(CUTIE_FUNC_ARGS) {
 
 } // namespace controlflow
 
-void clearStackFrames(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+void clearStackFrames(AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   // gcc_ctx.stack_frames.truncate(0);
   // gcc_ctx.stack_frames.release ();
 }
 
-size_t getStackDepth(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+size_t getStackDepth(AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   return gcc_ctx.stack_frames.length();
 }
 
-void getCurrentFrame(CUTIE_FUNC_ARGS, uint64_t &result, bool &is_exists) {
-  CUTIE_ARGS_WARN_DENY;
+void getCurrentFrame(AD_FUNC_ARGS, uint64_t &result, bool &is_exists) {
+  AD_ARGS_WARN_DENY;
   if (gcc_ctx.stack_frames.is_empty()) {
     is_exists = false;
     return ;
@@ -60,59 +60,59 @@ void getCurrentFrame(CUTIE_FUNC_ARGS, uint64_t &result, bool &is_exists) {
   is_exists = true;
 }
 
-bool isStackEmpty(CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+bool isStackEmpty(AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   return gcc_ctx.stack_frames.is_empty();
 }
 
 // Debug output functions
-void printStackFrames(CUTIE_FUNC_ARGS) {
-  CUTIE_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(CUTIE_ARGS));
+void printStackFrames(AD_FUNC_ARGS) {
+  AD_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(AD_ARGS));
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
-    CUTIE_DEBUG_PRINT("\t[%zu]: 0x%lx", i, (unsigned long)gcc_ctx.stack_frames[i]);
+    AD_DEBUG_PRINT("\t[%zu]: 0x%lx", i, (unsigned long)gcc_ctx.stack_frames[i]);
   }
 }
 
-void printCurrentFrame(CUTIE_FUNC_ARGS) {
-  CUTIE_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(CUTIE_ARGS));
-  if (!isStackEmpty(CUTIE_ARGS)) {
+void printCurrentFrame(AD_FUNC_ARGS) {
+  AD_DEBUG_PRINT("Stack frames (depth: %zu)", getStackDepth(AD_ARGS));
+  if (!isStackEmpty(AD_ARGS)) {
     bool is_exists;
     uint64_t v;
-    getCurrentFrame(CUTIE_ARGS, v, is_exists);
-    CUTIE_DEBUG_PRINT("Current frame: 0x%lx", ((unsigned long) (is_exists ? v : 0)));
+    getCurrentFrame(AD_ARGS, v, is_exists);
+    AD_DEBUG_PRINT("Current frame: 0x%lx", ((unsigned long) (is_exists ? v : 0)));
   } else {
-    CUTIE_DEBUG_PRINT("Current frame: <null>");
+    AD_DEBUG_PRINT("Current frame: <null>");
   }
 }
 
 // Enhanced debug with source code locations
-void printStackFramesWithSource(CUTIE_FUNC_ARGS) {
-  CUTIE_DEBUG_PRINT("Call stack with source locations (depth: %zu):", getStackDepth(CUTIE_ARGS));
+void printStackFramesWithSource(AD_FUNC_ARGS) {
+  AD_DEBUG_PRINT("Call stack with source locations (depth: %zu):", getStackDepth(AD_ARGS));
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
     uint64_t frame_addr = gcc_ctx.stack_frames[i];
     const char* source_info;
-    bool has_source = getFrameSourceLocationEnhanced(CUTIE_ARGS, frame_addr, source_info);
+    bool has_source = getFrameSourceLocationEnhanced(AD_ARGS, frame_addr, source_info);
 
     if (has_source) {
-      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_info);
+      AD_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_info);
     } else {
-      CUTIE_DEBUG_PRINT("  [%zu]: 0x%016lx -> <unknown source>", i, (unsigned long)frame_addr);
+      AD_DEBUG_PRINT("  [%zu]: 0x%016lx -> <unknown source>", i, (unsigned long)frame_addr);
     }
   }
 }
 
-void printStackFrameSource(CUTIE_FUNC_ARGS, uint64_t frame_addr) {
+void printStackFrameSource(AD_FUNC_ARGS, uint64_t frame_addr) {
   char source_buf[256];
-  bool has_source = getFrameSourceLocation(CUTIE_ARGS, frame_addr, source_buf, sizeof(source_buf));
+  bool has_source = getFrameSourceLocation(AD_ARGS, frame_addr, source_buf, sizeof(source_buf));
   if (has_source) {
-    CUTIE_DEBUG_PRINT("Frame 0x%016lx -> %s", (unsigned long)frame_addr, source_buf);
+    AD_DEBUG_PRINT("Frame 0x%016lx -> %s", (unsigned long)frame_addr, source_buf);
   } else {
-    CUTIE_DEBUG_PRINT("Frame 0x%016lx -> <unknown source>", (unsigned long)frame_addr);
+    AD_DEBUG_PRINT("Frame 0x%016lx -> <unknown source>", (unsigned long)frame_addr);
   }
 }
 
-bool getFrameSourceLocation(CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) {
-  CUTIE_ARGS_WARN_DENY;
+bool getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) {
+  AD_ARGS_WARN_DENY;
   if (!buffer || buffer_size == 0) {
     return false;
   }
@@ -126,8 +126,8 @@ bool getFrameSourceLocation(CUTIE_FUNC_ARGS, uint64_t frame_addr, char* buffer, 
 }
 
 // 使用新地址解析器的增强版本
-bool getFrameSourceLocationEnhanced(CUTIE_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
-  CUTIE_ARGS_WARN_DENY;
+bool getFrameSourceLocationEnhanced(AD_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
+  AD_ARGS_WARN_DENY;
 
   // 使用 Context 中的 source_location_buffer
   if (!ctx.source_location_buffer || ctx.source_location_buffer_size == 0) {
@@ -156,4 +156,4 @@ bool getFrameSourceLocationEnhanced(CUTIE_FUNC_ARGS, uint64_t frame_addr, const 
   return false;
 }
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

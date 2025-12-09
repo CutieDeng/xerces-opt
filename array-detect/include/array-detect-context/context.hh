@@ -2,9 +2,9 @@
 
 #include <stdio.h>
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
-struct CutieContext {
+struct ArrayDetectContext {
   FILE *debug_file;
   void (*debug_file_dtor)(FILE *);
   
@@ -15,9 +15,9 @@ struct CutieContext {
   size_t source_line_buffer_size;
 };
 
-extern CutieContext g_cutie_ctx;
+extern ArrayDetectContext g_array_detect_ctx;
 
 // Forward declaration for GCC-specific context
-struct CutieContextGcc;
+struct ArrayDetectContextGcc;
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

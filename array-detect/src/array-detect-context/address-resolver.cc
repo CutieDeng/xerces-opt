@@ -4,14 +4,14 @@
 
 #include "address-resolver.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
 // 全局地址解析器实例
 DefaultAddressResolver g_address_resolver;
 
 // DefaultAddressResolver 实现
-bool DefaultAddressResolver::resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
-  CUTIE_ARGS_WARN_DENY;
+bool DefaultAddressResolver::resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
+  AD_ARGS_WARN_DENY;
 
   // 初始化结构
   info.symbol_name = nullptr;
@@ -42,11 +42,11 @@ bool DefaultAddressResolver::resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, Addr
   return info.is_valid;
 }
 
-bool DefaultAddressResolver::resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t addr, const char*& result) {
-  CUTIE_ARGS_WARN_DENY;
+bool DefaultAddressResolver::resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) {
+  AD_ARGS_WARN_DENY;
 
   AddressInfo info;
-  bool has_info = resolveAddress(CUTIE_ARGS, addr, info);
+  bool has_info = resolveAddress(AD_ARGS, addr, info);
 
   if (!has_info) {
     snprintf(format_buffer, sizeof(format_buffer), "addr:0x%lx", (unsigned long)addr);
@@ -81,12 +81,12 @@ bool DefaultAddressResolver::resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t ad
 }
 
 // 便捷函数实现
-bool resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
-  return g_address_resolver.resolveAddress(CUTIE_ARGS, addr, info);
+bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
+  return g_address_resolver.resolveAddress(AD_ARGS, addr, info);
 }
 
-bool resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t addr, const char*& result) {
-  return g_address_resolver.resolveAddressToString(CUTIE_ARGS, addr, result);
+bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) {
+  return g_address_resolver.resolveAddressToString(AD_ARGS, addr, result);
 }
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

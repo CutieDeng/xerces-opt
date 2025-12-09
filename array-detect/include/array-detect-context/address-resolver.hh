@@ -3,9 +3,9 @@
 #include <cstdint>
 #include "prelude.hh"
 #include "context.hh"
-#include "cutie-context-gcc.hh"
+#include "array-detect-context-gcc.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
 // 地址解析结果结构
 struct AddressInfo {
@@ -23,17 +23,17 @@ public:
   virtual ~AddressResolver() = default;
 
   // 解析地址到源码位置
-  virtual bool resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, AddressInfo& info) = 0;
+  virtual bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) = 0;
 
   // 使用 Context 缓冲区的便捷方法
-  virtual bool resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t addr, const char*& result) = 0;
+  virtual bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) = 0;
 };
 
 // 默认地址解析器实现
 class DefaultAddressResolver : public AddressResolver {
 public:
-  bool resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, AddressInfo& info) override;
-  bool resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t addr, const char*& result) override;
+  bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) override;
+  bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) override;
 
 private:
   char format_buffer[512];  // 内部格式化缓冲区
@@ -43,7 +43,7 @@ private:
 extern DefaultAddressResolver g_address_resolver;
 
 // 便捷函数声明
-bool resolveAddress(CUTIE_FUNC_ARGS, uint64_t addr, AddressInfo& info);
-bool resolveAddressToString(CUTIE_FUNC_ARGS, uint64_t addr, const char*& result);
+bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info);
+bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result);
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

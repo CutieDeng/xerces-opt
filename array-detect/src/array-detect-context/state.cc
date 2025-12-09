@@ -1,17 +1,17 @@
 #include "state.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
 char const *ERROR_DESCRIPTION[] = {
-#define CUTIE_ERROR_DEF(e, d) d,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
+#define AD_ERROR_DEF(e, d) d,
+#include "array-detect-state.txt"
+#undef AD_ERROR_DEF
 };
 
 char const *ERROR_S_DESCRIPTION[] = {
-#define CUTIE_ERROR_DEF(e, d) #e,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
+#define AD_ERROR_DEF(e, d) #e,
+#include "array-detect-state.txt"
+#undef AD_ERROR_DEF
 };
 
 }

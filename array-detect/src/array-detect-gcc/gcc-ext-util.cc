@@ -19,10 +19,10 @@ void safe_string_copy(char* dest, size_t dest_size, const char* src) {
 
 // 新增辅助函数：获取详细的源码位置信息
 // 使用预分配的缓冲区，避免动态内存分配
-CutieErrorCode get_source_location_string(CUTIE_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode get_source_location_string(AD_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
   if (loc == UNKNOWN_LOCATION) {
     snprintf(buffer, buffer_size, "<unknown location>");
-    CUTIE_RETURNV (OK);
+    AD_RETURNV (OK);
   }
   
   expanded_location xloc = expand_location(loc);
@@ -41,8 +41,8 @@ CutieErrorCode get_source_location_string(CUTIE_FUNC_ARGS, location_t loc, char*
   } else {
     snprintf(buffer, buffer_size, "<unknown location>");
   }
-  CUTIE_RETURNV (OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV (OK);
+} AD_FUNCTION_END
 
 // 新增辅助函数：获取指定位置的源码行内容
 // 使用预分配的缓冲区，避免动态内存分配
@@ -85,39 +85,39 @@ void get_source_line_content(location_t loc, char* buffer, size_t buffer_size) {
 
 namespace {
 
-CutieErrorCode get_call_expr_name(CUTIE_FUNC_ARGS, tree call_expr, char const *&result) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode get_call_expr_name(AD_FUNC_ARGS, tree call_expr, char const *&result) AD_FUNCTION_BEGIN {
   if (TREE_CODE(call_expr) != CALL_EXPR) {
-    CUTIE_RETURNV(INVALID_ARGUMENT);
+    AD_RETURNV(INVALID_ARGUMENT);
   }
   tree fn = TREE_OPERAND(call_expr, 0);
   if (!fn) {
-    CUTIE_RETURNS("<call-expr>");
+    AD_RETURNS("<call-expr>");
   }
   
   if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-    CUTIE_RETURNS(IDENTIFIER_POINTER(DECL_NAME(fn)));
+    AD_RETURNS(IDENTIFIER_POINTER(DECL_NAME(fn)));
   }
   if (TREE_CODE(fn) == ADDR_EXPR) {
     tree decl = TREE_OPERAND(fn, 0);
     if (decl && DECL_NAME(decl)) {
-      CUTIE_RETURNS(IDENTIFIER_POINTER(DECL_NAME(decl)));
+      AD_RETURNS(IDENTIFIER_POINTER(DECL_NAME(decl)));
     }
   }
   if (TREE_CODE(fn) == INDIRECT_REF) {
-    CUTIE_RETURNS("<indirect-call>");
+    AD_RETURNS("<indirect-call>");
   }
-  CUTIE_RETURNS("<call-expr>");
-} CUTIE_FUNCTION_END
+  AD_RETURNS("<call-expr>");
+} AD_FUNCTION_END
 
-CutieErrorCode gcc_field_desc(CUTIE_FUNC_ARGS, tree field, char const *&result) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode gcc_field_desc(AD_FUNC_ARGS, tree field, char const *&result) AD_FUNCTION_BEGIN {
   if (!field) {
-    CUTIE_RETURNS ("<null>");
+    AD_RETURNS ("<null>");
   }
   if (DECL_NAME(field)) {
-    CUTIE_RETURNS (IDENTIFIER_POINTER(DECL_NAME(field)));
+    AD_RETURNS (IDENTIFIER_POINTER(DECL_NAME(field)));
   }
-  CUTIE_RETURNS ("<unnamed>");
-} CUTIE_FUNCTION_END
+  AD_RETURNS ("<unnamed>");
+} AD_FUNCTION_END
 
 }
 }
@@ -127,57 +127,57 @@ namespace gcc_ext_util {
 // 获取类型名称：从 GCC tree 节点提取类型名称字符串
 // 语义：返回类型的可读名称，用于调试和报告
 // 垃圾回收：返回的指针指向 GCC 内部管理的字符串，无需释放
-CutieErrorCode get_type_name (CUTIE_FUNC_ARGS, tree type, char const *&result) CUTIE_FUNCTION_BEGIN {
-  if (!type) CUTIE_RETURNS("<unknown>");
+ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
+  if (!type) AD_RETURNS("<unknown>");
   
   if (TYPE_NAME(type)) {
     if (TREE_CODE(TYPE_NAME(type)) == IDENTIFIER_NODE) {
       // 返回 GCC 内部管理的标识符指针
-      CUTIE_RETURNS(IDENTIFIER_POINTER(TYPE_NAME(type)));
+      AD_RETURNS(IDENTIFIER_POINTER(TYPE_NAME(type)));
     } else if (TREE_CODE(TYPE_NAME(type)) == TYPE_DECL) {
       tree name = DECL_NAME(TYPE_NAME(type));
       if (name) {
         // 返回 GCC 内部管理的声明名称指针
-        CUTIE_RETURNS(IDENTIFIER_POINTER(name));
+        AD_RETURNS(IDENTIFIER_POINTER(name));
       }
     }
   }
-  CUTIE_RETURNS("<unnamed>");
-} CUTIE_FUNCTION_END
+  AD_RETURNS("<unnamed>");
+} AD_FUNCTION_END
 
-CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, char const* func_name, tree func_decl) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, char const* func_name, tree func_decl) AD_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
 
-  CUTIE_DEBUG_PRINT("  Analyzing assignment statement:");
+  AD_DEBUG_PRINT("  Analyzing assignment statement:");
   tree lhs = gimple_assign_lhs(stmt);
   tree rhs = gimple_assign_rhs1(stmt);
 
   tree field_decl = NULL_TREE;
   tree object = NULL_TREE;
   bool is_field_access0;
-  CUTIE_TRY (is_field_access(CUTIE_ARGS, lhs, &field_decl, &object, is_field_access0));
+  AD_TRY (is_field_access(AD_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
-    CUTIE_DEBUG_PRINT("    Not a field access, skipping");
-    CUTIE_RETURNV(OK);
+    AD_DEBUG_PRINT("    Not a field access, skipping");
+    AD_RETURNV(OK);
   }
 
   // 获取字段信息
   const char* field_name;
-  CUTIE_TRY (gcc_field_desc(CUTIE_ARGS, field_decl, field_name));
+  AD_TRY (gcc_field_desc(AD_ARGS, field_decl, field_name));
   tree field_type = TREE_TYPE(field_decl);
   const char* field_type_name;
-  CUTIE_TRY (get_type_name(CUTIE_ARGS, field_type, field_type_name));
+  AD_TRY (get_type_name(AD_ARGS, field_type, field_type_name));
   
   // 获取对象类型信息
   tree object_type = TREE_TYPE(object);
   const char* object_type_name;
-  CUTIE_TRY (get_type_name(CUTIE_ARGS, object_type, object_type_name));
+  AD_TRY (get_type_name(AD_ARGS, object_type, object_type_name));
   
-  CUTIE_DEBUG_PRINT("    Field: %s", field_name);
-  CUTIE_DEBUG_PRINT("    Field type: %s", field_type_name);
-  CUTIE_DEBUG_PRINT("    Object type: %s", object_type_name);
+  AD_DEBUG_PRINT("    Field: %s", field_name);
+  AD_DEBUG_PRINT("    Field type: %s", field_type_name);
+  AD_DEBUG_PRINT("    Object type: %s", object_type_name);
   // 使用gimple_assign_rhs_code获取RHS的树节点类型，并手动转换为字符串
   enum tree_code rhs_code = gimple_assign_rhs_code(stmt);
   const char* rhs_code_str = "UNKNOWN";
@@ -199,35 +199,35 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
     case RDIV_EXPR: rhs_code_str = "RDIV_EXPR"; break;
     default: rhs_code_str = "UNKNOWN"; break;
   }
-  CUTIE_DEBUG_PRINT("    RHS code: %s", rhs_code_str);
+  AD_DEBUG_PRINT("    RHS code: %s", rhs_code_str);
 
   FieldInfo* field_info = NULL;
-  CUTIE_DEBUG_PRINT("    Looking for existing field info...");
+  AD_DEBUG_PRINT("    Looking for existing field info...");
 
   size_t field_count = 0;
-  CutieErrorCode count_err = get_field_count(*detector, CUTIE_ARGS, &field_count);
+  ArrayDetectErrorCode count_err = get_field_count(*detector, AD_ARGS, &field_count);
   if (count_err != OK) {
-    CUTIE_DEBUG_PRINT("    Failed to get field count");
+    AD_DEBUG_PRINT("    Failed to get field count");
     ecode = count_err;
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
 
   for (size_t i = 0; i < field_count; i++) {
     FieldInfo* fi = nullptr;
-    CutieErrorCode field_err = get_field(*detector, CUTIE_ARGS, i, &fi);
+    ArrayDetectErrorCode field_err = get_field(*detector, AD_ARGS, i, &fi);
     if (field_err != OK || !fi) {
-      CUTIE_DEBUG_PRINT("    Failed to get field, continuing...");
+      AD_DEBUG_PRINT("    Failed to get field, continuing...");
       continue;
     }
     if (fi->field_decl == field_decl) {
       field_info = fi;
-      CUTIE_DEBUG_PRINT("    Found existing field info");
+      AD_DEBUG_PRINT("    Found existing field info");
       break;
     }
   }
 
   if (!field_info) {
-    CUTIE_DEBUG_PRINT("    Field info not found, trying to create...");
+    AD_DEBUG_PRINT("    Field info not found, trying to create...");
     tree object_type = TREE_TYPE(object);
     if (object_type) {
       if (TREE_CODE(object_type) == REFERENCE_TYPE) object_type = TREE_TYPE(object_type);
@@ -236,23 +236,23 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
       if (containing_type) {
         hash_set<tree> temp_processed;
         temp_processed.create_ggc(0);
-        CutieErrorCode err = process_type_fields(CUTIE_ARGS, containing_type, detector, &temp_processed);
-        if (err == cutie_ns::OK) {
+        ArrayDetectErrorCode err = process_type_fields(AD_ARGS, containing_type, detector, &temp_processed);
+        if (err == array_detect_ns::OK) {
             size_t new_field_count = 0;
-            CutieErrorCode new_count_err = get_field_count(*detector, CUTIE_ARGS, &new_field_count);
+            ArrayDetectErrorCode new_count_err = get_field_count(*detector, AD_ARGS, &new_field_count);
             if (new_count_err != OK) {
-                CUTIE_DEBUG_PRINT("    Failed to get new field count after processing type fields");
+                AD_DEBUG_PRINT("    Failed to get new field count after processing type fields");
             } else {
                 for (size_t i = 0; i < new_field_count; i++) {
                    FieldInfo* fi = nullptr;
-                   CutieErrorCode new_field_err = get_field(*detector, CUTIE_ARGS, i, &fi);
+                   ArrayDetectErrorCode new_field_err = get_field(*detector, AD_ARGS, i, &fi);
                    if (new_field_err != OK || !fi) {
-                       CUTIE_DEBUG_PRINT("    Failed to get new field, continuing...");
+                       AD_DEBUG_PRINT("    Failed to get new field, continuing...");
                        continue;
                    }
                    if (fi->field_decl == field_decl) {
                      field_info = fi;
-                     CUTIE_DEBUG_PRINT("    Created new field info");
+                     AD_DEBUG_PRINT("    Created new field info");
                      break;
                    }
                 }
@@ -261,8 +261,8 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
       }
     }
     if (!field_info) {
-      CUTIE_DEBUG_PRINT("    Failed to find or create field info, skipping");
-      CUTIE_RETURNV(OK);
+      AD_DEBUG_PRINT("    Failed to find or create field info, skipping");
+      AD_RETURNV(OK);
     }
   }
 
@@ -278,7 +278,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
      if (rhs_code == SSA_NAME) {
         gimple* def_stmt = SSA_NAME_DEF_STMT(rhs);
         if (def_stmt && is_gimple_call(def_stmt)) {
-            CUTIE_TRY (get_call_expr_name (CUTIE_ARGS, gimple_call_fn (def_stmt), source));
+            AD_TRY (get_call_expr_name (AD_ARGS, gimple_call_fn (def_stmt), source));
             if (!source) source = "<unknown-call>";
             is_call = true;
             rhs_desc = "call result";
@@ -299,7 +299,7 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   }
 
   // 获取详细的源码位置信息
-  CUTIE_TRY (get_source_location_string (CUTIE_ARGS, gimple_location(stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+  AD_TRY (get_source_location_string (AD_ARGS, gimple_location(stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
   const char* loc_str = ctx.source_location_buffer;
   
   // 获取源码行内容
@@ -354,38 +354,38 @@ CutieErrorCode analyze_gimple_assignment (CUTIE_FUNC_ARGS, gimple* stmt, ArrayDe
   }
   field_info->sources->safe_push(source);
   
-  CUTIE_DEBUG_PRINT("    Assignment processed successfully:");
-  CUTIE_DEBUG_PRINT("      Field: %s::%s", field_info->containing_type, field_info->field_name);
-  CUTIE_DEBUG_PRINT("      Assignment source: %s (%s)", source, rhs_desc);
-  CUTIE_DEBUG_PRINT("      Location: %s", loc_str);
-  CUTIE_DEBUG_PRINT("      Source line: %s", source_line);
-  CUTIE_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
+  AD_DEBUG_PRINT("    Assignment processed successfully:");
+  AD_DEBUG_PRINT("      Field: %s::%s", field_info->containing_type, field_info->field_name);
+  AD_DEBUG_PRINT("      Assignment source: %s (%s)", source, rhs_desc);
+  AD_DEBUG_PRINT("      Location: %s", loc_str);
+  AD_DEBUG_PRINT("      Source line: %s", source_line);
+  AD_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
 
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
 // 处理类型字段：提取类型的所有字段定义
 // 语义：遍历类型的字段，创建 FieldInfo 对象并添加到 detector
 // 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
-CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) CUTIE_FUNCTION_BEGIN {
+ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) AD_FUNCTION_BEGIN {
   if (!type) {
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
   
   // 只处理结构体/类类型
   if (TREE_CODE(type) != RECORD_TYPE && TREE_CODE(type) != UNION_TYPE) {
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
   
   // 检查是否已处理过（避免重复处理）
   if (!processed_types->add(type)) {
     // 已处理过，跳过
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
   
   const char* type_name;
-  CUTIE_TRY (gcc_ext_util::get_type_name(CUTIE_ARGS, type, type_name));
-  CUTIE_DEBUG_PRINT("Processing type: %s", type_name);
+  AD_TRY (gcc_ext_util::get_type_name(AD_ARGS, type, type_name));
+  AD_DEBUG_PRINT("Processing type: %s", type_name);
   
   // 遍历类型的所有字段
   tree field;
@@ -393,7 +393,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     if (TREE_CODE(field) != FIELD_DECL) continue;
     
     const char* field_name;
-    CUTIE_TRY (gcc_field_desc(CUTIE_ARGS, field, field_name));
+    AD_TRY (gcc_field_desc(AD_ARGS, field, field_name));
     
     // 跳过虚函数表指针（编译器生成的内部字段）
     if (strstr(field_name, "_vptr") != NULL) {
@@ -402,15 +402,15 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     
     tree field_type = TREE_TYPE(field);
     bool is_ptr;
-    CUTIE_TRY (is_pointer_type (CUTIE_ARGS, field_type, is_ptr));
+    AD_TRY (is_pointer_type (AD_ARGS, field_type, is_ptr));
     
-    CUTIE_DEBUG_PRINT("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
+    AD_DEBUG_PRINT("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
     
     // 创建字段信息结构体（使用 GCC 垃圾回收分配）
     // 语义：分配 FieldInfo 结构体，由 GCC 自动管理生命周期
     FieldInfo* field_info = ggc_alloc<FieldInfo>();
     if (!field_info) {
-      CUTIE_RETURNV(MEMORY_ERROR);
+      AD_RETURNV(MEMORY_ERROR);
     }
     // 初始化字段为零
     memset(field_info, 0, sizeof(FieldInfo));
@@ -437,7 +437,7 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     
     // 添加字段到 detector
     // 语义：将字段信息添加到全局字段列表
-    CUTIE_TRY_LABEL (add_field (*detector, CUTIE_ARGS, field_info), field_init_error);
+    AD_TRY_LABEL (add_field (*detector, AD_ARGS, field_info), field_init_error);
     continue;
 
     field_init_error:
@@ -452,27 +452,27 @@ CutieErrorCode process_type_fields(CUTIE_FUNC_ARGS, tree type, ArrayDetector* de
     if (field_info->function_assignments) {
       field_info->function_assignments->release();
     }
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
   
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
 // 检查类型是否是指针类型
-CutieErrorCode is_pointer_type(CUTIE_FUNC_ARGS, tree type, bool &result) CUTIE_FUNCTION_BEGIN {
-  if (!type) CUTIE_RETURNS (false);
-  CUTIE_RETURNS (TREE_CODE(type) == POINTER_TYPE);
-} CUTIE_FUNCTION_END
+ArrayDetectErrorCode is_pointer_type(AD_FUNC_ARGS, tree type, bool &result) AD_FUNCTION_BEGIN {
+  if (!type) AD_RETURNS (false);
+  AD_RETURNS (TREE_CODE(type) == POINTER_TYPE);
+} AD_FUNCTION_END
 
 // 检查是否是字段访问（COMPONENT_REF）
-CutieErrorCode is_field_access(CUTIE_FUNC_ARGS, tree expr, tree* field_decl_out, tree* object_out, bool &result) CUTIE_FUNCTION_BEGIN {
-  if (!expr) CUTIE_RETURNS (false);
+ArrayDetectErrorCode is_field_access(AD_FUNC_ARGS, tree expr, tree* field_decl_out, tree* object_out, bool &result) AD_FUNCTION_BEGIN {
+  if (!expr) AD_RETURNS (false);
   
   if (TREE_CODE(expr) == COMPONENT_REF) {
     *field_decl_out = TREE_OPERAND(expr, 1);
     *object_out = TREE_OPERAND(expr, 0);
-    CUTIE_RETURNS (true);
+    AD_RETURNS (true);
   }
-  CUTIE_RETURNS (false);
-} CUTIE_FUNCTION_END
+  AD_RETURNS (false);
+} AD_FUNCTION_END
 }

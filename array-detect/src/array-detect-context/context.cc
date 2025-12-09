@@ -1,7 +1,7 @@
 #include "context.hh"
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
-CutieContext g_cutie_ctx;
+ArrayDetectContext g_array_detect_ctx;
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

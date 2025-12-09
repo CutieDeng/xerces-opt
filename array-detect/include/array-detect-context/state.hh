@@ -2,16 +2,16 @@
 
 #include <stdint.h>
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
-enum CutieErrorCode : int64_t {
-#define CUTIE_ERROR_DEF(e, d) e,
-#include "cutie-state.txt"
-#undef CUTIE_ERROR_DEF
+enum ArrayDetectErrorCode : int64_t {
+#define AD_ERROR_DEF(e, d) e,
+#include "array-detect-state.txt"
+#undef AD_ERROR_DEF
 };
 
 extern char const *ERROR_DESCRIPTION[];
 
 extern char const *ERROR_S_DESCRIPTION[];
 
-} // namespace cutie_ns
+} // namespace array_detect_ns

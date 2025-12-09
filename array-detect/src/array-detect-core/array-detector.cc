@@ -4,25 +4,25 @@
 
 namespace array_detector {
 
-CutieErrorCode init (ArrayDetector &self, CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
-  CUTIE_ARGS_WARN_DENY;
+ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
   // 延迟初始化：在 init 函数中分配 vec 指针
   if (self.m_fields == nullptr) {
     self.m_fields = ggc_alloc<vec<FieldInfo*>>();
     if (self.m_fields == nullptr) {
-      CUTIE_RETURNV(MEMORY_ERROR);
+      AD_RETURNV(MEMORY_ERROR);
     }
     self.m_fields->create(0); // 初始化 vec 容器
-    CUTIE_DEBUG_PRINT("ArrayDetector initialized: m_fields allocated and created");
+    AD_DEBUG_PRINT("ArrayDetector initialized: m_fields allocated and created");
   } else {
-    CUTIE_DEBUG_PRINT("ArrayDetector already initialized");
+    AD_DEBUG_PRINT("ArrayDetector already initialized");
   }
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
+bool check_all_src_values(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
   (void)self;
-  CUTIE_ARGS_WARN_DENY;
+  AD_ARGS_WARN_DENY;
   if (!field || !field->function_assignments) return false;
 
   bool all_from_function_call = true;
@@ -83,14 +83,14 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
   return all_from_function_call;
 }
 
-::cutie_ns::CutieErrorCode analyze_usage(ArrayDetector &self, CUTIE_FUNC_ARGS) CUTIE_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode analyze_usage(ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void )ctx;
-  CUTIE_DEBUG_PRINT ("start analyze fields usage");
+  AD_DEBUG_PRINT ("start analyze fields usage");
   
   // 检查 m_fields 是否已初始化
   if (self.m_fields == nullptr) {
-    CUTIE_DEBUG_PRINT("Warning: ArrayDetector not initialized, m_fields is null");
-    CUTIE_RETURNV(OK);
+    AD_DEBUG_PRINT("Warning: ArrayDetector not initialized, m_fields is null");
+    AD_RETURNV(OK);
   }
   
   // 分析使用情况，判断是否是数组候选
@@ -98,16 +98,16 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
     FieldInfo* field = (*self.m_fields)[i];
     // TODO: if null, warning this situation
     if (!field) {
-      CUTIE_DEBUG_PRINT("Warning: NULL field at index %u", i);
+      AD_DEBUG_PRINT("Warning: NULL field at index %u", i);
       continue;
     }
 
     // TODO: add field type/name log, if not null
-    CUTIE_DEBUG_PRINT("Analyzing field: %s::%s", field->containing_type, field->field_name);
+    AD_DEBUG_PRINT("Analyzing field: %s::%s", field->containing_type, field->field_name);
 
     // TODO: add log about non array candidate judge, with evidence: non pointer type
     if (!field->is_pointer) {
-      CUTIE_DEBUG_PRINT("  -> Not array candidate: Not a pointer type");
+      AD_DEBUG_PRINT("  -> Not array candidate: Not a pointer type");
       field->is_array_candidate = false;
       continue;
     }
@@ -115,7 +115,7 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
     // TODO: add log
     // 检查是否有冲突赋值（某个函数中有多个赋值）
     if (field->conflicting_assigns && field->conflicting_assigns->length() > 0) {
-      CUTIE_DEBUG_PRINT("  -> Not array candidate: Conflicting assignments found");
+      AD_DEBUG_PRINT("  -> Not array candidate: Conflicting assignments found");
       field->is_array_candidate = false;
       continue;
     }
@@ -126,7 +126,7 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
       // 没有赋值信息，不是数组候选
       // TODO: change the available set
       // no assignment doesn't mean no array candidate! (just ignored, can set as unrelated, but not yes or no)
-      CUTIE_DEBUG_PRINT("  -> Ignored: No assignment information available");
+      AD_DEBUG_PRINT("  -> Ignored: No assignment information available");
       field->is_array_candidate = false;
       continue;
     }
@@ -134,44 +134,44 @@ bool check_all_src_values(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field
     // TODO: wrap in a new function to check the all src values
     // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
     const char* unique_source = NULL;
-    bool all_from_function_call = check_all_src_values (self, CUTIE_ARGS, field, &unique_source);
+    bool all_from_function_call = check_all_src_values (self, AD_ARGS, field, &unique_source);
     
     // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
     if (all_from_function_call && unique_source) {
-      CUTIE_DEBUG_PRINT("  -> Is array candidate: Unique source '%s'", unique_source);
+      AD_DEBUG_PRINT("  -> Is array candidate: Unique source '%s'", unique_source);
       field->is_array_candidate = true;
     } else {
-      CUTIE_DEBUG_PRINT("  -> Not array candidate: Assignments not consistent or not from function calls");
+      AD_DEBUG_PRINT("  -> Not array candidate: Assignments not consistent or not from function calls");
       field->is_array_candidate = false;
     }
   }
   
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS) {
-  CUTIE_ARGS_WARN_DENY;
+void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
+  AD_ARGS_WARN_DENY;
   // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
   if (self.m_fields != nullptr) {
     self.m_fields->release();
     // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
     self.m_fields = nullptr;
-    CUTIE_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
+    AD_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
   } else {
-    CUTIE_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
+    AD_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
   }
 }
 
-::cutie_ns::CutieErrorCode add_field(ArrayDetector &self, CUTIE_FUNC_ARGS, FieldInfo* field_info) CUTIE_FUNCTION_BEGIN {
-  CUTIE_ARGS_WARN_DENY;
+::array_detect_ns::ArrayDetectErrorCode add_field(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
   if (!field_info) {
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
   
   // 检查 m_fields 是否已初始化
   if (self.m_fields == nullptr) {
-    CUTIE_DEBUG_PRINT("Error: ArrayDetector not initialized, m_fields is null");
-    CUTIE_RETURNV(LOGICAL_ERROR);
+    AD_DEBUG_PRINT("Error: ArrayDetector not initialized, m_fields is null");
+    AD_RETURNV(LOGICAL_ERROR);
   }
   
   // 添加字段信息
@@ -181,47 +181,47 @@ void deinit(ArrayDetector &self, CUTIE_FUNC_ARGS) {
           field_info->containing_type, field_info->field_name, 
           (unsigned)self.m_fields->length());
 
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-::cutie_ns::CutieErrorCode get_field_count(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t* out_count) CUTIE_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode get_field_count(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count) AD_FUNCTION_BEGIN {
   if (!out_count) {
-    CUTIE_DEBUG_PRINT("Error: out_count parameter is null");
-    CUTIE_RETURNV(INVALID_PARAMETER);
+    AD_DEBUG_PRINT("Error: out_count parameter is null");
+    AD_RETURNV(INVALID_PARAMETER);
   }
 
   if (self.m_fields == nullptr) {
     *out_count = 0;
-    CUTIE_DEBUG_PRINT("ArrayDetector not initialized, returning 0 fields");
-    CUTIE_RETURNV(OK);
+    AD_DEBUG_PRINT("ArrayDetector not initialized, returning 0 fields");
+    AD_RETURNV(OK);
   }
 
   *out_count = self.m_fields->length();
-  CUTIE_DEBUG_PRINT("ArrayDetector field count retrieved successfully");
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_DEBUG_PRINT("ArrayDetector field count retrieved successfully");
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-::cutie_ns::CutieErrorCode get_field(ArrayDetector const &self, CUTIE_FUNC_ARGS, size_t index, FieldInfo** out_field) CUTIE_FUNCTION_BEGIN {
+::array_detect_ns::ArrayDetectErrorCode get_field(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field) AD_FUNCTION_BEGIN {
   if (!out_field) {
-    CUTIE_DEBUG_PRINT("Error: out_field parameter is null");
-    CUTIE_RETURNV(INVALID_PARAMETER);
+    AD_DEBUG_PRINT("Error: out_field parameter is null");
+    AD_RETURNV(INVALID_PARAMETER);
   }
 
   if (self.m_fields == nullptr) {
     *out_field = nullptr;
-    CUTIE_DEBUG_PRINT("ArrayDetector not initialized, returning null field");
-    CUTIE_RETURNV(NOT_INITIALIZED);
+    AD_DEBUG_PRINT("ArrayDetector not initialized, returning null field");
+    AD_RETURNV(NOT_INITIALIZED);
   }
 
   if (index < self.m_fields->length()) {
     *out_field = (*self.m_fields)[index];
-    CUTIE_DEBUG_PRINT("ArrayDetector field found successfully");
-    CUTIE_RETURNV(OK);
+    AD_DEBUG_PRINT("ArrayDetector field found successfully");
+    AD_RETURNV(OK);
   }
 
   *out_field = nullptr;
-  CUTIE_DEBUG_PRINT("ArrayDetector index out of bounds");
-  CUTIE_RETURNV(INDEX_OUT_OF_BOUNDS);
-} CUTIE_FUNCTION_END
+  AD_DEBUG_PRINT("ArrayDetector index out of bounds");
+  AD_RETURNV(INDEX_OUT_OF_BOUNDS);
+} AD_FUNCTION_END
 
 } // namespace array_detector

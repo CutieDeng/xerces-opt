@@ -4,30 +4,30 @@
 // print_results 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
 
-namespace cutie_ns {
+namespace array_detect_ns {
 
-CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUNCTION_BEGIN {
-  CUTIE_DEBUG_PRINT("Printing results");
+ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT("Printing results");
   
   // 统计信息
   size_t total_fields = 0;
-  CutieErrorCode count_err = get_field_count(*detector, CUTIE_ARGS, &total_fields);
+  ArrayDetectErrorCode count_err = get_field_count(*detector, AD_ARGS, &total_fields);
   if (count_err != OK) {
-    CUTIE_DEBUG_PRINT("Error: Failed to get field count");
+    AD_DEBUG_PRINT("Error: Failed to get field count");
     ecode = count_err;
-    CUTIE_RETURNR;
+    AD_RETURNR;
   }
-  CUTIE_DEBUG_PRINT("Processing total fields in detector");
+  AD_DEBUG_PRINT("Processing total fields in detector");
   
   if (total_fields == 0) {
-    CUTIE_RETURNV(OK);
+    AD_RETURNV(OK);
   }
   
   // 打开输出文件（写入模式，每次覆盖，因为每个编译单元独立分析）
   FILE* output_file = fopen("array-detect-results.txt", "w");
   if (!output_file) {
-    CUTIE_DEBUG_PRINT("Failed to open output file");
-    CUTIE_RETURNV(RESOURCE_ERROR);
+    AD_DEBUG_PRINT("Failed to open output file");
+    AD_RETURNV(RESOURCE_ERROR);
   }
   
   fprintf(output_file, "=== Array Detection Results ===\n\n");
@@ -37,9 +37,9 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   // 遍历所有字段，输出分析结果
   for (size_t i = 0; i < total_fields; i++) {
     FieldInfo* field = nullptr;
-    CutieErrorCode field_err = get_field(*detector, CUTIE_ARGS, i, &field);
+    ArrayDetectErrorCode field_err = get_field(*detector, AD_ARGS, i, &field);
     if (field_err != OK || !field) {
-      CUTIE_DEBUG_PRINT("Warning: Failed to get field");
+      AD_DEBUG_PRINT("Warning: Failed to get field");
       continue;
     }
     
@@ -144,9 +144,9 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   fprintf(output_file, "\n--- Results by Type ---\n");
   for (size_t i = 0; i < total_fields; i++) {
     FieldInfo* field = nullptr;
-    CutieErrorCode field_err = get_field(*detector, CUTIE_ARGS, i, &field);
+    ArrayDetectErrorCode field_err = get_field(*detector, AD_ARGS, i, &field);
     if (field_err != OK || !field) {
-      CUTIE_DEBUG_PRINT("Warning: Failed to get field for type summary");
+      AD_DEBUG_PRINT("Warning: Failed to get field for type summary");
       continue;
     }
     
@@ -158,7 +158,7 @@ CutieErrorCode print_results(CUTIE_FUNC_ARGS, ArrayDetector* detector) CUTIE_FUN
   }
   
   fclose(output_file);
-  CUTIE_RETURNV(OK);
-} CUTIE_FUNCTION_END
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-} // namespace cutie_ns
+} // namespace array_detect_ns
