@@ -20,6 +20,7 @@ namespace xercese
 
   void XMLPlatformUtils::Terminate() {
     delete fgMemoryManager;
+    fgMemoryManager = nullptr;
   }
 
 } // namespace xercese
