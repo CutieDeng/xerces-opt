@@ -18,8 +18,8 @@ xercese::ValueVectorOf<TElem>::ValueVectorOf (ValueVectorOf<TElem> const &toCopy
     , fCallDestructor (toCopy.fCallDestructor)
     , fCurCount (toCopy.fCurCount)
     , fMaxCount (toCopy.fMaxCount)
-    , fMemoryManager (toCopy.fMemoryManager)
     , fElemList (0)
+    , fMemoryManager (toCopy.fMemoryManager)
 {
   fElemList = (TElem *) fMemoryManager->allocate (fMaxCount * sizeof (TElem));
   memset (fElemList, 0, fMaxCount * sizeof (TElem));
