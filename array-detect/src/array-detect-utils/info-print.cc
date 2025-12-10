@@ -15,19 +15,19 @@ ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUN
   if (count_err != OK) {
     AD_DEBUG_PRINT("Error: Failed to get field count");
     ecode = count_err;
-    AD_RETURNR;
+    AD_RETURN();
   }
   AD_DEBUG_PRINT("Processing total fields in detector");
   
   if (total_fields == 0) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   // 打开输出文件（写入模式，每次覆盖，因为每个编译单元独立分析）
   FILE* output_file = fopen("array-detect-results.txt", "w");
   if (!output_file) {
     AD_DEBUG_PRINT("Failed to open output file");
-    AD_RETURNV(RESOURCE_ERROR);
+    AD_RETURNE(RESOURCE_ERROR);
   }
   
   fprintf(output_file, "=== Array Detection Results ===\n\n");
@@ -158,7 +158,7 @@ ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUN
   }
   
   fclose(output_file);
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns

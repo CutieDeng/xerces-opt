@@ -27,7 +27,7 @@ ArrayDetectErrorCode array_detect_execute (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
   
   AD_TRY (analyzeArrayDetection (AD_ARGS));
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
   cleanup:
   deinitContext(AD_ARGS);
 } AD_FUNCTION_END3

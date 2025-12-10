@@ -22,7 +22,7 @@ void safe_string_copy(char* dest, size_t dest_size, const char* src) {
 ArrayDetectErrorCode get_source_location_string(AD_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
   if (loc == UNKNOWN_LOCATION) {
     snprintf(buffer, buffer_size, "<unknown location>");
-    AD_RETURNV (OK);
+    AD_RETURNE (OK);
   }
   
   expanded_location xloc = expand_location(loc);
@@ -41,7 +41,7 @@ ArrayDetectErrorCode get_source_location_string(AD_FUNC_ARGS, location_t loc, ch
   } else {
     snprintf(buffer, buffer_size, "<unknown location>");
   }
-  AD_RETURNV (OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 新增辅助函数：获取指定位置的源码行内容
@@ -87,36 +87,36 @@ namespace {
 
 ArrayDetectErrorCode get_call_expr_name(AD_FUNC_ARGS, tree call_expr, char const *&result) AD_FUNCTION_BEGIN {
   if (TREE_CODE(call_expr) != CALL_EXPR) {
-    AD_RETURNV(INVALID_ARGUMENT);
+    AD_RETURNE(INVALID_ARGUMENT);
   }
   tree fn = TREE_OPERAND(call_expr, 0);
   if (!fn) {
-    AD_RETURNS("<call-expr>");
+    AD_RETURNO("<call-expr>");
   }
   
   if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-    AD_RETURNS(IDENTIFIER_POINTER(DECL_NAME(fn)));
+    AD_RETURNO(IDENTIFIER_POINTER(DECL_NAME(fn)));
   }
   if (TREE_CODE(fn) == ADDR_EXPR) {
     tree decl = TREE_OPERAND(fn, 0);
     if (decl && DECL_NAME(decl)) {
-      AD_RETURNS(IDENTIFIER_POINTER(DECL_NAME(decl)));
+      AD_RETURNO(IDENTIFIER_POINTER(DECL_NAME(decl)));
     }
   }
   if (TREE_CODE(fn) == INDIRECT_REF) {
-    AD_RETURNS("<indirect-call>");
+    AD_RETURNO("<indirect-call>");
   }
-  AD_RETURNS("<call-expr>");
+  AD_RETURNO("<call-expr>");
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode gcc_field_desc(AD_FUNC_ARGS, tree field, char const *&result) AD_FUNCTION_BEGIN {
   if (!field) {
-    AD_RETURNS ("<null>");
+    AD_RETURNO ("<null>");
   }
   if (DECL_NAME(field)) {
-    AD_RETURNS (IDENTIFIER_POINTER(DECL_NAME(field)));
+    AD_RETURNO (IDENTIFIER_POINTER(DECL_NAME(field)));
   }
-  AD_RETURNS ("<unnamed>");
+  AD_RETURNO ("<unnamed>");
 } AD_FUNCTION_END
 
 }
@@ -128,26 +128,26 @@ namespace gcc_ext_util {
 // 语义：返回类型的可读名称，用于调试和报告
 // 垃圾回收：返回的指针指向 GCC 内部管理的字符串，无需释放
 ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
-  if (!type) AD_RETURNS("<unknown>");
+  if (!type) AD_RETURNO("<unknown>");
   
   if (TYPE_NAME(type)) {
     if (TREE_CODE(TYPE_NAME(type)) == IDENTIFIER_NODE) {
       // 返回 GCC 内部管理的标识符指针
-      AD_RETURNS(IDENTIFIER_POINTER(TYPE_NAME(type)));
+      AD_RETURNO(IDENTIFIER_POINTER(TYPE_NAME(type)));
     } else if (TREE_CODE(TYPE_NAME(type)) == TYPE_DECL) {
       tree name = DECL_NAME(TYPE_NAME(type));
       if (name) {
         // 返回 GCC 内部管理的声明名称指针
-        AD_RETURNS(IDENTIFIER_POINTER(name));
+        AD_RETURNO(IDENTIFIER_POINTER(name));
       }
     }
   }
-  AD_RETURNS("<unnamed>");
+  AD_RETURNO("<unnamed>");
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector &detector, char const* func_name, tree func_decl) AD_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   AD_DEBUG_PRINT("  Analyzing assignment statement:");
@@ -160,7 +160,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
   AD_TRY (is_field_access(AD_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
     AD_DEBUG_PRINT("    Not a field access, skipping");
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   // 获取字段信息
@@ -209,7 +209,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
   if (count_err != OK) {
     AD_DEBUG_PRINT("    Failed to get field count");
     ecode = count_err;
-    AD_RETURNR;
+    AD_RETURN();
   }
 
   for (size_t i = 0; i < field_count; i++) {
@@ -262,7 +262,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
     }
     if (!field_info) {
       AD_DEBUG_PRINT("    Failed to find or create field info, skipping");
-      AD_RETURNV(OK);
+      AD_RETURNE(OK);
     }
   }
 
@@ -361,7 +361,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
   AD_DEBUG_PRINT("      Source line: %s", source_line);
   AD_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
 
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 处理类型字段：提取类型的所有字段定义
@@ -369,18 +369,18 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
 // 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
 ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector &detector, hash_set<tree>* processed_types) AD_FUNCTION_BEGIN {
   if (!type) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   // 只处理结构体/类类型
   if (TREE_CODE(type) != RECORD_TYPE && TREE_CODE(type) != UNION_TYPE) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   // 检查是否已处理过（避免重复处理）
   if (!processed_types->add(type)) {
     // 已处理过，跳过
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   const char* type_name;
@@ -410,7 +410,7 @@ ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector 
     // 语义：分配 FieldInfo 结构体，由 GCC 自动管理生命周期
     FieldInfo* field_info = ggc_alloc<FieldInfo>();
     if (!field_info) {
-      AD_RETURNV(MEMORY_ERROR);
+      AD_RETURNE(MEMORY_ERROR);
     }
     // 初始化字段为零
     memset(field_info, 0, sizeof(FieldInfo));
@@ -452,27 +452,27 @@ ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector 
     if (field_info->function_assignments) {
       field_info->function_assignments->release();
     }
-    AD_RETURNR;
+    AD_RETURN();
   }
   
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 检查类型是否是指针类型
 ArrayDetectErrorCode is_pointer_type(AD_FUNC_ARGS, tree type, bool &result) AD_FUNCTION_BEGIN {
-  if (!type) AD_RETURNS (false);
-  AD_RETURNS (TREE_CODE(type) == POINTER_TYPE);
+  if (!type) AD_RETURNO (false);
+  AD_RETURNO (TREE_CODE(type) == POINTER_TYPE);
 } AD_FUNCTION_END
 
 // 检查是否是字段访问（COMPONENT_REF）
 ArrayDetectErrorCode is_field_access(AD_FUNC_ARGS, tree expr, tree* field_decl_out, tree* object_out, bool &result) AD_FUNCTION_BEGIN {
-  if (!expr) AD_RETURNS (false);
+  if (!expr) AD_RETURNO (false);
   
   if (TREE_CODE(expr) == COMPONENT_REF) {
     *field_decl_out = TREE_OPERAND(expr, 1);
     *object_out = TREE_OPERAND(expr, 0);
-    AD_RETURNS (true);
+    AD_RETURNO (true);
   }
-  AD_RETURNS (false);
+  AD_RETURNO (false);
 } AD_FUNCTION_END
 }

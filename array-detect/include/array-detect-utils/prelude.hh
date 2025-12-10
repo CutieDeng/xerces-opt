@@ -1,5 +1,9 @@
 #pragma once
 
+// ============================================================================
+// 函数框架宏
+// ============================================================================
+
 #define AD_FUNCTION_BEGIN \
   { ::array_detect_ns::ArrayDetectErrorCode ecode = ::array_detect_ns::UNINIT; \
     void *ad_auto_ret_addr = (void*)((uintptr_t)__builtin_return_address(0) - 4); \
@@ -18,18 +22,37 @@
   return ecode; }
 
 #define AD_FUNCTION_END \
-  AD_RETURNV (UNREACHABLE); \
+  AD_RETURNE (UNREACHABLE); \
   cleanup:; \
   AD_FUNCTION_END2
 
-#define AD_RETURNR \
-  do { goto cleanup; } while (0)
+// ============================================================================
+// 返回控制宏
+// ============================================================================
 
-#define AD_RETURNV(x) \
+// 返回错误码并跳转到 cleanup
+#define AD_RETURNE(x) \
   do { ecode = ::array_detect_ns::x; goto cleanup; } while (0)
 
-#define AD_RETURNS(v) \
+// 直接跳转到 cleanup（用于提前返回）
+#define AD_RETURN() \
+  do { goto cleanup; } while (0)
+
+// 成功返回并设置返回值（用于有输出参数的函数）
+#define AD_RETURNO(v) \
   do { result = (v); ecode = ::array_detect_ns::OK; goto cleanup; } while (0)
+
+// ============================================================================
+// 向后兼容的旧宏（已废弃，保留以避免破坏现有代码）
+// ============================================================================
+
+#define AD_RETURNV(x) AD_RETURNE(x)
+#define AD_RETURNR AD_RETURN()
+#define AD_RETURNS(v) AD_RETURNO(v)
+
+// ============================================================================
+// 参数和调试辅助宏
+// ============================================================================
 
 #define AD_ARGS_WARN_DENY \
   do { (void) ctx; (void) gcc_ctx; } while (0)
@@ -44,6 +67,11 @@
 #define AD_DEBUG_PRINT(fmt_msg, ...) \
   AD_DEBUG_PRINT2(ctx.debug_file, fmt_msg, ##__VA_ARGS__)
 
+// ============================================================================
+// 错误处理宏
+// ============================================================================
+
+// 通用错误处理宏（带自定义标签和调试控制）
 #define AD_TRY2(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
   do { ::array_detect_ns::ArrayDetectErrorCode ecode1 = (rst); \
     if (ecode1 != ::array_detect_ns::OK) { \
@@ -59,6 +87,7 @@
     } \
   } while (0)
 
+// 错误处理宏（输出到 stderr）
 #define AD_ETRY2(rst, brk_label, succ_debug, err_debug, dbg_msg, ...) \
   do { ::array_detect_ns::ArrayDetectErrorCode ecode1 = (rst); \
     if (ecode1 != ::array_detect_ns::OK) { \
@@ -74,15 +103,19 @@
     } \
   } while (0)
 
+// 简化版错误处理（默认跳转到 cleanup，失败时输出错误）
 #define AD_TRY(rst) \
   AD_TRY2(rst, cleanup, false, true, "Failed: %s")
 
+// 带自定义消息的错误处理
 #define AD_TRY_MSG(rst, msg, ...) \
   AD_TRY2(rst, cleanup, false, true, msg, ##__VA_ARGS__)
 
+// 带自定义标签的错误处理
 #define AD_TRY_LABEL(rst, label) \
   AD_TRY2(rst, label, false, true, "Failed: %s")
 
+// 可恢复错误处理（支持 RECOVERABLE_ERROR 分支）
 #define AD_RTRY2(rst, unmatch_label, brk_label, succ_debug, unmatch_debug, err_debug, dbg_msg, ...) \
   do { \
     ::array_detect_ns::ArrayDetectErrorCode ecode1 = (rst); \
@@ -103,6 +136,10 @@
       } \
     } \
   } while (0)
+
+// ============================================================================
+// 函数参数宏
+// ============================================================================
 
 #define AD_FUNC_ARGS \
   ::array_detect_ns::ArrayDetectContext &ctx, ::array_detect_ns::ArrayDetectContextGcc &gcc_ctx
@@ -155,4 +192,3 @@
     AD_GCC_PRINT_STACK_WITH_SOURCE(); \
     AD_DEBUG_PRINT("=== End Call Stack ==="); \
   } while (0)
-

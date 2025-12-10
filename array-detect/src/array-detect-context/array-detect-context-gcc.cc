@@ -119,7 +119,7 @@ void printStackFrameSource(AD_FUNC_ARGS, uint64_t frame_addr) {
 ArrayDetectErrorCode getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!buffer || buffer_size == 0) {
-    AD_RETURNV(INVALID_ARGUMENT);
+    AD_RETURNE(INVALID_ARGUMENT);
   }
 
   // Initialize buffer
@@ -127,7 +127,7 @@ ArrayDetectErrorCode getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, c
 
   // 保持原有简单实现
   snprintf(buffer, buffer_size, "return_addr:0x%lx", (unsigned long)frame_addr);
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 辅助函数：解析 C++ mangled 名称
@@ -312,7 +312,7 @@ ArrayDetectErrorCode resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_ad
   if (!ctx.source_location_buffer || ctx.source_location_buffer_size == 0) {
     result = "<no buffer>";
     out_is_valid = false;
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   // 直接使用 dladdr 进行地址解析
@@ -320,7 +320,7 @@ ArrayDetectErrorCode resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_ad
     snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
     result = ctx.source_location_buffer;
     out_is_valid = false;
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   Dl_info info;
@@ -349,13 +349,13 @@ ArrayDetectErrorCode resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_ad
     }
     result = ctx.source_location_buffer;
     out_is_valid = true;
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
   result = ctx.source_location_buffer;
   out_is_valid = false;
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 获取当前栈帧信息

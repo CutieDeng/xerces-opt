@@ -22,14 +22,14 @@ ArrayDetectErrorCode initContextWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = fopen("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    AD_RETURNV (RESOURCE_ERROR);
+    AD_RETURNE (RESOURCE_ERROR);
   }
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNV (OK);
+  AD_RETURNE (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    AD_RETURNR;
+    AD_RETURN();
   }
 } AD_FUNCTION_END
 
@@ -38,14 +38,14 @@ ArrayDetectErrorCode initContextWithNamedFile(AD_FUNC_ARGS, char const *debug_fi
   ctx.debug_file = fopen(debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   if (ctx.debug_file == nullptr) {
-    AD_RETURNV (RESOURCE_ERROR);
+    AD_RETURNE (RESOURCE_ERROR);
   }
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNV (OK);
+  AD_RETURNE (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    AD_RETURNR;
+    AD_RETURN();
   }
 } AD_FUNCTION_END
 
@@ -53,11 +53,11 @@ ArrayDetectErrorCode initContextWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNV (OK);
+  AD_RETURNE (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
-    AD_RETURNR;
+    AD_RETURN();
   }
 } AD_FUNCTION_END
 

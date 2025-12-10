@@ -34,7 +34,7 @@ ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector &detector) 
   
   analysis_cleanup:
   AD_DEBUG_PRINT("Array member detection completed");
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 原始分析入口（保留以兼容）
@@ -63,7 +63,7 @@ ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   array_detector::cleanupDetector(detector, AD_ARGS);
   
   AD_DEBUG_PRINT("Array member detection analysis completed");
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 字段赋值追踪：分析字段赋值来源
@@ -80,7 +80,7 @@ ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector &detector
   // 语义：根据赋值来源判断字段是否为 owned 数组
   AD_TRY(analyzeFieldUsage(detector, AD_ARGS));
 
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 收集所有类型和字段：遍历编译单元提取类型信息
@@ -179,7 +179,7 @@ ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector &detector
   AD_DEBUG_PRINT("Collection complete: %zu functions processed, %zu field accesses found", func_count, field_access_count);
   
   // hash_set使用GCC的垃圾回收，不需要显式释放
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns
@@ -263,7 +263,7 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector,
     }
   }
   
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 }

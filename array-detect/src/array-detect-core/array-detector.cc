@@ -10,14 +10,14 @@ ArrayDetectErrorCode initializeDetector (ArrayDetector &self, AD_FUNC_ARGS) AD_F
   if (self.m_fields == nullptr) {
     self.m_fields = ggc_alloc<vec<FieldInfo*>>();
     if (self.m_fields == nullptr) {
-      AD_RETURNV(MEMORY_ERROR);
+      AD_RETURNE(MEMORY_ERROR);
     }
     self.m_fields->create(0); // 初始化 vec 容器
     AD_DEBUG_PRINT("ArrayDetector initialized: m_fields allocated and created");
   } else {
     AD_DEBUG_PRINT("ArrayDetector already initialized");
   }
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source) {
@@ -90,7 +90,7 @@ bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldI
   // 检查 m_fields 是否已初始化
   if (self.m_fields == nullptr) {
     AD_DEBUG_PRINT("Warning: ArrayDetector not initialized, m_fields is null");
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   // 分析使用情况，判断是否是数组候选
@@ -146,7 +146,7 @@ bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldI
     }
   }
   
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS) {
@@ -165,13 +165,13 @@ void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS) {
 ::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!field_info) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
   
   // 检查 m_fields 是否已初始化
   if (self.m_fields == nullptr) {
     AD_DEBUG_PRINT("Error: ArrayDetector not initialized, m_fields is null");
-    AD_RETURNV(LOGICAL_ERROR);
+    AD_RETURNE(LOGICAL_ERROR);
   }
   
   // 添加字段信息
@@ -181,47 +181,47 @@ void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS) {
           field_info->containing_type, field_info->field_name, 
           (unsigned)self.m_fields->length());
 
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 ::array_detect_ns::ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count) AD_FUNCTION_BEGIN {
   if (!out_count) {
     AD_DEBUG_PRINT("Error: out_count parameter is null");
-    AD_RETURNV(INVALID_PARAMETER);
+    AD_RETURNE(INVALID_PARAMETER);
   }
 
   if (self.m_fields == nullptr) {
     *out_count = 0;
     AD_DEBUG_PRINT("ArrayDetector not initialized, returning 0 fields");
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   *out_count = self.m_fields->length();
   AD_DEBUG_PRINT("ArrayDetector field count retrieved successfully");
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 ::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field) AD_FUNCTION_BEGIN {
   if (!out_field) {
     AD_DEBUG_PRINT("Error: out_field parameter is null");
-    AD_RETURNV(INVALID_PARAMETER);
+    AD_RETURNE(INVALID_PARAMETER);
   }
 
   if (self.m_fields == nullptr) {
     *out_field = nullptr;
     AD_DEBUG_PRINT("ArrayDetector not initialized, returning null field");
-    AD_RETURNV(NOT_INITIALIZED);
+    AD_RETURNE(NOT_INITIALIZED);
   }
 
   if (index < self.m_fields->length()) {
     *out_field = (*self.m_fields)[index];
     AD_DEBUG_PRINT("ArrayDetector field found successfully");
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   *out_field = nullptr;
   AD_DEBUG_PRINT("ArrayDetector index out of bounds");
-  AD_RETURNV(INDEX_OUT_OF_BOUNDS);
+  AD_RETURNE(INDEX_OUT_OF_BOUNDS);
 } AD_FUNCTION_END
 
 } // namespace array_detector

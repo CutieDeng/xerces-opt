@@ -19,7 +19,7 @@ ArrayDetectErrorCode resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo &in
   info.is_valid = false;
 
   if (addr == 0) {
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   // 使用 dladdr 进行基本符号解析
@@ -36,7 +36,7 @@ ArrayDetectErrorCode resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo &in
     }
   }
 
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 // 解析地址到字符串形式（使用 Context 缓冲区）
@@ -47,7 +47,7 @@ ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const c
   if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
     result = "<no buffer>";
     out_is_valid = false;
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   AddressInfo info;
@@ -59,7 +59,7 @@ ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const c
     snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, 
              "addr:0x%lx", (unsigned long)addr);
     result = ctx.address_format_buffer;
-    AD_RETURNV(OK);
+    AD_RETURNE(OK);
   }
 
   // 格式化输出
@@ -85,7 +85,7 @@ ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const c
   }
 
   result = ctx.address_format_buffer;
-  AD_RETURNV(OK);
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns
