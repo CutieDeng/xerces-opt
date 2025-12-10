@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "gcc-common.hh"
 #include "plugin-version.h"
 
@@ -21,7 +23,9 @@ namespace array_detect_ns {
 
 ArrayDetectErrorCode array_detect_execute (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   initGccContext (AD_ARGS);
+  
   AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
+  
   AD_TRY (analyzeArrayDetection (AD_ARGS));
   AD_RETURNV(OK);
   cleanup:

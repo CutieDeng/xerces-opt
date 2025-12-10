@@ -111,18 +111,19 @@
   ctx, gcc_ctx
 
 // ============================================================================
-// 手动栈帧管理宏 - 用于特殊控制需求
+// 栈帧信息输出宏
 // ============================================================================
 
-#define AD_GCC_ENTER_FUNCTION(func_ptr) \
+// 输出当前栈帧信息
+#define AD_GCC_PRINT_CURRENT_FRAME_INFO() \
   do { \
-    AD_DEBUG_PRINT("GCC: Entering function (ptr: 0x%016lx)", (unsigned long)(func_ptr)); \
-    ::array_detect_ns::pushFunctionCall(AD_ARGS, (func_ptr)); \
+    ::array_detect_ns::printCurrentFrameInfo(AD_ARGS); \
   } while (0)
 
-#define AD_GCC_EXIT_FUNCTION() \
+// 输出所有栈帧信息（从栈底到栈顶）
+#define AD_GCC_PRINT_ALL_STACK_FRAMES() \
   do { \
-    ::array_detect_ns::popFunctionCall(AD_ARGS); \
+    ::array_detect_ns::printAllStackFramesInfo(AD_ARGS); \
   } while (0)
 
 // Debug macros with GCC context integration

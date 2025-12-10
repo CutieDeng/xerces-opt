@@ -35,6 +35,7 @@
   (string-trim (with-output-to-string (lambda () (system* cxx "-print-file-name=plugin")))))
 (define plugin-path (plugin-path-getter))
 
+;; 基础编译选项
 (define args `(
   "-fPIC"
   "-fno-rtti"
@@ -55,10 +56,11 @@
   "-I"
   ,(path->string (build-path "include/array-detect-utils"))
   "-undefined" "dynamic_lookup"
-  "-O2"
   "-Wall"
   "-Wextra"
   "-std=c++17"
+  "-g"
+  "-O2"
 ))
 
 ;; Library dependencies

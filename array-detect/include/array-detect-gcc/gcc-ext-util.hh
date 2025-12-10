@@ -11,8 +11,8 @@ namespace gcc_ext_util {
 using namespace ::array_detect_ns;
 
 ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result);
-ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, char const* func_name, tree func_decl);
-ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types);
+ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector &detector, char const* func_name, tree func_decl);
+ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector &detector, hash_set<tree>* processed_types);
 ArrayDetectErrorCode is_pointer_type(AD_FUNC_ARGS, tree type, bool &result);
 // 检查是否是字段访问（COMPONENT_REF）
 ArrayDetectErrorCode is_field_access(AD_FUNC_ARGS, tree expr, tree* field_decl_out, tree* object_out, bool &result);

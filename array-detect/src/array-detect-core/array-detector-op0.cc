@@ -12,20 +12,13 @@ namespace array_detect_ns {
 // 语义：跳过对象创建，直接执行分析流程
 // 调用者负责：对象的创建和初始化
 // 本函数负责：分析执行和清理
-ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Starting array member detection with provided detector");
 
-  // 打印调用栈信息进行调试
-  AD_DEBUG_PRINT("=== Stack Frame Analysis ===");
-  AD_DEBUG_PRINT("Current stack depth: %zu", getStackDepth(AD_ARGS));
-  printStackFrames(AD_ARGS);
-  AD_DEBUG_PRINT("=== End Stack Analysis ===");
-  
-  // 检查 detector 是否有效
-  if (detector == nullptr) {
-    AD_DEBUG_PRINT("Error: detector is null");
-    AD_RETURNV(LOGICAL_ERROR);
-  }
+  // 打印所有栈帧信息进行调试
+  AD_DEBUG_PRINT("=== Stack Frames Info ===");
+  AD_GCC_PRINT_ALL_STACK_FRAMES();
+  AD_DEBUG_PRINT("=== End Stack Frames Info ===");
   
   // 第一步：收集所有类型和字段
   // 语义：遍历所有函数，提取类型和字段信息
@@ -49,6 +42,9 @@ ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector* detector) 
 ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Starting array member detection analysis");
   
+  // 输出所有栈帧信息（用于调试）
+  AD_GCC_PRINT_ALL_STACK_FRAMES();
+  
   // 创建数组检测器对象（在栈上）
   // 语义：分配 ArrayDetector 结构体，初始化为 nullptr
   array_detector::ArrayDetector detector;
@@ -59,7 +55,7 @@ ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   
   // 执行分析流程
   // 语义：调用优化后的执行函数
-  AD_TRY_LABEL(analyzeWithDetector(AD_ARGS, &detector), analysis_cleanup);
+  AD_TRY_LABEL(analyzeWithDetector(AD_ARGS, detector), analysis_cleanup);
   
   analysis_cleanup:
   // 清理资源
@@ -73,38 +69,26 @@ ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 // 字段赋值追踪：分析字段赋值来源
 // 语义：执行两步分析 - 赋值分析 -> 候选判断
 // 前置条件：字段已通过 collectTypesAndFields 收集
-ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Tracing field assignments");
-  
-  // 检查 detector 是否有效
-  if (detector == nullptr) {
-    AD_DEBUG_PRINT("Error: detector is null");
-    AD_RETURNV(LOGICAL_ERROR);
-  }
   
   // 第一步：分析字段赋值
   // 语义：遍历所有函数，追踪字段的赋值操作和来源
-  AD_TRY(analyzeFieldAssignmentsInFunctions(*detector, AD_ARGS));
+  AD_TRY(analyzeFieldAssignmentsInFunctions(detector, AD_ARGS));
 
   // 第二步：分析使用情况，判断是否是数组候选
   // 语义：根据赋值来源判断字段是否为 owned 数组
-  AD_TRY(analyzeFieldUsage(*detector, AD_ARGS));
+  AD_TRY(analyzeFieldUsage(detector, AD_ARGS));
 
   AD_RETURNV(OK);
 } AD_FUNCTION_END
 
 // 收集所有类型和字段：遍历编译单元提取类型信息
 // 语义：扫描所有函数，从字段访问中提取类型和字段定义
-// 输出：填充 detector->m_fields 容器
+// 输出：填充 detector.m_fields 容器
 // 垃圾回收：使用 ggc_alloc 分配的 hash_set 由 GCC 自动管理
-ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector* detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Collecting all types and fields");
-  
-  // 检查 detector 是否有效
-  if (detector == nullptr) {
-    AD_DEBUG_PRINT("Error: detector is null");
-    AD_RETURNV(LOGICAL_ERROR);
-  }
   
   // 使用 hash_set 避免重复处理同一类型
   // 语义：维护已处理类型集合，防止重复分析
@@ -264,7 +248,7 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector,
           AD_TRY (gcc_ext_util::get_source_location_string (AD_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
           fprintf(ctx.debug_file, "  Assignment statement at %s:\n", ctx.source_location_buffer);
           print_gimple_stmt(ctx.debug_file, stmt, 4, TDF_DETAILS);
-          gcc_ext_util::analyze_gimple_assignment(AD_ARGS, stmt, &detector, func_name, decl);
+          gcc_ext_util::analyze_gimple_assignment(AD_ARGS, stmt, detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）
         else if (gimple_code(stmt) == GIMPLE_CALL) {

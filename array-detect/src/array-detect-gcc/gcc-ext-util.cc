@@ -145,7 +145,7 @@ ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result
   AD_RETURNS("<unnamed>");
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector* detector, char const* func_name, tree func_decl) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ArrayDetector &detector, char const* func_name, tree func_decl) AD_FUNCTION_BEGIN {
   if (gimple_code(stmt) != GIMPLE_ASSIGN) {
     AD_RETURNV(OK);
   }
@@ -205,7 +205,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
   AD_DEBUG_PRINT("    Looking for existing field info...");
 
   size_t field_count = 0;
-  ArrayDetectErrorCode count_err = getFieldCount(*detector, AD_ARGS, &field_count);
+  ArrayDetectErrorCode count_err = getFieldCount(detector, AD_ARGS, &field_count);
   if (count_err != OK) {
     AD_DEBUG_PRINT("    Failed to get field count");
     ecode = count_err;
@@ -214,7 +214,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
 
   for (size_t i = 0; i < field_count; i++) {
     FieldInfo* fi = nullptr;
-    ArrayDetectErrorCode field_err = getField(*detector, AD_ARGS, i, &fi);
+    ArrayDetectErrorCode field_err = getField(detector, AD_ARGS, i, &fi);
     if (field_err != OK || !fi) {
       AD_DEBUG_PRINT("    Failed to get field, continuing...");
       continue;
@@ -239,13 +239,13 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
         ArrayDetectErrorCode err = process_type_fields(AD_ARGS, containing_type, detector, &temp_processed);
         if (err == array_detect_ns::OK) {
             size_t new_field_count = 0;
-            ArrayDetectErrorCode new_count_err = getFieldCount(*detector, AD_ARGS, &new_field_count);
+            ArrayDetectErrorCode new_count_err = getFieldCount(detector, AD_ARGS, &new_field_count);
             if (new_count_err != OK) {
                 AD_DEBUG_PRINT("    Failed to get new field count after processing type fields");
             } else {
                 for (size_t i = 0; i < new_field_count; i++) {
                    FieldInfo* fi = nullptr;
-                   ArrayDetectErrorCode new_field_err = getField(*detector, AD_ARGS, i, &fi);
+                   ArrayDetectErrorCode new_field_err = getField(detector, AD_ARGS, i, &fi);
                    if (new_field_err != OK || !fi) {
                        AD_DEBUG_PRINT("    Failed to get new field, continuing...");
                        continue;
@@ -367,7 +367,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
 // 处理类型字段：提取类型的所有字段定义
 // 语义：遍历类型的字段，创建 FieldInfo 对象并添加到 detector
 // 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
-ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector* detector, hash_set<tree>* processed_types) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector &detector, hash_set<tree>* processed_types) AD_FUNCTION_BEGIN {
   if (!type) {
     AD_RETURNV(OK);
   }
@@ -437,7 +437,7 @@ ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector*
     
     // 添加字段到 detector
     // 语义：将字段信息添加到全局字段列表
-    AD_TRY_LABEL (addField (*detector, AD_ARGS, field_info), field_init_error);
+    AD_TRY_LABEL (addField (detector, AD_ARGS, field_info), field_init_error);
     continue;
 
     field_init_error:
