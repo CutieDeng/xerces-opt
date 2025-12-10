@@ -93,9 +93,11 @@ void printStackFramesWithSource(AD_FUNC_ARGS) {
   for (size_t i = 0; i < gcc_ctx.stack_frames.length(); ++i) {
     uint64_t frame_addr = gcc_ctx.stack_frames[i];
     const char* source_info;
-    bool has_source = resolveFrameAddressToSource(AD_ARGS, frame_addr, source_info);
+    bool is_valid;
+    ArrayDetectErrorCode err = resolveFrameAddressToSource(AD_ARGS, frame_addr, source_info, is_valid);
+    (void)err; // 忽略错误，仅用于调试输出
 
-    if (has_source) {
+    if (is_valid) {
       AD_DEBUG_PRINT("  [%zu]: 0x%016lx -> %s", i, (unsigned long)frame_addr, source_info);
     } else {
       AD_DEBUG_PRINT("  [%zu]: 0x%016lx -> <unknown source>", i, (unsigned long)frame_addr);
@@ -105,18 +107,19 @@ void printStackFramesWithSource(AD_FUNC_ARGS) {
 
 void printStackFrameSource(AD_FUNC_ARGS, uint64_t frame_addr) {
   char source_buf[256];
-  bool has_source = getFrameSourceLocation(AD_ARGS, frame_addr, source_buf, sizeof(source_buf));
-  if (has_source) {
+  ArrayDetectErrorCode err = getFrameSourceLocation(AD_ARGS, frame_addr, source_buf, sizeof(source_buf));
+  (void)err; // 忽略错误，仅用于调试输出
+  if (source_buf[0] != '\0') {
     AD_DEBUG_PRINT("Frame 0x%016lx -> %s", (unsigned long)frame_addr, source_buf);
   } else {
     AD_DEBUG_PRINT("Frame 0x%016lx -> <unknown source>", (unsigned long)frame_addr);
   }
 }
 
-bool getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) {
+ArrayDetectErrorCode getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!buffer || buffer_size == 0) {
-    return false;
+    AD_RETURNV(INVALID_ARGUMENT);
   }
 
   // Initialize buffer
@@ -124,8 +127,8 @@ bool getFrameSourceLocation(AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, siz
 
   // 保持原有简单实现
   snprintf(buffer, buffer_size, "return_addr:0x%lx", (unsigned long)frame_addr);
-  return true;
-}
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
 // 辅助函数：解析 C++ mangled 名称
 // 返回解析后的名称，存储在 buffer 中
@@ -302,20 +305,22 @@ static bool get_source_location_from_addr(uint64_t addr, char* file_buffer, size
 }
 
 // 使用新地址解析器的增强版本
-bool resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_addr, const char*& result) {
+ArrayDetectErrorCode resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_addr, const char* &result, bool &out_is_valid) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
 
   // 使用 Context 中的 source_location_buffer
   if (!ctx.source_location_buffer || ctx.source_location_buffer_size == 0) {
     result = "<no buffer>";
-    return false;
+    out_is_valid = false;
+    AD_RETURNV(OK);
   }
 
   // 直接使用 dladdr 进行地址解析
   if (frame_addr == 0) {
     snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
     result = ctx.source_location_buffer;
-    return false;
+    out_is_valid = false;
+    AD_RETURNV(OK);
   }
 
   Dl_info info;
@@ -343,13 +348,15 @@ bool resolveFrameAddressToSource(AD_FUNC_ARGS, uint64_t frame_addr, const char*&
                "%s+0x%lx", demangled, (unsigned long)offset);
     }
     result = ctx.source_location_buffer;
-    return true;
+    out_is_valid = true;
+    AD_RETURNV(OK);
   }
 
   snprintf(ctx.source_location_buffer, ctx.source_location_buffer_size, "addr:0x%lx", (unsigned long)frame_addr);
   result = ctx.source_location_buffer;
-  return false;
-}
+  out_is_valid = false;
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
 // 获取当前栈帧信息
 void getCurrentFrameInfo(AD_FUNC_ARGS, CurrentFrameInfo& info) {

@@ -36,13 +36,18 @@ void printCurrentFrame (AD_FUNC_ARGS);
 void printStackFramesWithSource (AD_FUNC_ARGS);
 void printStackFrameSource (AD_FUNC_ARGS, uint64_t frame_addr);
 // 将栈帧地址解析为源码位置字符串（使用内部缓冲区）
-bool getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
+// 返回值：ArrayDetectErrorCode
+// 输出：通过 buffer 参数返回格式化字符串
+ArrayDetectErrorCode getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
 
 // 引入增强的地址解析器
 #include "address-resolver.hh"
 
 // 将栈帧地址解析为源码位置字符串（使用上下文缓冲区，更高效）
-bool resolveFrameAddressToSource (AD_FUNC_ARGS, uint64_t frame_addr, const char*& result);
+// 返回值：ArrayDetectErrorCode
+// 输出：通过 result 参数返回格式化字符串
+// 输出：通过 out_is_valid 参数返回是否成功解析
+ArrayDetectErrorCode resolveFrameAddressToSource (AD_FUNC_ARGS, uint64_t frame_addr, const char* &result, bool &out_is_valid);
 
 // 当前栈帧信息结构
 struct CurrentFrameInfo {

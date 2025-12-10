@@ -17,6 +17,11 @@ ArrayDetectErrorCode initContextBuffers(AD_FUNC_ARGS, size_t capacity) AD_FUNCTI
   if (!ctx.source_line_buffer) {
     AD_RETURNV (MEMORY_ERROR);
   }
+  ctx.address_format_buffer_size = 512; // 地址格式化缓冲区大小
+  ctx.address_format_buffer = (char*)ggc_alloc_atomic(ctx.address_format_buffer_size);
+  if (!ctx.address_format_buffer) {
+    AD_RETURNV (MEMORY_ERROR);
+  }
   AD_RETURNV (OK);
 } AD_FUNCTION_END
 

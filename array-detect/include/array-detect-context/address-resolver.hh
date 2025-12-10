@@ -17,33 +17,15 @@ struct AddressInfo {
   bool is_valid;                // 信息是否有效
 };
 
-// 地址解析器接口
-class AddressResolver {
-public:
-  virtual ~AddressResolver() = default;
+// 解析地址到源码位置信息
+// 返回值：ArrayDetectErrorCode
+// 输出：通过 info 参数返回解析结果
+ArrayDetectErrorCode resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo &info);
 
-  // 解析地址到源码位置
-  virtual bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) = 0;
-
-  // 使用 Context 缓冲区的便捷方法
-  virtual bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) = 0;
-};
-
-// 默认地址解析器实现
-class DefaultAddressResolver : public AddressResolver {
-public:
-  bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) override;
-  bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) override;
-
-private:
-  char format_buffer[512];  // 内部格式化缓冲区
-};
-
-// 全局地址解析器实例
-extern DefaultAddressResolver g_address_resolver;
-
-// 便捷函数声明
-bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info);
-bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result);
+// 解析地址到字符串形式（使用 Context 缓冲区）
+// 返回值：ArrayDetectErrorCode
+// 输出：通过 result 参数返回格式化字符串
+// 输出：通过 out_is_valid 参数返回是否成功解析
+ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char* &result, bool &out_is_valid);
 
 } // namespace array_detect_ns

@@ -6,11 +6,8 @@
 
 namespace array_detect_ns {
 
-// 全局地址解析器实例
-DefaultAddressResolver g_address_resolver;
-
-// DefaultAddressResolver 实现
-bool DefaultAddressResolver::resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
+// 解析地址到源码位置信息
+ArrayDetectErrorCode resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo &info) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
 
   // 初始化结构
@@ -22,7 +19,7 @@ bool DefaultAddressResolver::resolveAddress(AD_FUNC_ARGS, uint64_t addr, Address
   info.is_valid = false;
 
   if (addr == 0) {
-    return false;
+    AD_RETURNV(OK);
   }
 
   // 使用 dladdr 进行基本符号解析
@@ -39,54 +36,56 @@ bool DefaultAddressResolver::resolveAddress(AD_FUNC_ARGS, uint64_t addr, Address
     }
   }
 
-  return info.is_valid;
-}
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
-bool DefaultAddressResolver::resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) {
+// 解析地址到字符串形式（使用 Context 缓冲区）
+ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char* &result, bool &out_is_valid) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
 
-  AddressInfo info;
-  bool has_info = resolveAddress(AD_ARGS, addr, info);
+  // 检查缓冲区是否已初始化
+  if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
+    result = "<no buffer>";
+    out_is_valid = false;
+    AD_RETURNV(OK);
+  }
 
-  if (!has_info) {
-    snprintf(format_buffer, sizeof(format_buffer), "addr:0x%lx", (unsigned long)addr);
-    result = format_buffer;
-    return false;
+  AddressInfo info;
+  AD_TRY(resolveAddress(AD_ARGS, addr, info));
+
+  out_is_valid = info.is_valid;
+
+  if (!info.is_valid) {
+    snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, 
+             "addr:0x%lx", (unsigned long)addr);
+    result = ctx.address_format_buffer;
+    AD_RETURNV(OK);
   }
 
   // 格式化输出
   if (info.source_file) {
     if (info.offset == 0) {
-      snprintf(format_buffer, sizeof(format_buffer),
+      snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size,
                "%s (%s)", info.symbol_name ? info.symbol_name : "<unknown>",
                info.source_file);
     } else {
-      snprintf(format_buffer, sizeof(format_buffer),
+      snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size,
                "%s+0x%lx (%s)", info.symbol_name ? info.symbol_name : "<unknown>",
                (unsigned long)info.offset, info.source_file);
     }
   } else {
     if (info.offset == 0) {
-      snprintf(format_buffer, sizeof(format_buffer),
+      snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size,
                "%s", info.symbol_name ? info.symbol_name : "<unknown>");
     } else {
-      snprintf(format_buffer, sizeof(format_buffer),
+      snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size,
                "%s+0x%lx", info.symbol_name ? info.symbol_name : "<unknown>",
                (unsigned long)info.offset);
     }
   }
 
-  result = format_buffer;
-  return true;
-}
-
-// 便捷函数实现
-bool resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo& info) {
-  return g_address_resolver.resolveAddress(AD_ARGS, addr, info);
-}
-
-bool resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char*& result) {
-  return g_address_resolver.resolveAddressToString(AD_ARGS, addr, result);
-}
+  result = ctx.address_format_buffer;
+  AD_RETURNV(OK);
+} AD_FUNCTION_END
 
 } // namespace array_detect_ns

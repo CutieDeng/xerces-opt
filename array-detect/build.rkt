@@ -3,7 +3,6 @@
 (require file/glob)
 
 (define cxx (or (find-executable-path "g++-15") (raise-user-error "Cannot find g++ compiler")))
-
 (define object-dir "obj")
 (module+ main (make-directory* object-dir))
 
