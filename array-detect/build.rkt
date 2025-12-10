@@ -54,6 +54,8 @@
   ,(path->string (build-path "include/array-detect-gcc"))
   "-I"
   ,(path->string (build-path "include/array-detect-utils"))
+  "-I"
+  ,(path->string (build-path "include/array-detect-result"))
   "-undefined" "dynamic_lookup"
   "-Wall"
   "-Wextra"

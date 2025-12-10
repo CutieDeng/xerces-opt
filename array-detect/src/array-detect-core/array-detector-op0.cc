@@ -5,6 +5,7 @@
 #include "info-print.hh"
 #include "context-init.hh"
 #include "gcc-ext-util.hh"
+#include "field-analysis-main.hh"
 
 namespace array_detect_ns {
 
@@ -72,14 +73,16 @@ ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Tracing field assignments");
   
-  // 第一步：分析字段赋值
-  // 语义：遍历所有函数，追踪字段的赋值操作和来源
-  AD_TRY(analyzeFieldAssignmentsInFunctions(detector, AD_ARGS));
-
-  // 第二步：分析使用情况，判断是否是数组候选
-  // 语义：根据赋值来源判断字段是否为 owned 数组
-  AD_TRY(analyzeFieldUsage(detector, AD_ARGS));
-
+  // 使用新的分析流程
+  vec<tree> field_decls;
+  vec<FieldAnalysisResult*> field_results;
+  
+  // 执行完整的字段分析
+  AD_TRY(performFieldAnalysis(AD_ARGS, detector, field_decls, field_results));
+  
+  // 更新 FieldInfo 的 is_array_candidate 字段
+  AD_TRY(updateFieldInfoFromResults(AD_ARGS, field_decls, field_results, detector));
+  
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
