@@ -119,21 +119,21 @@ ArrayDetectErrorCode matchCallExpression(
 // 只有在 call_type == CALL_DIRECT 时才会执行代码块
 #define AD_MATCH_DIRECT_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_DIRECT) { \
-    DirectCallInfo const &(var_name) = (result_var).info.direct;
+    DirectCallInfo const &var_name = (result_var).info.direct;
 
 // 安全访问虚函数调用信息
 // 用法：AD_MATCH_VIRTUAL_CALL(result, var_name) { ... } AD_MATCH_END()
 // 只有在 call_type == CALL_VIRTUAL 时才会执行代码块
 #define AD_MATCH_VIRTUAL_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_VIRTUAL) { \
-    VirtualCallInfo const &(var_name) = (result_var).info.virtual_;
+    VirtualCallInfo const &var_name = (result_var).info.virtual_;
 
 // 安全访问间接调用信息
 // 用法：AD_MATCH_INDIRECT_CALL(result, var_name) { ... } AD_MATCH_END()
 // 只有在 call_type == CALL_INDIRECT 时才会执行代码块
 #define AD_MATCH_INDIRECT_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_INDIRECT) { \
-    IndirectCallInfo const &(var_name) = (result_var).info.indirect;
+    IndirectCallInfo const &var_name = (result_var).info.indirect;
 
 // 结束匹配块（必须与上述宏配对使用）
 #define AD_MATCH_END() \

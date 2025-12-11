@@ -3,6 +3,7 @@
 #include "field-source-analysis.hh"
 #include "field-escape-analysis.hh"
 #include "field-owner-analysis.hh"
+#include "field-dataflow-analysis.hh"
 #include "gcc-ext-util.hh"
 
 namespace array_detect_ns {
@@ -93,9 +94,28 @@ ArrayDetectErrorCode analyzeFunctionFields(
       
       AD_DEBUG_PRINT("  Field %u has %u source operations", i, source_ops->length());
       
-      // 阶段3c：判定是否为内存持有者
-      AD_TRY(determineMemoryOwner(AD_ARGS, field_decl, *write_ops, *escape_sites, 
-                                   *source_ops, *field_result));
+      // 阶段3c：数据流分析
+    DataFlowGraph dataflow_graph;
+    AD_TRY(buildDataFlowGraph(AD_ARGS, field_decl, fn, *write_ops, dataflow_graph));
+    
+    // 追踪值来源
+    if (write_ops->length() > 0) {
+      WriteOperation* first_write = (*write_ops)[0];
+      vec<ValueSource*> value_sources;
+      AD_TRY(traceValueSource(AD_ARGS, field_decl, first_write, value_sources));
+      
+      AD_DEBUG_PRINT("  Field %u: traced %u value sources", i, value_sources.length());
+      for (unsigned int j = 0; j < value_sources.length(); j++) {
+        ValueSource* source = value_sources[j];
+        if (source && source->description) {
+          AD_DEBUG_PRINT("    Source %u: %s", j, source->description);
+        }
+      }
+    }
+    
+    // 阶段3d：判定是否为内存持有者
+    AD_TRY(determineMemoryOwner(AD_ARGS, field_decl, *write_ops, *escape_sites, 
+                                 *source_ops, *field_result));
     } else {
       // 有逃逸，不是内存持有者
       field_result->is_memory_owner = false;

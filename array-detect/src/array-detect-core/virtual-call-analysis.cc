@@ -3,7 +3,7 @@
 
 namespace array_detect_ns {
 
-// 检查 gimple 语句是否为虚函数调用
+// 检查 gimple 语句是否为虚函数调用（使用 match-API 重构）
 ArrayDetectErrorCode isVirtualFunctionCall(
   AD_FUNC_ARGS,
   gimple* call_stmt,
@@ -24,38 +24,22 @@ ArrayDetectErrorCode isVirtualFunctionCall(
     AD_RETURNE(INVALID_ARGUMENT);
   }
   
-  // 检查是否为 OBJ_TYPE_REF（C++ 虚函数调用）
-  if (TREE_CODE(fn) == OBJ_TYPE_REF) {
-    is_virtual = true;
-    call_type = CALL_VIRTUAL;
+  // 使用 match-API 匹配调用表达式
+  CallMatchResult match_result;
+  ArrayDetectErrorCode match_ecode = matchCallExpression(AD_ARGS, fn, match_result);
+  
+  if (match_ecode != OK) {
+    // 匹配失败，保持默认值
     AD_RETURNE(OK);
   }
   
-  // 检查是否为 SSA_NAME（可能是间接调用）
-  if (TREE_CODE(fn) == SSA_NAME) {
-    gimple* def_stmt = SSA_NAME_DEF_STMT(fn);
-    if (def_stmt && gimple_code(def_stmt) == GIMPLE_ASSIGN) {
-      tree rhs = gimple_assign_rhs1(def_stmt);
-      if (TREE_CODE(rhs) == OBJ_TYPE_REF) {
-        is_virtual = true;
-        call_type = CALL_VIRTUAL;
-        AD_RETURNE(OK);
-      }
-    }
-    call_type = CALL_INDIRECT;
-    AD_RETURNE(OK);
-  }
-  
-  // 直接函数调用
-  if (TREE_CODE(fn) == FUNCTION_DECL || TREE_CODE(fn) == ADDR_EXPR) {
-    call_type = CALL_DIRECT;
-    AD_RETURNE(OK);
-  }
+  call_type = match_result.call_type;
+  is_virtual = (call_type == CALL_VIRTUAL);
   
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
-// 提取调用签名（用于等价性判定）
+// 提取调用签名（用于等价性判定，使用 match-API 重构）
 ArrayDetectErrorCode extractCallSignature(
   AD_FUNC_ARGS,
   gimple* call_stmt,
@@ -74,27 +58,41 @@ ArrayDetectErrorCode extractCallSignature(
     AD_RETURNE(INVALID_ARGUMENT);
   }
   
-  // 对于虚函数调用，提取方法签名
-  if (TREE_CODE(fn) == OBJ_TYPE_REF) {
-    tree method = OBJ_TYPE_REF_EXPR(fn);
-    if (method && DECL_NAME(method)) {
-      signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(method)));
-      AD_RETURNE(OK);
-    }
-  }
+  // 使用 match-API 匹配调用表达式
+  CallMatchResult match_result;
+  ArrayDetectErrorCode match_ecode = matchCallExpression(AD_ARGS, fn, match_result);
   
-  // 对于直接调用，提取函数名
-  if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-    signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(fn)));
+  if (match_ecode != OK) {
+    // 匹配失败，使用默认签名
+    signature = ggc_strdup("<unknown>");
     AD_RETURNE(OK);
   }
   
-  // 对于间接调用，使用特殊标记
-  signature = ggc_strdup("<indirect>");
+  // 根据匹配结果提取签名
+  AD_MATCH_DIRECT_CALL(match_result, direct_info) {
+    if (direct_info.function_decl && DECL_NAME(direct_info.function_decl)) {
+      signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(direct_info.function_decl)));
+    } else {
+      signature = ggc_strdup("<direct>");
+    }
+  } AD_MATCH_END()
+  
+  AD_MATCH_VIRTUAL_CALL(match_result, virtual_info) {
+    if (virtual_info.method_decl && DECL_NAME(virtual_info.method_decl)) {
+      signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(virtual_info.method_decl)));
+    } else {
+      signature = ggc_strdup("<virtual>");
+    }
+  } AD_MATCH_END()
+  
+  if (match_result.call_type == CALL_INDIRECT) {
+    signature = ggc_strdup("<indirect>");
+  }
+  
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
-// 分析函数调用，提取详细信息
+// 分析函数调用，提取详细信息（使用 match-API 重构）
 ArrayDetectErrorCode analyzeCallExpression(
   AD_FUNC_ARGS,
   gimple* call_stmt,
@@ -112,37 +110,58 @@ ArrayDetectErrorCode analyzeCallExpression(
   source_op.location = gimple_location(call_stmt);
   
   tree fn = gimple_call_fn(call_stmt);
+  if (!fn) {
+    AD_RETURNE(INVALID_ARGUMENT);
+  }
   
-  // 检查调用类型
-  bool is_virtual;
-  CallType call_type;
-  AD_TRY(isVirtualFunctionCall(AD_ARGS, call_stmt, is_virtual, call_type));
-  source_op.call_type = call_type;
+  // 使用 match-API 匹配调用表达式
+  CallMatchResult match_result;
+  ArrayDetectErrorCode match_ecode = matchCallExpression(AD_ARGS, fn, match_result);
   
-  // 提取调用签名
-  const char* signature;
-  AD_TRY(extractCallSignature(AD_ARGS, call_stmt, signature));
-  source_op.signature = signature;
+  if (match_ecode != OK) {
+    // 匹配失败，设置默认值
+    source_op.call_type = CALL_UNKNOWN;
+    source_op.function_name = ggc_strdup("<unknown>");
+    source_op.signature = ggc_strdup("<unknown>");
+    AD_RETURNE(OK);  // 仍然返回 OK，因为这是分析函数，匹配失败不算错误
+  }
   
-  // 提取函数名
-  if (TREE_CODE(fn) == OBJ_TYPE_REF) {
-    tree method = OBJ_TYPE_REF_EXPR(fn);
-    if (method && DECL_NAME(method)) {
-      source_op.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(method)));
+  source_op.call_type = match_result.call_type;
+  
+  // 根据匹配结果提取信息
+  AD_MATCH_DIRECT_CALL(match_result, direct_info) {
+    if (direct_info.function_decl && DECL_NAME(direct_info.function_decl)) {
+      source_op.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(direct_info.function_decl)));
+      source_op.signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(direct_info.function_decl)));
+    } else {
+      source_op.function_name = ggc_strdup("<direct>");
+      source_op.signature = ggc_strdup("<direct>");
+    }
+  } AD_MATCH_END()
+  
+  AD_MATCH_VIRTUAL_CALL(match_result, virtual_info) {
+    if (virtual_info.method_decl && DECL_NAME(virtual_info.method_decl)) {
+      source_op.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(virtual_info.method_decl)));
+      source_op.signature = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(virtual_info.method_decl)));
     } else {
       source_op.function_name = ggc_strdup("<virtual>");
+      source_op.signature = ggc_strdup("<virtual>");
     }
-    source_op.vtable_ref = OBJ_TYPE_REF_OBJECT(fn);
-  } else if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-    source_op.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(fn)));
-  } else {
-    source_op.function_name = ggc_strdup("<unknown>");
+    source_op.vtable_ref = virtual_info.object;
+  } AD_MATCH_END()
+  
+  if (match_result.call_type == CALL_INDIRECT) {
+    source_op.function_name = ggc_strdup("<indirect>");
+    source_op.signature = ggc_strdup("<indirect>");
   }
+  
+  // 提取返回值 SSA
+  source_op.return_value_ssa = gimple_call_lhs(call_stmt);
   
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
-// 检查两个虚函数调用是否等价
+// 检查两个虚函数调用是否等价（使用 match-API 重构）
 ArrayDetectErrorCode areVirtualCallsEquivalent(
   AD_FUNC_ARGS,
   gimple* call1,
@@ -157,15 +176,43 @@ ArrayDetectErrorCode areVirtualCallsEquivalent(
     AD_RETURNE(INVALID_ARGUMENT);
   }
   
-  // 提取两个调用的签名
-  const char* sig1;
-  const char* sig2;
-  AD_TRY(extractCallSignature(AD_ARGS, call1, sig1));
-  AD_TRY(extractCallSignature(AD_ARGS, call2, sig2));
+  tree fn1 = gimple_call_fn(call1);
+  tree fn2 = gimple_call_fn(call2);
   
-  // 比较签名
-  if (sig1 && sig2 && strcmp(sig1, sig2) == 0) {
-    is_equivalent = true;
+  if (!fn1 || !fn2) {
+    AD_RETURNE(INVALID_ARGUMENT);
+  }
+  
+  // 使用 match-API 匹配两个调用
+  CallMatchResult match1, match2;
+  ArrayDetectErrorCode ecode1 = matchCallExpression(AD_ARGS, fn1, match1);
+  ArrayDetectErrorCode ecode2 = matchCallExpression(AD_ARGS, fn2, match2);
+  
+  // 如果任一匹配失败，则不等价
+  if (ecode1 != OK || ecode2 != OK) {
+    AD_RETURNE(OK);
+  }
+  
+  // 类型必须相同
+  if (match1.call_type != match2.call_type) {
+    AD_RETURNE(OK);
+  }
+  
+  // 根据类型比较
+  if (match1.call_type == CALL_DIRECT && match2.call_type == CALL_DIRECT) {
+    DirectCallInfo const &direct1 = match1.info.direct;
+    DirectCallInfo const &direct2 = match2.info.direct;
+    is_equivalent = (direct1.function_decl == direct2.function_decl);
+  } else if (match1.call_type == CALL_VIRTUAL && match2.call_type == CALL_VIRTUAL) {
+    VirtualCallInfo const &virtual1 = match1.info.virtual_;
+    VirtualCallInfo const &virtual2 = match2.info.virtual_;
+    // 比较方法声明
+    is_equivalent = (virtual1.method_decl == virtual2.method_decl);
+  } else if (match1.call_type == CALL_INDIRECT && match2.call_type == CALL_INDIRECT) {
+    IndirectCallInfo const &indirect1 = match1.info.indirect;
+    IndirectCallInfo const &indirect2 = match2.info.indirect;
+    // 间接调用比较表达式
+    is_equivalent = (indirect1.function_expr == indirect2.function_expr);
   }
   
   AD_RETURNE(OK);
