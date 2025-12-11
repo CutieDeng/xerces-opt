@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "address-resolver.hh"
+#include "array-detect-context-gcc.hh"
 
 namespace array_detect_ns {
 

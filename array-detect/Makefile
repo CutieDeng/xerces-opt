@@ -108,9 +108,9 @@ obj/array-detect-context/address-resolver.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-utils/prelude.hh \
   include/array-detect-context/context.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
+  include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-gcc/gcc-common.hh \
 
 obj/array-detect-context/array-detect-context-gcc.o: \

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 #include "prelude.hh"
 #include "context.hh"
-#include "array-detect-context-gcc.hh"
+#include "state.hh"
 
 namespace array_detect_ns {
 
