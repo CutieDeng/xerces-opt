@@ -79,7 +79,4 @@ struct ArrayDetectContextGcc {
   vec<uint64_t> stack_frames;
 };
 
-// 内部全局对象，不暴露给外部
-extern ArrayDetectContextGcc gArrayDetectContextGcc;
-
 } // namespace array_detect_ns

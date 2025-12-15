@@ -10,9 +10,6 @@
 
 namespace array_detect_ns {
 
-// Global GCC-specific context instance - 复杂对象，不是指针
-ArrayDetectContextGcc gArrayDetectContextGcc;
-
 // Initialize GCC context
 void initGccContext(AD_FUNC_ARGS) {
   AD_ARGS_WARN_DENY;
