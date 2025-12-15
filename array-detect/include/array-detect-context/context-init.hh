@@ -1,3 +1,5 @@
+#pragma once
+
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"

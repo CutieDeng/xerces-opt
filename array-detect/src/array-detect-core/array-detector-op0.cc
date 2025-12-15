@@ -7,71 +7,34 @@
 #include "gcc-ext-util.hh"
 #include "field-analysis-main.hh"
 
-namespace array_detect_ns {
+namespace array_detect_ns {}
 
-// 直接执行分析：接收已初始化的 ArrayDetector 对象
-// 语义：跳过对象创建，直接执行分析流程
-// 调用者负责：对象的创建和初始化
-// 本函数负责：分析执行和清理
-ArrayDetectErrorCode analyzeWithDetector(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
+namespace array_detector {
+
+using namespace ::array_detect_ns;
+
+// 使用已初始化的检测器执行分析（跳过创建阶段）
+// 调用方负责初始化，本函数负责执行与清理
+ArrayDetectErrorCode runArrayDetectorWithInstance(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Starting array member detection with provided detector");
-
-  // 打印所有栈帧信息进行调试
-  AD_DEBUG_PRINT ("=== Stack Frames Info ===");
-  AD_GCC_PRINT_ALL_STACK_FRAMES ();
-  AD_DEBUG_PRINT ("=== End Stack Frames Info ===");
-  
   // 第一步：收集所有类型和字段
   // 语义：遍历所有函数，提取类型和字段信息
-  AD_TRY_LABEL (collectTypesAndFields (AD_ARGS, detector), analysis_cleanup);
-  
+  AD_TRY_LABEL (collectTypesAndFields (detector, AD_ARGS), analysis_cleanup);
   // 第二步：追踪字段赋值
   // 语义：分析字段的赋值来源，判断是否为 owned 数组
-  AD_TRY_LABEL (traceFieldAssignments (AD_ARGS, detector), analysis_cleanup);
-  
+  AD_TRY_LABEL (traceFieldAssignments (detector, AD_ARGS), analysis_cleanup);
   // 第三步：输出分析结果
   // 语义：生成并输出分析报告
   AD_TRY_LABEL (printResults (AD_ARGS, detector), analysis_cleanup);
-  
   analysis_cleanup:
   AD_DEBUG_PRINT ("Array member detection completed");
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// 主分析入口：使用 ArrayDetector 执行分析
-// 语义：创建 ArrayDetector 对象，管理其生命周期（初始化、执行、清理）
-// 这是一个决定使用 ArrayDetector 类型进行分析的功能入口点
-ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Starting array member detection analysis");
-  
-  // 输出所有栈帧信息（用于调试）
-  AD_GCC_PRINT_ALL_STACK_FRAMES ();
-  
-  // 创建数组检测器对象（在栈上）
-  // 语义：分配 ArrayDetector 结构体，初始化为 nullptr
-  array_detector::ArrayDetector detector;
-  
-  // 延迟初始化：在使用前分配 vec 指针
-  // 语义：分配 GCC 管理的 vec 容器，用于存储字段信息
-  AD_TRY_LABEL (array_detector::initializeDetector (detector, AD_ARGS), analysis_cleanup);
-  
-  // 执行分析流程
-  // 语义：调用优化后的执行函数
-  AD_TRY_LABEL (analyzeWithDetector (AD_ARGS, detector), analysis_cleanup);
-
-  analysis_cleanup:
-  // 清理资源
-  // 语义：释放 vec 容器，设置指针为 nullptr
-  array_detector::cleanupDetector (detector, AD_ARGS);
-  
-  AD_DEBUG_PRINT ("Array member detection analysis completed");
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 字段赋值追踪：分析字段赋值来源
 // 语义：执行两步分析 - 赋值分析 -> 候选判断
 // 前置条件：字段已通过 collectTypesAndFields 收集
-ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Tracing field assignments");
   
   // 使用新的分析流程
@@ -91,7 +54,7 @@ ArrayDetectErrorCode traceFieldAssignments(AD_FUNC_ARGS, ArrayDetector &detector
 // 语义：扫描所有函数，从字段访问中提取类型和字段定义
 // 输出：填充 detector.m_fields 容器
 // 垃圾回收：使用 ggc_alloc 分配的 hash_set 由 GCC 自动管理
-ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode collectTypesAndFields(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Collecting all types and fields");
   
   // 使用 hash_set 避免重复处理同一类型
@@ -186,10 +149,6 @@ ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector &detector
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-} // namespace array_detect_ns
-
-namespace array_detector {
-
 ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Analyzing field assignments in functions");
   
@@ -270,4 +229,24 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector,
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-}
+} // namespace array_detector
+
+namespace array_detect_ns {
+
+// 主分析入口：创建检测器并执行分析
+// 语义：创建 ArrayDetector 对象，管理其生命周期（初始化、执行、清理）
+ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Starting array member detection analysis");
+  ArrayDetector detector;
+  // 延迟初始化：在使用前分配 vec 指针
+  AD_TRY_LABEL (initializeDetector (detector, AD_ARGS), analysis_cleanup);
+  // 执行分析流程
+  AD_TRY_LABEL (runArrayDetectorWithInstance (detector, AD_ARGS), analysis_cleanup);
+  analysis_cleanup:
+  // 清理资源
+  cleanupDetector (detector, AD_ARGS);
+  AD_DEBUG_PRINT ("Array member detection analysis completed");
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+} // namespace array_detect_ns

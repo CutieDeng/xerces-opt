@@ -21,11 +21,10 @@
 
 namespace array_detect_ns {
 
-ArrayDetectErrorCode array_detect_execute (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
+// Run entry: sets up runtime/context then hands off to the analyzer.
+ArrayDetectErrorCode runArrayDetect (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   initGccContext (AD_ARGS);
-  
   AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
-  
   AD_TRY (runArrayDetectorAnalysis (AD_ARGS));
   AD_RETURNE (OK);
   cleanup:
@@ -70,16 +69,7 @@ class pass_array_detect : public ipa_opt_pass_d {
     // 使用局部上下文，避免全局状态问题
     ::array_detect_ns::ArrayDetectContext local_ctx;
     ::array_detect_ns::ArrayDetectContextGcc local_gcc_ctx;
-
-    // 简单的调试输出，显示插件开始执行
-    fprintf (stderr, "\n=== Plugin Array Detect - Starting Analysis ===\n");
-
-    // 直接执行分析
-    ::array_detect_ns::ArrayDetectErrorCode result = array_detect_execute (local_ctx, local_gcc_ctx);
-
-    // 简单的调试输出，显示插件执行完成
-    fprintf (stderr, "=== Plugin Array Detect - Analysis Complete ===\n\n");
-
+    ::array_detect_ns::ArrayDetectErrorCode result = runArrayDetect (local_ctx, local_gcc_ctx);
     return result != ::array_detect_ns::OK;
   }
 };

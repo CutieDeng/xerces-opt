@@ -40,8 +40,12 @@ void printStackFrameSource (AD_FUNC_ARGS, uint64_t frame_addr);
 // 输出：通过 buffer 参数返回格式化字符串
 ArrayDetectErrorCode getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
 
+} // namespace array_detect_ns
+
 // 引入增强的地址解析器
 #include "address-resolver.hh"
+
+namespace array_detect_ns {
 
 // 将栈帧地址解析为源码位置字符串（使用上下文缓冲区，更高效）
 // 返回值：ArrayDetectErrorCode
