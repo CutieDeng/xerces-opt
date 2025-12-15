@@ -336,3 +336,6 @@ prepare:
 	mkdir -p obj/array-detect-field-analysis
 	mkdir -p out
 
+test-simple-virtual-call: out/plugin-array-detect.dylib
+	cd ../test/test-simple-virtual-call; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
+

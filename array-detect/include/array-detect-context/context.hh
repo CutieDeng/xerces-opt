@@ -8,6 +8,9 @@ struct ArrayDetectContext {
   FILE *debug_file;
   void (*debug_file_dtor)(FILE *);
   
+  // 匹配调试开关（虚函数匹配失败时输出调试信息）
+  bool match_debug_tracer;
+  
   // 预分配的缓冲区用于源码位置信息
   char *source_location_buffer;
   size_t source_location_buffer_size;

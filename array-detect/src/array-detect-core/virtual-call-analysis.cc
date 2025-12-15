@@ -3,6 +3,47 @@
 
 namespace array_detect_ns {
 
+namespace {
+
+// 匹配失败时的调试输出（受 ctx.match_debug_tracer 控制）
+void log_match_failure(AD_FUNC_ARGS, tree call_expr) {
+  if (!ctx.match_debug_tracer || !ctx.debug_file) {
+    return;
+  }
+
+  AD_DEBUG_PRINT("[virtual-call-analysis] matchVirtualFunctionCall failed");
+
+  // 打印输入表达式
+  if (call_expr) {
+    AD_DEBUG_PRINT("  call_expr tree (raw):");
+    print_generic_expr(ctx.debug_file, call_expr, TDF_DETAILS);
+    AD_DEBUG_PRINT("  end call_expr tree");
+  } else {
+    AD_DEBUG_PRINT("  call_expr tree: <null>");
+  }
+
+  // 打印源码位置与源码行
+  location_t loc = UNKNOWN_LOCATION;
+  if (call_expr && EXPR_P(call_expr)) {
+    loc = EXPR_LOCATION(call_expr);
+  }
+  if (ctx.source_location_buffer && ctx.source_location_buffer_size > 0) {
+    gcc_ext_util::get_source_location_string(AD_ARGS, loc,
+      ctx.source_location_buffer, ctx.source_location_buffer_size);
+    AD_DEBUG_PRINT("  source location: %s", ctx.source_location_buffer);
+  }
+  if (ctx.source_line_buffer && ctx.source_line_buffer_size > 0) {
+    gcc_ext_util::get_source_line_content(loc,
+      ctx.source_line_buffer, ctx.source_line_buffer_size);
+    AD_DEBUG_PRINT("  source line: %s", ctx.source_line_buffer);
+  }
+
+  // 打印当前运行栈
+  AD_GCC_DUMP_CALL_STACK();
+}
+
+} // namespace
+
 // 检查 gimple 语句是否为虚函数调用（使用 match-API 重构）
 ArrayDetectErrorCode isVirtualFunctionCall(
   AD_FUNC_ARGS,
@@ -36,6 +77,87 @@ ArrayDetectErrorCode isVirtualFunctionCall(
   call_type = match_result.call_type;
   is_virtual = (call_type == CALL_VIRTUAL);
   
+  AD_RETURNE(OK);
+} AD_FUNCTION_END
+
+// 匹配虚函数调用并提取细节（失败时直接返回 MATCH_ERROR）
+ArrayDetectErrorCode matchVirtualFunctionCall(
+  AD_FUNC_ARGS,
+  tree call_expr,
+  tree &object_type,
+  tree &method_decl,
+  tree &vtable_index
+) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
+
+  object_type = NULL_TREE;
+  method_decl = NULL_TREE;
+  vtable_index = NULL_TREE;
+
+  if (!call_expr) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+
+  // 允许 SSA_NAME/ADDR_EXPR 包裹，递归剥离 OBJ_TYPE_REF
+  if (TREE_CODE(call_expr) == SSA_NAME) {
+    gimple* def = SSA_NAME_DEF_STMT(call_expr);
+    if (def && gimple_code(def) == GIMPLE_ASSIGN) {
+      tree rhs = gimple_assign_rhs1(def);
+      return matchVirtualFunctionCall(AD_ARGS, rhs, object_type, method_decl, vtable_index);
+    }
+  }
+  if (TREE_CODE(call_expr) == ADDR_EXPR) {
+    tree inner = TREE_OPERAND(call_expr, 0);
+    return matchVirtualFunctionCall(AD_ARGS, inner, object_type, method_decl, vtable_index);
+  }
+
+  if (TREE_CODE(call_expr) != OBJ_TYPE_REF) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+
+  tree method = OBJ_TYPE_REF_EXPR(call_expr);
+  if (!method || TREE_CODE(method) != FUNCTION_DECL) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+  method_decl = method;
+
+  tree object = OBJ_TYPE_REF_OBJECT(call_expr);
+  if (!object) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+
+  tree obj_type = TREE_TYPE(object);
+  if (!obj_type) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+  if (TREE_CODE(obj_type) == POINTER_TYPE || TREE_CODE(obj_type) == REFERENCE_TYPE) {
+    obj_type = TREE_TYPE(obj_type);
+  }
+  if (obj_type) {
+    obj_type = TYPE_MAIN_VARIANT(obj_type);
+  }
+  if (!obj_type) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+  object_type = obj_type;
+
+  // 虚表索引/偏移
+#ifdef OBJ_TYPE_REF_TOKEN
+  vtable_index = OBJ_TYPE_REF_TOKEN(call_expr);
+#else
+  vtable_index = NULL_TREE;
+#endif
+  if (!vtable_index) {
+    log_match_failure(AD_ARGS, call_expr);
+    AD_RETURNE(MATCH_ERROR);
+  }
+
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 

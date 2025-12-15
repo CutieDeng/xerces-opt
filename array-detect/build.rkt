@@ -193,6 +193,13 @@
   (printf "~n")
 )
 
+(define (write-test-virtual-call)
+  (printf "test-simple-virtual-call: ~a~n" output-so-path)
+  (printf "\tcd ../test/test-simple-virtual-call; ")
+  (printf "racket build.rkt < ~s~n" (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
+  (printf "~n")
+)
+
 (define (write-makefile)
   (call-with-atomic-output-file "Makefile" (lambda (o _p) (parameterize ([current-output-port o])
     (write-plugin)
@@ -201,6 +208,7 @@
     (write-clean)
     (write-test)
     (write-prepare)
+    (write-test-virtual-call)
   ))))
 
 (module+ main (write-makefile))

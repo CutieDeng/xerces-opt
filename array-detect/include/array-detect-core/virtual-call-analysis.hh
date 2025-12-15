@@ -47,6 +47,19 @@ ArrayDetectErrorCode extractCallSignature(
   const char* &signature
 );
 
+// 匹配虚函数调用并提取细节（直接返回 MATCH_ERROR 代表匹配失败）
+// 输入：call_expr - OBJ_TYPE_REF 或可解构出虚调用的表达式
+// 输出：object_type - 对象类型（去除引用/指针后的主变体）
+// 输出：method_decl - 虚函数方法声明（FUNCTION_DECL）
+// 输出：vtable_index - 虚表偏移量/标识（来自 OBJ_TYPE_REF_TOKEN）
+ArrayDetectErrorCode matchVirtualFunctionCall(
+  AD_FUNC_ARGS,
+  tree call_expr,
+  tree &object_type,
+  tree &method_decl,
+  tree &vtable_index
+);
+
 // 检查两个虚函数调用是否等价
 // 返回值：ArrayDetectErrorCode
 // 输入：call1, call2 - 两个 GIMPLE_CALL 语句
