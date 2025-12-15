@@ -1,12 +1,12 @@
 #include "info-print.hh"
 
 // ----------------------------------------------------------------------------
-// print_results 函数（需要在 ArrayDetector 定义之后）
+// printResults 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
 
 namespace array_detect_ns {
 
-ArrayDetectErrorCode print_results(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode printResults(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Printing results");
   
   // 统计信息

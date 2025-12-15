@@ -22,8 +22,9 @@ using namespace array_detector;
 // 收集所有类型和字段信息
 ArrayDetectErrorCode collectTypesAndFields(AD_FUNC_ARGS, ArrayDetector &detector);
 
-// 主分析入口：执行完整的数组成员检测分析流程
-ArrayDetectErrorCode analyzeArrayDetection(AD_FUNC_ARGS);
+// 主分析入口：使用 ArrayDetector 执行完整的数组成员检测分析流程
+// 语义：创建 ArrayDetector 对象，管理其生命周期（初始化、执行、清理）
+ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS);
 
 // 追踪字段赋值：收集、分析和判断字段是否为 owned 数组
 // 三步分析流程：收集 -> 分析 -> 判断
