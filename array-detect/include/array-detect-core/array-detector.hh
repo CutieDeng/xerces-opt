@@ -28,8 +28,8 @@ void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS);
 // 通过索引获取字段信息
 ::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
 
-// 初始化检测器
-ArrayDetectErrorCode initializeDetector (ArrayDetector &self, AD_FUNC_ARGS);
+// 初始化检测器（非延迟，直接分配并创建容器，不做空指针检查）
+ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS);
 
 }
 

@@ -239,7 +239,7 @@ ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Starting array member detection analysis");
   ArrayDetector detector;
   // 延迟初始化：在使用前分配 vec 指针
-  AD_TRY_LABEL (initializeDetector (detector, AD_ARGS), analysis_cleanup);
+  AD_TRY_LABEL (init (detector, AD_ARGS), analysis_cleanup);
   // 执行分析流程
   AD_TRY_LABEL (runArrayDetectorWithInstance (detector, AD_ARGS), analysis_cleanup);
   analysis_cleanup:
