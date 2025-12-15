@@ -1,6 +1,6 @@
 #include "prelude.hh"
 #include "state.hh"
-#include "array-detector-op0.hh"
+#include "array-detector-driver.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "context-init.hh"

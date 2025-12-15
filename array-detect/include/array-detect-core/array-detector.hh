@@ -3,7 +3,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"
-#include "array-detector-op0.hh"
+#include "array-detector-driver.hh"
 #include "info.hh"
 #include "array-detect-context-gcc-interface.hh"
 
