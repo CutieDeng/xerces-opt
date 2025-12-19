@@ -12,7 +12,7 @@
 (define output-so-path (build-path out-dir "plugin-array-detect.dylib"))
 
 ;; New modular structure
-(define modules '("array-detect-core" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis"))
+(define modules '("array-detect-core" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis" "array-detect-pipeline"))
 (define s "src")
 (define i "include")
 (define c "config")
@@ -58,6 +58,8 @@
   ,(path->string (build-path "include/array-detect-result"))
   "-I"
   ,(path->string (build-path "include/array-detect-field-analysis"))
+  "-I"
+  ,(path->string (build-path "include/array-detect-pipeline"))
   "-undefined" "dynamic_lookup"
   "-Wall"
   "-Wextra"

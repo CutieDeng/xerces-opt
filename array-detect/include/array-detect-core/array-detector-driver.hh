@@ -20,15 +20,11 @@ ArrayDetectErrorCode collectTypesAndFields(ArrayDetector &detector, AD_FUNC_ARGS
 // 三步分析流程：收集 -> 分析 -> 判断
 ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS);
 
-// 使用已创建的检测器执行分析（跳过内部创建步骤）
-ArrayDetectErrorCode runArrayDetectorWithInstance(ArrayDetector &detector, AD_FUNC_ARGS);
-
 } // namespace array_detector
 
 namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
-using array_detector::runArrayDetectorWithInstance;
 
 // 顶层入口：创建检测器并执行分析
 ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS);

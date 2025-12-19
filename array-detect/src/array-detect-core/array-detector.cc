@@ -145,7 +145,7 @@ ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS) AD_FUN
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
-void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS) {
+void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
   AD_ARGS_WARN_DENY;
   // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
   if (self.m_fields != nullptr) {

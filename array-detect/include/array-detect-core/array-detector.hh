@@ -18,7 +18,7 @@ bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldI
 ::array_detect_ns::ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS);
 
 // 清理检测器资源
-void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS);
+void deinit(ArrayDetector &self, AD_FUNC_ARGS);
 
 // 添加字段到检测器
 ::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
@@ -40,7 +40,7 @@ struct ArrayDetector {
   friend ::array_detect_ns::ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
   friend ::array_detect_ns::ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
   friend ::array_detect_ns::ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS);
-  friend void cleanupDetector(ArrayDetector &self, AD_FUNC_ARGS);
+  friend void deinit(ArrayDetector &self, AD_FUNC_ARGS);
   friend ::array_detect_ns::ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
 
   vec<FieldInfo*>* m_fields; // 使用指针类型，延迟初始化
