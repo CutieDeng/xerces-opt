@@ -35,3 +35,4 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns
+

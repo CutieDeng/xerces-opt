@@ -28,3 +28,4 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
 );
 
 } // namespace array_detect_ns
+
