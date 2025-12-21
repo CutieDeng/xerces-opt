@@ -15,11 +15,13 @@
 (define bin-dir "bin")
 (define out-main "test-xercese")
 
-(define compiler-exe "g++-15")
-(define compiler-path (find-executable-path compiler-exe))
-(define cxxflags `(
+(define c (read))
+(define cflags/ext (dict-ref c 'cflags '()))
+
+(define compiler-path (or (dict-ref c 'cxx #f) (find-executable-path "g++-15")))
+(define cxxflags/base `(
   "-std=c++17" "-Wall" "-Wextra" "-g" "-I."))
-(set! cxxflags (append cxxflags '("-fplugin=../../array-detect/out/plugin-array-detect.dylib")))
+(define cxxflags `(,@cxxflags/base ,@cflags/ext))
 
 (define (clean)
   (for
@@ -72,4 +74,4 @@
     (let/cc k (cont k) #t)
   ))
 
-(module+ main (run))
+(run)

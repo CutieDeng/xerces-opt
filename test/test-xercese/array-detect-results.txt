@@ -1,0 +1,1446 @@
+=== Array Detection Results ===
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: <unnamed>
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCallDestructor
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fCurCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fMaxCount
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: ValueVectorOf, Field: fElemList
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: ValueVectorOf, Field: fMemoryManager
+  - Is pointer: yes
+  - Array candidate: no
+  - Total assignment count: 0
+  - Reason: No assignment sources found
+
+Type: TestObject, Field: value
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: id
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: score
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: value
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: id
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: score
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: value
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: id
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: score
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: value
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: id
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: score
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: value
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: id
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+Type: TestObject, Field: score
+  - Is pointer: no
+  - Array candidate: no (not a pointer)
+
+--- Array Member Detection Results ---
+Total fields analyzed: 189
+Array candidates: 0
+
+--- Results by Type ---
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: <unnamed> - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCallDestructor - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fCurCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMaxCount - Is pointer: No - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fElemList - Is pointer: Yes - Is array candidate: No
+
+Type: ValueVectorOf
+  Field: fMemoryManager - Is pointer: Yes - Is array candidate: No
+
+Type: TestObject
+  Field: value - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: id - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: score - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: value - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: id - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: score - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: value - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: id - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: score - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: value - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: id - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: score - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: value - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: id - Is pointer: No - Is array candidate: No
+
+Type: TestObject
+  Field: score - Is pointer: No - Is array candidate: No

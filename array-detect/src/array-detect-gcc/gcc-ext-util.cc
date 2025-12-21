@@ -367,7 +367,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, Arra
 // 处理类型字段：提取类型的所有字段定义
 // 语义：遍历类型的字段，创建 FieldInfo 对象并添加到 detector
 // 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
-ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector &detector, hash_set<tree>* processed_types) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ArrayDetector &detector, hash_set<tree> *processed_types) AD_FUNCTION_BEGIN {
   if (!type) {
     AD_RETURNE(OK);
   }

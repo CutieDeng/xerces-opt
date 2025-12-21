@@ -133,7 +133,7 @@
 (define (write-test)
   (printf "test: ~a~n" output-so-path)
   (printf "\tcd ../test/test-xercese; ")
-  (printf "racket build-xercese.rkt~n")
+  (printf "racket build-xercese.rkt < ~s~n" (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
   (printf "~n")
 )
 
