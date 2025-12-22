@@ -31,8 +31,8 @@ struct FieldWriteCapture {
   // 源码位置
   location_t location;          // 源码位置（GCC 内部管理）
   
-  // Pipeline 链接：供下一轮解析管线使用
-  void* next;                   // 下一轮解析管线扩展数据（由后续阶段分配和管理）
+  // 通用用途功能指针：用于存储有意义的结果（由后续阶段分配和管理）
+  void* aux;
   
   // 调试和辅助字段
   int bb_index;                 // 基本块索引（用于调试）

@@ -196,8 +196,8 @@ ArrayDetectErrorCode collectTypesAndFields(ArrayDetector &detector, AD_FUNC_ARGS
       // 源码位置
       capture->location = gimple_location(stmt);
       
-      // Pipeline 链接：供下一轮解析管线使用（初始化为 NULL）
-      capture->next = NULL;
+      // 通用用途功能指针：初始化为 NULL
+      capture->aux = NULL;
       
       // 查找或创建 type -> field 的写入操作列表
       TypeFieldWriteOps* tfwo = NULL;

@@ -100,7 +100,7 @@ ArrayDetectErrorCode analyzeFunctionFieldWrites(
       capture->lhs = lhs;
       capture->rhs = rhs;
       capture->location = gimple_location(stmt);
-      capture->next = NULL;  // 供后续阶段使用
+      capture->aux = NULL;  // 供后续阶段使用
       
       // 添加到列表
       write_list->safe_push(capture);

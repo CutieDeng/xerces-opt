@@ -400,22 +400,23 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
       if (!capture_nullable) {
         continue;
       }
+      FieldWriteCapture &capture = *capture_nullable;
       
       // 提取来源信息
       processed_count++;
       
-      tree rhs = capture_nullable->rhs;
-      gimple* stmt = capture_nullable->stmt;
-      location_t location = capture_nullable->location;
-      tree function = capture_nullable->function_decl;
-      basic_block bb = capture_nullable->bb;
+      tree rhs = capture.rhs;
+      gimple* stmt = capture.stmt;
+      location_t location = capture.location;
+      tree function = capture.function_decl;
+      basic_block bb = capture.bb;
       
       FieldSourceInfo* source_info;
       AD_TRY(extractSourceFromRhs(
         detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info));
       
-      // 将来源信息存储到 FieldWriteCapture 的 next 字段中
-      capture_nullable->next = source_info;
+      // 将来源信息存储到 FieldWriteCapture 的 aux 字段中
+      capture.aux = source_info;
       source_extracted_count++;
       
       TypeFieldKey key = (*iter).first;

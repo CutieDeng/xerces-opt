@@ -23,7 +23,7 @@ class ArrayDetector;
 // 语义：遍历 hash_map 中的所有字段写入操作，提取每个写入操作的来源信息
 // 前置条件：字段已通过 collectTypesAndFields 收集到 detector.m_type_field_writes
 // 输入：detector - ArrayDetector 对象（包含 m_type_field_writes hash_map）
-// 输出：在 FieldWriteCapture 的 next 字段中存储 FieldSourceInfo*（由后续阶段使用）
+// 输出：在 FieldWriteCapture 的 aux 字段中存储 FieldSourceInfo*（由后续阶段使用）
 ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS);
 
 // ============================================================================
