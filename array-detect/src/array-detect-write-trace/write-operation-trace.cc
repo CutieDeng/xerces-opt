@@ -204,115 +204,66 @@ ArrayDetectErrorCode extractSourceFromRhs(
 ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT("Tracing field assignments");
   
-  // 检查 hash_map 是否已初始化
-  if (!detector.m_type_field_writes) {
-    AD_DEBUG_PRINT("Warning: m_type_field_writes not initialized");
+  // 检查 hash_map 和键列表是否已初始化
+  if (!detector.m_type_field_writes || !detector.m_type_field_keys) {
+    AD_DEBUG_PRINT("Warning: m_type_field_writes or m_type_field_keys not initialized");
     AD_RETURNE(OK);
   }
   
-  // 遍历所有函数，查找字段写入操作，然后从 hash_map 中获取对应的写入操作列表
-  // 这样可以避免需要遍历 hash_map（GCC 的 hash_map 可能不支持直接遍历）
-  struct cgraph_node* node;
+  // 直接遍历键列表，然后从 hash_map 中获取对应的写入操作列表
+  // 这样避免了遍历所有函数，效率更高
+  // 使用 hash_set 去重，避免重复处理同一个键（虽然理论上不应该重复，但为了安全）
+  hash_set<TypeFieldKey> processed_keys;
+  processed_keys.create_ggc(0);
+  
   size_t processed_count = 0;
   size_t source_extracted_count = 0;
   
-  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY(node) {
-    function* fn = node->get_fun();
-    if (!fn) {
+  for (unsigned int i = 0; i < detector.m_type_field_keys->length(); ++i) {
+    TypeFieldKey key = (*detector.m_type_field_keys)[i];
+    
+    // 检查是否已处理过该键（去重）
+    if (processed_keys.contains(key)) {
+      continue;
+    }
+    processed_keys.add(key);
+    
+    // 从 hash_map 中获取对应的写入操作列表
+    TypeFieldWriteOps** tfwo_ptr = detector.m_type_field_writes->get(key);
+    if (!tfwo_ptr || !*tfwo_ptr) {
       continue;
     }
     
-    // 遍历函数中的语句，查找字段写入操作
-    basic_block bb;
-    FOR_EACH_BB_FN(bb, fn) {
-      gimple_stmt_iterator gsi;
-      for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
-        gimple* stmt = gsi_stmt(gsi);
+    TypeFieldWriteOps* tfwo = *tfwo_ptr;
+    if (!tfwo->write_ops) {
+      continue;
+    }
+    
+    // 遍历该 type -> field 的所有写入操作
+    for (unsigned int j = 0; j < tfwo->write_ops->length(); ++j) {
+      FieldWriteCapture* capture = (*tfwo->write_ops)[j];
+      if (!capture) {
+        continue;
+      }
+      
+      // 提取来源信息
+      processed_count++;
+      
+      tree rhs = capture->rhs;
+      gimple* stmt = capture->stmt;
+      location_t location = capture->location;
+      
+      FieldSourceInfo* source_info = NULL;
+      ArrayDetectErrorCode extract_result = extractSourceFromRhs(
+        detector, AD_ARGS, rhs, stmt, location, &source_info);
+      
+      if (extract_result == OK && source_info) {
+        // 将来源信息存储到 FieldWriteCapture 的 next 字段中
+        capture->next = source_info;
+        source_extracted_count++;
         
-        // 只处理赋值语句
-        if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-          continue;
-        }
-        
-        tree lhs = gimple_assign_lhs(stmt);
-        tree rhs = gimple_assign_rhs1(stmt);
-        
-        // 检查左值是否是字段访问
-        tree field_decl = NULL_TREE;
-        tree object = NULL_TREE;
-        bool is_field_access0;
-        AD_TRY(gcc_ext_util::is_field_access(AD_ARGS, lhs, &field_decl, &object, is_field_access0));
-        
-        if (!is_field_access0 || !field_decl || !object) {
-          continue;
-        }
-        
-        // 获取包含类型
-        tree object_type = TREE_TYPE(object);
-        if (!object_type) {
-          continue;
-        }
-        
-        // 处理引用和指针类型
-        if (TREE_CODE(object_type) == REFERENCE_TYPE) {
-          object_type = TREE_TYPE(object_type);
-          if (!object_type) {
-            continue;
-          }
-        }
-        if (TREE_CODE(object_type) == POINTER_TYPE) {
-          object_type = TREE_TYPE(object_type);
-          if (!object_type) {
-            continue;
-          }
-        }
-        
-        tree containing_type = TYPE_MAIN_VARIANT(object_type);
-        if (!containing_type) {
-          continue;
-        }
-        
-        // 从 hash_map 中查找对应的写入操作列表
-        TypeFieldKey key;
-        key.type = containing_type;
-        key.field_decl = field_decl;
-        
-        TypeFieldWriteOps** tfwo_ptr = detector.m_type_field_writes->get(key);
-        if (!tfwo_ptr || !*tfwo_ptr) {
-          continue;
-        }
-        
-        TypeFieldWriteOps* tfwo = *tfwo_ptr;
-        if (!tfwo->write_ops) {
-          continue;
-        }
-        
-        // 查找匹配的 FieldWriteCapture（通过 stmt 匹配）
-        for (unsigned int i = 0; i < tfwo->write_ops->length(); ++i) {
-          FieldWriteCapture* capture = (*tfwo->write_ops)[i];
-          if (!capture || capture->stmt != stmt) {
-            continue;
-          }
-          
-          // 找到匹配的写入操作，提取来源信息
-          processed_count++;
-          
-          // 提取来源信息
-          FieldSourceInfo* source_info = NULL;
-          ArrayDetectErrorCode extract_result = extractSourceFromRhs(
-            detector, AD_ARGS, rhs, stmt, gimple_location(stmt), &source_info);
-          
-          if (extract_result == OK && source_info) {
-            // 将来源信息存储到 FieldWriteCapture 的 next 字段中
-            capture->next = source_info;
-            source_extracted_count++;
-            
-            AD_DEBUG_PRINT("Extracted source for field write: type=%p, field=%p, source_type=%d",
-                          (void*)containing_type, (void*)field_decl, source_info->source_type);
-          }
-          
-          break; // 找到匹配的写入操作后退出循环
-        }
+        AD_DEBUG_PRINT("Extracted source for field write: type=%p, field=%p, source_type=%d",
+                      (void*)key.type, (void*)key.field_decl, source_info->source_type);
       }
     }
   }

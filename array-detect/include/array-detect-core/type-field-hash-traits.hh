@@ -24,6 +24,7 @@ template<>
 struct default_hash_traits<array_detector::TypeFieldKey> {
   typedef array_detector::TypeFieldKey value_type;
   typedef array_detector::TypeFieldKey key_type;
+  typedef array_detector::TypeFieldKey compare_type;  // hash_set 需要 compare_type
   static const bool empty_zero_p = false;  // 空值不能为零（因为 tree 指针可能为 NULL_TREE）
   
   static hashval_t hash(array_detector::TypeFieldKey const &key) {

@@ -77,6 +77,10 @@ struct ArrayDetector {
   // 使用 hash_map 提供 O(1) 的查找性能，而不是 vec 的 O(n) 线性查找
   // 使用 TypeFieldHashMapTraits 提供 hash 和 equal 函数
   hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* m_type_field_writes; // 使用指针类型，延迟初始化
+  
+  // 键列表：存储所有 hash_map 中的键，用于遍历（GCC hash_map 不支持直接遍历）
+  // 在收集阶段，每次向 hash_map 添加条目时，同时将键添加到这个 vec 中
+  vec<TypeFieldKey>* m_type_field_keys; // 使用指针类型，延迟初始化
 
 };
 
