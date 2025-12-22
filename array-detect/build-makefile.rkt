@@ -13,7 +13,7 @@
 (define output-so-path (build-path out-dir "plugin-array-detect.dylib"))
 
 ;; New modular structure
-(define modules '("array-detect-core" "array-detect-collection" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis" "array-detect-pipeline"))
+(define modules '("array-detect-core" "array-detect-collection" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis" "array-detect-pipeline" "array-detect-write-trace"))
 (define s "src")
 (define i "include")
 (define c "config")
@@ -63,6 +63,8 @@
   ,(path->string (build-path "include/array-detect-field-analysis"))
   "-I"
   ,(path->string (build-path "include/array-detect-pipeline"))
+  "-I"
+  ,(path->string (build-path "include/array-detect-write-trace"))
   "-undefined" "dynamic_lookup"
   "-Wall"
   "-Wextra"
@@ -194,6 +196,7 @@
   (for ([m modules])
     (printf "\tmkdir -p ~a~n" (build-path object-dir m))
   )
+  (printf "\tmkdir -p ~a~n" (build-path object-dir "array-detect-write-trace"))
   (printf "\tmkdir -p ~a~n" (build-path out-dir))
   (printf "~n")
 )

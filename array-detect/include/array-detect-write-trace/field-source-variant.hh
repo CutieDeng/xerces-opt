@@ -1,0 +1,145 @@
+#pragma once
+
+#include "gcc-common.hh"
+#include "prelude.hh"
+#include "analysis-data.hh"
+
+namespace array_detector {
+
+using namespace ::array_detect_ns;
+
+// ============================================================================
+// 字段来源信息 Variant 类型（不使用 C++ variant）
+// ============================================================================
+// 使用 union + enum 实现类似 variant 的功能
+// ============================================================================
+
+// 字段来源类型枚举
+enum FieldSourceType {
+  SOURCE_UNKNOWN,        // 未知来源
+  SOURCE_FUNCTION_CALL,  // 函数调用（包括虚函数、直接调用、间接调用）
+  SOURCE_VARIABLE,       // 变量（SSA_NAME）
+  SOURCE_CONSTANT,       // 常量
+  SOURCE_COMPUTATION     // 计算表达式
+};
+
+// 函数调用来源信息
+struct FunctionCallSource {
+  gimple* call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
+  CallType call_type;          // 调用类型（CALL_VIRTUAL, CALL_DIRECT, CALL_INDIRECT, CALL_UNKNOWN）
+  const char* function_name;   // 函数名（mangled，ggc_strdup 分配）
+  tree return_value_ssa;       // 返回值的 SSA_NAME（GCC 内部管理）
+  const char* signature;       // 调用签名（ggc_strdup 分配）
+  location_t location;         // 调用位置（GCC 内部管理）
+};
+
+// 变量来源信息
+struct VariableSource {
+  tree ssa_name;               // SSA_NAME（GCC 内部管理）
+  tree var_decl;               // 变量声明（VAR_DECL，GCC 内部管理，可能为 NULL）
+  const char* var_name;        // 变量名（ggc_strdup 分配，可能为 NULL）
+  location_t location;         // 变量定义位置（GCC 内部管理）
+};
+
+// 常量来源信息
+struct ConstantSource {
+  tree constant_value;         // 常量值（CONSTANT_CLASS_P，GCC 内部管理）
+  const char* constant_str;    // 常量字符串表示（ggc_strdup 分配，用于调试）
+};
+
+// 计算表达式来源信息
+struct ComputationSource {
+  gimple* compute_stmt;         // 计算语句（GIMPLE_ASSIGN，GCC 内部管理）
+  tree compute_expr;           // 计算表达式（GCC 内部管理）
+  const char* description;     // 计算描述（ggc_strdup 分配）
+  location_t location;         // 计算位置（GCC 内部管理）
+};
+
+// 字段来源信息 Variant（使用 union 实现）
+struct FieldSourceInfo {
+  FieldSourceType source_type;  // 来源类型（discriminator）
+  union {
+    FunctionCallSource function_call;  // 函数调用来源
+    VariableSource variable;           // 变量来源
+    ConstantSource constant;           // 常量来源
+    ComputationSource computation;    // 计算来源
+  } data;
+};
+
+// ============================================================================
+// Variant 访问宏（安全访问，参考 CallMatchResult 的模式）
+// ============================================================================
+
+// 检查来源类型
+#define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == SOURCE_FUNCTION_CALL)
+#define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == SOURCE_VARIABLE)
+#define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == SOURCE_CONSTANT)
+#define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == SOURCE_COMPUTATION)
+#define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == SOURCE_UNKNOWN)
+
+// 安全访问函数调用来源
+#define FIELD_SOURCE_GET_FUNCTION_CALL(src) \
+  (FIELD_SOURCE_IS_FUNCTION_CALL(src) ? &((src).data.function_call) : nullptr)
+
+// 安全访问变量来源
+#define FIELD_SOURCE_GET_VARIABLE(src) \
+  (FIELD_SOURCE_IS_VARIABLE(src) ? &((src).data.variable) : nullptr)
+
+// 安全访问常量来源
+#define FIELD_SOURCE_GET_CONSTANT(src) \
+  (FIELD_SOURCE_IS_CONSTANT(src) ? &((src).data.constant) : nullptr)
+
+// 安全访问计算来源
+#define FIELD_SOURCE_GET_COMPUTATION(src) \
+  (FIELD_SOURCE_IS_COMPUTATION(src) ? &((src).data.computation) : nullptr)
+
+// ============================================================================
+// Variant 模式匹配宏（类似 Rust 的 if let，使用引用）
+// ============================================================================
+// 用法：
+//   LET_SOURCE_FUNCTION_CALL(func_call, source_info) {
+//     // 使用 func_call，类型为 FunctionCallSource&
+//     AD_DEBUG_PRINT("Function: %s", func_call.function_name);
+//   } END_LET()
+// 
+// 展开为：
+//   if (FIELD_SOURCE_IS_FUNCTION_CALL(source_info)) {
+//     FunctionCallSource& func_call = source_info.data.function_call;
+//     // 使用 func_call
+//   }
+// ============================================================================
+
+// 函数调用来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_FUNCTION_CALL(VAR, SRC) \
+  if (FIELD_SOURCE_IS_FUNCTION_CALL(SRC)) { \
+    FunctionCallSource& VAR = (SRC).data.function_call;
+
+// 变量来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_VARIABLE(VAR, SRC) \
+  if (FIELD_SOURCE_IS_VARIABLE(SRC)) { \
+    VariableSource& VAR = (SRC).data.variable;
+
+// 常量来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_CONSTANT(VAR, SRC) \
+  if (FIELD_SOURCE_IS_CONSTANT(SRC)) { \
+    ConstantSource& VAR = (SRC).data.constant;
+
+// 计算来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_COMPUTATION(VAR, SRC) \
+  if (FIELD_SOURCE_IS_COMPUTATION(SRC)) { \
+    ComputationSource& VAR = (SRC).data.computation;
+
+// 结束模式匹配块
+// 展开为：}
+#define END_LET() \
+  }
+
+} // namespace array_detector

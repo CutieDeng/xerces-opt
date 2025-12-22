@@ -1,6 +1,6 @@
 #include "pipeline.hh"
 #include "field-write-collector.hh"
-#include "field-assignment-tracer.hh"
+#include "write-operation-trace.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
