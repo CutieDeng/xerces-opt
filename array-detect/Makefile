@@ -1,89 +1,74 @@
 out/plugin-array-detect.dylib:
-	/opt/homebrew/bin/g++-15 "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "obj/array-detect-core/array-detector-driver.o" "obj/array-detect-core/array-detector.o" "obj/array-detect-core/type-field-hash.o" "obj/array-detect-core/virtual-call-analysis.o" "obj/array-detect-context/address-resolver.o" "obj/array-detect-context/array-detect-context-gcc.o" "obj/array-detect-context/context-init.o" "obj/array-detect-context/context.o" "obj/array-detect-context/state.o" "obj/array-detect-gcc/context-init-gcc.o" "obj/array-detect-gcc/gcc-ext-util.o" "obj/array-detect-gcc/plugin-top.o" "obj/array-detect-utils/info-print.o" "obj/array-detect-field-analysis/field-analysis-integration.o" "obj/array-detect-field-analysis/field-analysis-main.o" "obj/array-detect-field-analysis/field-dataflow-analysis.o" "obj/array-detect-field-analysis/field-escape-analysis.o" "obj/array-detect-field-analysis/field-owner-analysis.o" "obj/array-detect-field-analysis/field-source-analysis.o" "obj/array-detect-field-analysis/field-write-analysis.o" "obj/array-detect-pipeline/pipeline.o" -o "out/plugin-array-detect.dylib"
-
-obj/array-detect-core/array-detector-driver.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/array-detector-driver.cc" -o "obj/array-detect-core/array-detector-driver.o"
+	/opt/homebrew/bin/g++-15 "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "obj/array-detect-core/array-detector.o" "obj/array-detect-core/field-assignment-debugger.o" "obj/array-detect-core/field-assignment-tracer.o" "obj/array-detect-core/type-field-hash.o" "obj/array-detect-core/virtual-call-analysis.o" "obj/array-detect-collection/field-write-collector.o" "obj/array-detect-context/address-resolver.o" "obj/array-detect-context/array-detect-context-gcc.o" "obj/array-detect-context/context-init.o" "obj/array-detect-context/context.o" "obj/array-detect-context/state.o" "obj/array-detect-gcc/context-init-gcc.o" "obj/array-detect-gcc/gcc-ext-util.o" "obj/array-detect-gcc/plugin-top.o" "obj/array-detect-utils/info-print.o" "obj/array-detect-field-analysis/field-analysis-integration.o" "obj/array-detect-field-analysis/field-analysis-main.o" "obj/array-detect-field-analysis/field-dataflow-analysis.o" "obj/array-detect-field-analysis/field-escape-analysis.o" "obj/array-detect-field-analysis/field-owner-analysis.o" "obj/array-detect-field-analysis/field-source-analysis.o" "obj/array-detect-field-analysis/field-write-analysis.o" "obj/array-detect-pipeline/pipeline.o" -o "out/plugin-array-detect.dylib"
 
 obj/array-detect-core/array-detector.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/array-detector.cc" -o "obj/array-detect-core/array-detector.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/array-detector.cc" -o "obj/array-detect-core/array-detector.o"
+
+obj/array-detect-core/field-assignment-debugger.o:
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/field-assignment-debugger.cc" -o "obj/array-detect-core/field-assignment-debugger.o"
+
+obj/array-detect-core/field-assignment-tracer.o:
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/field-assignment-tracer.cc" -o "obj/array-detect-core/field-assignment-tracer.o"
 
 obj/array-detect-core/type-field-hash.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/type-field-hash.cc" -o "obj/array-detect-core/type-field-hash.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/type-field-hash.cc" -o "obj/array-detect-core/type-field-hash.o"
 
 obj/array-detect-core/virtual-call-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/virtual-call-analysis.cc" -o "obj/array-detect-core/virtual-call-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-core/virtual-call-analysis.cc" -o "obj/array-detect-core/virtual-call-analysis.o"
+
+obj/array-detect-collection/field-write-collector.o:
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-collection/field-write-collector.cc" -o "obj/array-detect-collection/field-write-collector.o"
 
 obj/array-detect-context/address-resolver.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/address-resolver.cc" -o "obj/array-detect-context/address-resolver.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/address-resolver.cc" -o "obj/array-detect-context/address-resolver.o"
 
 obj/array-detect-context/array-detect-context-gcc.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/array-detect-context-gcc.cc" -o "obj/array-detect-context/array-detect-context-gcc.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/array-detect-context-gcc.cc" -o "obj/array-detect-context/array-detect-context-gcc.o"
 
 obj/array-detect-context/context-init.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/context-init.cc" -o "obj/array-detect-context/context-init.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/context-init.cc" -o "obj/array-detect-context/context-init.o"
 
 obj/array-detect-context/context.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/context.cc" -o "obj/array-detect-context/context.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/context.cc" -o "obj/array-detect-context/context.o"
 
 obj/array-detect-context/state.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/state.cc" -o "obj/array-detect-context/state.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-context/state.cc" -o "obj/array-detect-context/state.o"
 
 obj/array-detect-gcc/context-init-gcc.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/context-init-gcc.cc" -o "obj/array-detect-gcc/context-init-gcc.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/context-init-gcc.cc" -o "obj/array-detect-gcc/context-init-gcc.o"
 
 obj/array-detect-gcc/gcc-ext-util.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/gcc-ext-util.cc" -o "obj/array-detect-gcc/gcc-ext-util.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/gcc-ext-util.cc" -o "obj/array-detect-gcc/gcc-ext-util.o"
 
 obj/array-detect-gcc/plugin-top.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/plugin-top.cc" -o "obj/array-detect-gcc/plugin-top.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-gcc/plugin-top.cc" -o "obj/array-detect-gcc/plugin-top.o"
 
 obj/array-detect-utils/info-print.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-utils/info-print.cc" -o "obj/array-detect-utils/info-print.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-utils/info-print.cc" -o "obj/array-detect-utils/info-print.o"
 
 obj/array-detect-field-analysis/field-analysis-integration.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-analysis-integration.cc" -o "obj/array-detect-field-analysis/field-analysis-integration.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-analysis-integration.cc" -o "obj/array-detect-field-analysis/field-analysis-integration.o"
 
 obj/array-detect-field-analysis/field-analysis-main.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-analysis-main.cc" -o "obj/array-detect-field-analysis/field-analysis-main.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-analysis-main.cc" -o "obj/array-detect-field-analysis/field-analysis-main.o"
 
 obj/array-detect-field-analysis/field-dataflow-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-dataflow-analysis.cc" -o "obj/array-detect-field-analysis/field-dataflow-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-dataflow-analysis.cc" -o "obj/array-detect-field-analysis/field-dataflow-analysis.o"
 
 obj/array-detect-field-analysis/field-escape-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-escape-analysis.cc" -o "obj/array-detect-field-analysis/field-escape-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-escape-analysis.cc" -o "obj/array-detect-field-analysis/field-escape-analysis.o"
 
 obj/array-detect-field-analysis/field-owner-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-owner-analysis.cc" -o "obj/array-detect-field-analysis/field-owner-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-owner-analysis.cc" -o "obj/array-detect-field-analysis/field-owner-analysis.o"
 
 obj/array-detect-field-analysis/field-source-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-source-analysis.cc" -o "obj/array-detect-field-analysis/field-source-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-source-analysis.cc" -o "obj/array-detect-field-analysis/field-source-analysis.o"
 
 obj/array-detect-field-analysis/field-write-analysis.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-write-analysis.cc" -o "obj/array-detect-field-analysis/field-write-analysis.o"
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-field-analysis/field-write-analysis.cc" -o "obj/array-detect-field-analysis/field-write-analysis.o"
 
 obj/array-detect-pipeline/pipeline.o:
-	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-pipeline/pipeline.cc" -o "obj/array-detect-pipeline/pipeline.o"
-
-obj/array-detect-core/array-detector-driver.o: \
-  src/array-detect-core/array-detector-driver.cc \
-  include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh \
-  config/array-detect-state.txt \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/context.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-utils/info.hh \
-  include/array-detect-gcc/gcc-common.hh \
-  include/array-detect-result/analysis-data.hh \
-  include/array-detect-core/type-field-hash.hh \
-  include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh \
-  include/array-detect-context/context-init.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
-  include/array-detect-gcc/gcc-ext-util.hh \
-  include/array-detect-field-analysis/field-analysis-main.hh \
+	/opt/homebrew/bin/g++-15 -c "-fPIC" "-fno-rtti" "-shared" "-I" "config" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin" "-I" "/opt/homebrew/Cellar/gcc/15.2.0/bin/../lib/gcc/current/gcc/aarch64-apple-darwin25/15/plugin/include" "-I" "include/array-detect-core" "-I" "include/array-detect-collection" "-I" "include/array-detect-context" "-I" "include/array-detect-gcc" "-I" "include/array-detect-utils" "-I" "include/array-detect-result" "-I" "include/array-detect-field-analysis" "-I" "include/array-detect-pipeline" "-undefined" "dynamic_lookup" "-Wall" "-Wextra" "-std=c++17" "-g" "-O2" "-L/opt/homebrew/Cellar/gmp/6.3.0/lib" "-lgmp" "-I/opt/homebrew/Cellar/gmp/6.3.0/include" "-I" "/opt/homebrew/opt/libmpc/include" "-L" "/opt/homebrew/opt/libmpc/lib" "-I" "/opt/homebrew/opt/mpfr/include" "-L" "/opt/homebrew/opt/mpfr/lib" "src/array-detect-pipeline/pipeline.cc" -o "obj/array-detect-pipeline/pipeline.o"
 
 obj/array-detect-core/array-detector.o: \
   src/array-detect-core/array-detector.cc \
@@ -92,14 +77,52 @@ obj/array-detect-core/array-detector.o: \
   include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-core/array-detector-driver.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-gcc/gcc-common.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+
+obj/array-detect-core/field-assignment-debugger.o: \
+  src/array-detect-core/field-assignment-debugger.cc \
+  include/array-detect-utils/prelude.hh \
+  include/array-detect-context/state.hh \
+  config/array-detect-state.txt \
+  include/array-detect-core/field-assignment-debugger.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
   include/array-detect-gcc/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-gcc/gcc-ext-util.hh \
+  include/array-detect-context/context-init.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
+
+obj/array-detect-core/field-assignment-tracer.o: \
+  src/array-detect-core/field-assignment-tracer.cc \
+  include/array-detect-utils/prelude.hh \
+  include/array-detect-context/state.hh \
+  config/array-detect-state.txt \
+  include/array-detect-core/field-assignment-tracer.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-core/array-detector.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-gcc/gcc-common.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-field-analysis/field-analysis-main.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
 
 obj/array-detect-core/type-field-hash.o: \
   src/array-detect-core/type-field-hash.cc \
@@ -110,9 +133,8 @@ obj/array-detect-core/type-field-hash.o: \
   include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
@@ -129,13 +151,24 @@ obj/array-detect-core/virtual-call-analysis.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
+
+obj/array-detect-collection/field-write-collector.o: \
+  src/array-detect-collection/field-write-collector.cc \
+  include/array-detect-utils/prelude.hh \
+  include/array-detect-context/state.hh \
+  config/array-detect-state.txt \
+  include/array-detect-collection/field-write-collector.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-gcc/gcc-common.hh \
+  include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-gcc/gcc-ext-util.hh \
 
 obj/array-detect-context/address-resolver.o: \
   src/array-detect-context/address-resolver.cc \
@@ -199,10 +232,9 @@ obj/array-detect-gcc/gcc-ext-util.o: \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
   include/array-detect-context/context.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-core/array-detector.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
@@ -219,9 +251,8 @@ obj/array-detect-gcc/plugin-top.o: \
   include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
@@ -234,14 +265,13 @@ obj/array-detect-utils/info-print.o: \
   src/array-detect-utils/info-print.cc \
   include/array-detect-utils/info-print.hh \
   include/array-detect-utils/prelude.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
   include/array-detect-gcc/gcc-common.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
@@ -259,9 +289,8 @@ obj/array-detect-field-analysis/field-analysis-integration.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
@@ -283,14 +312,13 @@ obj/array-detect-field-analysis/field-analysis-main.o: \
   config/array-detect-state.txt \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
+  include/array-detect-field-analysis/field-analysis-integration.hh \
   include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
-  include/array-detect-field-analysis/field-analysis-integration.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
 
 obj/array-detect-field-analysis/field-dataflow-analysis.o: \
@@ -305,13 +333,7 @@ obj/array-detect-field-analysis/field-dataflow-analysis.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
-  include/array-detect-utils/info.hh \
-  include/array-detect-core/type-field-hash.hh \
-  include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh \
 
 obj/array-detect-field-analysis/field-escape-analysis.o: \
   src/array-detect-field-analysis/field-escape-analysis.cc \
@@ -325,13 +347,7 @@ obj/array-detect-field-analysis/field-escape-analysis.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
-  include/array-detect-utils/info.hh \
-  include/array-detect-core/type-field-hash.hh \
-  include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh \
 
 obj/array-detect-field-analysis/field-owner-analysis.o: \
   src/array-detect-field-analysis/field-owner-analysis.cc \
@@ -370,9 +386,8 @@ obj/array-detect-field-analysis/field-write-analysis.o: \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
@@ -385,9 +400,10 @@ obj/array-detect-pipeline/pipeline.o: \
   include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-core/array-detector-driver.hh \
+  include/array-detect-collection/field-write-collector.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-core/field-assignment-tracer.hh \
+  include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
   include/array-detect-gcc/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
@@ -395,11 +411,8 @@ obj/array-detect-pipeline/pipeline.o: \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-utils/info-print.hh \
-  include/array-detect-field-analysis/field-analysis-main.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
 
-out/plugin-array-detect.dylib: obj/array-detect-core/array-detector-driver.o obj/array-detect-core/array-detector.o obj/array-detect-core/type-field-hash.o obj/array-detect-core/virtual-call-analysis.o obj/array-detect-context/address-resolver.o obj/array-detect-context/array-detect-context-gcc.o obj/array-detect-context/context-init.o obj/array-detect-context/context.o obj/array-detect-context/state.o obj/array-detect-gcc/context-init-gcc.o obj/array-detect-gcc/gcc-ext-util.o obj/array-detect-gcc/plugin-top.o obj/array-detect-utils/info-print.o obj/array-detect-field-analysis/field-analysis-integration.o obj/array-detect-field-analysis/field-analysis-main.o obj/array-detect-field-analysis/field-dataflow-analysis.o obj/array-detect-field-analysis/field-escape-analysis.o obj/array-detect-field-analysis/field-owner-analysis.o obj/array-detect-field-analysis/field-source-analysis.o obj/array-detect-field-analysis/field-write-analysis.o obj/array-detect-pipeline/pipeline.o
+out/plugin-array-detect.dylib: obj/array-detect-core/array-detector.o obj/array-detect-core/field-assignment-debugger.o obj/array-detect-core/field-assignment-tracer.o obj/array-detect-core/type-field-hash.o obj/array-detect-core/virtual-call-analysis.o obj/array-detect-collection/field-write-collector.o obj/array-detect-context/address-resolver.o obj/array-detect-context/array-detect-context-gcc.o obj/array-detect-context/context-init.o obj/array-detect-context/context.o obj/array-detect-context/state.o obj/array-detect-gcc/context-init-gcc.o obj/array-detect-gcc/gcc-ext-util.o obj/array-detect-gcc/plugin-top.o obj/array-detect-utils/info-print.o obj/array-detect-field-analysis/field-analysis-integration.o obj/array-detect-field-analysis/field-analysis-main.o obj/array-detect-field-analysis/field-dataflow-analysis.o obj/array-detect-field-analysis/field-escape-analysis.o obj/array-detect-field-analysis/field-owner-analysis.o obj/array-detect-field-analysis/field-source-analysis.o obj/array-detect-field-analysis/field-write-analysis.o obj/array-detect-pipeline/pipeline.o
 
 clean:
 	rm -rv obj/*
@@ -410,6 +423,7 @@ test: out/plugin-array-detect.dylib
 
 prepare:
 	mkdir -p obj/array-detect-core
+	mkdir -p obj/array-detect-collection
 	mkdir -p obj/array-detect-context
 	mkdir -p obj/array-detect-gcc
 	mkdir -p obj/array-detect-utils

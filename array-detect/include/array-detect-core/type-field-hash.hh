@@ -38,11 +38,11 @@ struct TypeFieldKey;
 // TypeFieldKey 的哈希函数（普通函数，不使用成员函数）
 // 输入：key - 类型字段键的指针
 // 返回：哈希值（size_t）
-size_t hash_type_field_key(TypeFieldKey const *key);
+size_t hashTypeFieldKey(TypeFieldKey const *key);
 
 // TypeFieldKey 的相等比较函数（普通函数）
 // 输入：key1, key2 - 两个类型字段键的指针
 // 返回：是否相等（bool）
-bool equal_type_field_key(TypeFieldKey const *key1, TypeFieldKey const *key2);
+bool equalTypeFieldKey(TypeFieldKey const *key1, TypeFieldKey const *key2);
 
 } // namespace array_detector

@@ -5,7 +5,7 @@ namespace array_detector {
 
 // TypeFieldKey 的哈希函数实现
 // GCC 的 tree 类型本质是指针，可以直接使用指针值进行哈希
-size_t hash_type_field_key(TypeFieldKey const *key) {
+size_t hashTypeFieldKey(TypeFieldKey const *key) {
   if (!key) {
     return 0;
   }
@@ -19,7 +19,7 @@ size_t hash_type_field_key(TypeFieldKey const *key) {
 }
 
 // TypeFieldKey 的相等比较函数实现
-bool equal_type_field_key(TypeFieldKey const *key1, TypeFieldKey const *key2) {
+bool equalTypeFieldKey(TypeFieldKey const *key1, TypeFieldKey const *key2) {
   if (!key1 || !key2) {
     return key1 == key2;
   }

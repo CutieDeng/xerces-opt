@@ -3,9 +3,14 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"
-#include "array-detector.hh"
+
+namespace array_detector {
+  class ArrayDetector;
+}
 
 namespace array_detect_ns {
+
+using array_detector::ArrayDetector;
 
 // ============================================================================
 // Array Detection Pipeline

@@ -1,4 +1,7 @@
 #include "info-print.hh"
+#include "array-detector.hh"
+
+using array_detector::ArrayDetector;
 
 // ----------------------------------------------------------------------------
 // printResults 函数（需要在 ArrayDetector 定义之后）

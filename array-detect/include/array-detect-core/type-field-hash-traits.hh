@@ -5,8 +5,8 @@
 // 前向声明
 namespace array_detector {
   struct TypeFieldKey;
-  size_t hash_type_field_key(TypeFieldKey const *key);
-  bool equal_type_field_key(TypeFieldKey const *key1, TypeFieldKey const *key2);
+  size_t hashTypeFieldKey(TypeFieldKey const *key);
+  bool equalTypeFieldKey(TypeFieldKey const *key1, TypeFieldKey const *key2);
 }
 
 // 需要包含完整的 TypeFieldKey 定义（在 array-detector.hh 中）
@@ -27,19 +27,19 @@ struct default_hash_traits<array_detector::TypeFieldKey> {
   static const bool empty_zero_p = false;  // 空值不能为零（因为 tree 指针可能为 NULL_TREE）
   
   static hashval_t hash(array_detector::TypeFieldKey const &key) {
-    return (hashval_t)array_detector::hash_type_field_key(&key);
+    return (hashval_t)array_detector::hashTypeFieldKey(&key);
   }
   
   // 根据 GCC hash_map 的实现，hash_entry 使用 Traits::equal_keys 进行比较
   // 但 default_hash_traits 可能使用 equal 方法
   // 为了兼容，我们同时提供 equal 和 equal_keys
   static bool equal(array_detector::TypeFieldKey const &key1, array_detector::TypeFieldKey const &key2) {
-    return array_detector::equal_type_field_key(&key1, &key2);
+    return array_detector::equalTypeFieldKey(&key1, &key2);
   }
   
   // 如果 hash_map 使用 equal_keys，提供这个方法
   static bool equal_keys(array_detector::TypeFieldKey const &key1, array_detector::TypeFieldKey const &key2) {
-    return array_detector::equal_type_field_key(&key1, &key2);
+    return array_detector::equalTypeFieldKey(&key1, &key2);
   }
   
   static void remove(array_detector::TypeFieldKey &key) {

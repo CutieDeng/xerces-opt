@@ -6,9 +6,14 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "analysis-data.hh"
-#include "array-detector.hh"
+
+namespace array_detector {
+  class ArrayDetector;
+}
 
 namespace array_detect_ns {
+
+using array_detector::ArrayDetector;
 
 // ============================================================================
 // 主分析入口

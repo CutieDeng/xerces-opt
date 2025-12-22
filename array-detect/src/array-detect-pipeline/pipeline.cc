@@ -1,8 +1,8 @@
 #include "pipeline.hh"
-#include "array-detector-driver.hh"
+#include "field-write-collector.hh"
+#include "field-assignment-tracer.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
-#include "field-analysis-main.hh"
 
 namespace array_detect_ns {
 
@@ -17,7 +17,7 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
   AD_DEBUG_PRINT("=== Starting Array Detection Pipeline ===");
   
   // 第一步：提取字段信息
-  // 遍历所有函数，提取类型和字段信息，填充 detector.m_fields
+  // 遍历所有函数，提取类型和字段信息，填充 detector.m_type_field_writes
   AD_DEBUG_PRINT("Step 1: Extracting field information");
   AD_TRY(collectTypesAndFields(detector, AD_ARGS));
   

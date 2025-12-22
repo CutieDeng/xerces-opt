@@ -383,21 +383,33 @@ void getCurrentFrameInfo(AD_FUNC_ARGS, CurrentFrameInfo& info) {
     return;
   }
   
-  // 使用静态缓冲区存储解析结果（避免在结构体中存储临时数据）
-  static char demangle_buffer[512];
-  static char file_buffer[512];
-  static char func_buffer[512];
+  // 使用上下文缓冲区存储解析结果
+  // demangle_buffer 使用 address_format_buffer
+  // file_buffer 和 func_buffer 使用 source_line_buffer 的前后两部分
+  if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0 ||
+      !ctx.source_line_buffer || ctx.source_line_buffer_size < 1024) {
+    info.is_valid = false;
+    return;
+  }
+  
+  char* demangle_buffer = ctx.address_format_buffer;
+  size_t demangle_buffer_size = ctx.address_format_buffer_size;
+  
+  // 将 source_line_buffer 分成两部分：file_buffer 和 func_buffer
+  size_t half_size = ctx.source_line_buffer_size / 2;
+  char* file_buffer = ctx.source_line_buffer;
+  char* func_buffer = ctx.source_line_buffer + half_size;
   
   // 获取符号信息
   Dl_info dl_info;
   if (dladdr((void*)info.frame_address, &dl_info) && dl_info.dli_sname) {
     // 解析函数名
-    info.demangled_name = demangle_name(dl_info.dli_sname, demangle_buffer, sizeof(demangle_buffer));
+    info.demangled_name = demangle_name(dl_info.dli_sname, demangle_buffer, demangle_buffer_size);
     
     // 尝试获取源码位置
     unsigned int line = 0;
-    bool has_source = get_source_location_from_addr(info.frame_address, file_buffer, sizeof(file_buffer),
-                                                      &line, func_buffer, sizeof(func_buffer));
+    bool has_source = get_source_location_from_addr(info.frame_address, file_buffer, half_size,
+                                                      &line, func_buffer, half_size);
     
     if (has_source && line > 0) {
       info.source_file = file_buffer;
@@ -477,21 +489,33 @@ void printAllStackFramesInfo(AD_FUNC_ARGS) {
     
     // 使用辅助缓冲区进行解析
     if (ctx.source_location_buffer && ctx.source_location_buffer_size > 0) {
-      // 使用静态缓冲区存储解析结果
-      static char demangle_buffer[512];
-      static char file_buffer[512];
-      static char func_buffer[512];
+      // 使用上下文缓冲区存储解析结果
+      // demangle_buffer 使用 address_format_buffer
+      // file_buffer 和 func_buffer 使用 source_line_buffer 的前后两部分
+      if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0 ||
+          !ctx.source_line_buffer || ctx.source_line_buffer_size < 1024) {
+        // 缓冲区不足，跳过详细解析
+        continue;
+      }
+      
+      char* demangle_buffer = ctx.address_format_buffer;
+      size_t demangle_buffer_size = ctx.address_format_buffer_size;
+      
+      // 将 source_line_buffer 分成两部分：file_buffer 和 func_buffer
+      size_t half_size = ctx.source_line_buffer_size / 2;
+      char* file_buffer = ctx.source_line_buffer;
+      char* func_buffer = ctx.source_line_buffer + half_size;
       
       // 获取符号信息
       Dl_info dl_info;
       if (dladdr((void*)frame_addr, &dl_info) && dl_info.dli_sname) {
         // 解析函数名
-        info.demangled_name = demangle_name(dl_info.dli_sname, demangle_buffer, sizeof(demangle_buffer));
+        info.demangled_name = demangle_name(dl_info.dli_sname, demangle_buffer, demangle_buffer_size);
         
         // 尝试获取源码位置
         unsigned int line = 0;
-        bool has_source = get_source_location_from_addr(frame_addr, file_buffer, sizeof(file_buffer),
-                                                          &line, func_buffer, sizeof(func_buffer));
+        bool has_source = get_source_location_from_addr(frame_addr, file_buffer, half_size,
+                                                          &line, func_buffer, half_size);
         
         if (has_source && line > 0) {
           info.source_file = file_buffer;
