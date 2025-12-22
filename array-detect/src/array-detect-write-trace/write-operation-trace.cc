@@ -80,11 +80,11 @@ ArrayDetectErrorCode extractSourceFromCall(
   
   // 提取调用签名
   const char* signature;
-  if (array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature) == OK && signature) {
-    call_source->signature = ggc_strdup(signature);
-  } else {
-    call_source->signature = NULL;
+  AD_TRY(array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature));
+  if (!signature) {
+    AD_RETURNE(GCC_LOGIC_ERROR);
   }
+  call_source->signature = ggc_strdup(signature);
   
   *out_source_info = source_info;
   AD_RETURNE(OK);
@@ -135,86 +135,97 @@ ArrayDetectErrorCode extractSourceFromVariable(
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 
-// 追踪 SSA_NAME 的定义链，跳过简单赋值，直到找到真正的来源
-// 输入：ssa_name - 要追踪的 SSA_NAME
+// 可选自动缩减平凡 move 操作的分析器
+// 追踪值的定义链，跳过简单赋值（平凡 move），直到找到真正的来源
+// 输入：value - 要追踪的值（可以是任意 tree，如果是 SSA_NAME 则追踪，否则直接返回）
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
 // 输出：最终的值（可能是 SSA_NAME、常量、或其他表达式）和对应的语句
 // 输出：is_phi - 是否遇到 PHI 节点（因分支导致的来源不明）
 // 注意：SSA 形式保证每个变量只有一个定义，不会有循环，因此不需要检查循环和深度
-static ArrayDetectErrorCode traceSsaNameDefChain(
+namespace {
+ArrayDetectErrorCode reduceTrivialMoves(
   ArrayDetector &detector,
   AD_FUNC_ARGS,
-  tree ssa_name,
+  tree value,
   tree function,
   basic_block bb,
   tree &out_final_value,
-  gimple* &out_final_stmt,
+  gimple* &out_final_stmt_nullable,
   bool &out_is_phi
 ) AD_FUNCTION_BEGIN {
   (void)detector;
-  
-  if (TREE_CODE(ssa_name) != SSA_NAME) {
-    AD_RETURNE(INVALID_ARGUMENT);
-  }
+  (void)function;
+  (void)bb;
   
   out_is_phi = false;
   
-  // 获取定义语句
-  gimple* def_stmt_nullable = SSA_NAME_DEF_STMT(ssa_name);
-  if (!def_stmt_nullable) {
-    out_final_value = ssa_name;
-    out_final_stmt = NULL;
+  // 非 SSA_NAME 直接返回
+  if (TREE_CODE(value) != SSA_NAME) {
+    out_final_value = value;
+    out_final_stmt_nullable = NULL;
     AD_RETURNE(OK);
   }
   
-  // 处理不同类型的定义语句
-  enum gimple_code code = gimple_code(def_stmt_nullable);
-  
-  if (code == GIMPLE_ASSIGN) {
-    // 赋值语句：检查是否是简单赋值（SSA_NAME = SSA_NAME）
-    tree rhs = gimple_assign_rhs1(def_stmt_nullable);
-    
-    if (TREE_CODE(rhs) == SSA_NAME) {
-      // 简单赋值，继续追踪
-      // 获取定义语句所在的基本块
-      // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
-      basic_block def_bb = gimple_bb(def_stmt_nullable);
-      if (!def_bb) {
-        AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for def_stmt in traceSsaNameDefChain");
-        AD_DEBUG_PRINT("  SSA_NAME: %p", (void*)ssa_name);
-        AD_DEBUG_PRINT("  def_stmt: %p", (void*)def_stmt_nullable);
-        AD_DEBUG_PRINT("  gimple_code: %d", (int)code);
-        AD_RETURNE(GCC_LOGIC_ERROR);
-      }
-      return traceSsaNameDefChain(detector, AD_ARGS, rhs, function, def_bb, out_final_value, out_final_stmt, out_is_phi);
-    } else {
-      // 复杂赋值，找到真正的来源
-      out_final_value = rhs;
-      out_final_stmt = def_stmt_nullable;
-      AD_RETURNE(OK);
-    }
-  } else if (code == GIMPLE_CALL) {
-    // 函数调用：在 GIMPLE 中，函数调用的返回值直接赋值给 SSA_NAME
-    // gimple_call_lhs(call_stmt) 返回这个 SSA_NAME
-    // 所以当 SSA_NAME 的定义是 GIMPLE_CALL 时，说明它来自函数调用的返回值
-    out_final_value = ssa_name;
-    out_final_stmt = def_stmt_nullable;
+  // 获取定义语句
+  // 注意：SSA_NAME_DEF_STMT 可能返回 NULL 的情况：
+  // 1. 函数参数：在 SSA 构建的某些阶段，参数可能还没有显式的定义语句
+  // 2. 默认定义：某些特殊变量（如 __builtin_unreachable 的结果）可能没有定义语句
+  // 3. SSA 构建阶段：在 SSA 构建过程中，某些变量可能暂时没有定义语句
+  // 4. 已释放的 SSA：在 SSA 释放阶段，定义语句可能已被清除
+  gimple* def_stmt = SSA_NAME_DEF_STMT(value);
+  if (!def_stmt) {
+    out_final_value = value;
+    out_final_stmt_nullable = NULL;
     AD_RETURNE(OK);
-  } else if (code == GIMPLE_PHI) {
-    // PHI 节点：多个来源的合并点（因分支导致）
-    // 记录为来源不明，不继续处理
-    out_final_value = ssa_name;
-    out_final_stmt = def_stmt_nullable;
+  }
+  
+  enum gimple_code code = gimple_code(def_stmt);
+  
+  // 处理 PHI 节点：多个来源的合并点（因分支导致），标记为来源不明
+  if (code == GIMPLE_PHI) {
+    out_final_value = value;
+    out_final_stmt_nullable = def_stmt;
     out_is_phi = true;
     AD_RETURNE(OK);
-  } else {
-    // 其他类型的语句，返回当前值
-    out_final_value = ssa_name;
-    out_final_stmt = def_stmt_nullable;
+  }
+  
+  // 处理函数调用：返回值直接赋值给 SSA_NAME
+  if (code == GIMPLE_CALL) {
+    out_final_value = value;
+    out_final_stmt_nullable = def_stmt;
     AD_RETURNE(OK);
   }
+  
+  // 处理赋值语句
+  if (code == GIMPLE_ASSIGN) {
+    tree rhs = gimple_assign_rhs1(def_stmt);
+    enum tree_code rhs_code = gimple_assign_rhs_code(def_stmt);
+    
+    // 平凡 move：RHS 是 SSA_NAME 且操作码是 NOP_EXPR（无操作），继续追踪
+    if (TREE_CODE(rhs) == SSA_NAME && rhs_code == NOP_EXPR) {
+      basic_block def_bb = gimple_bb(def_stmt);
+      if (!def_bb) {
+        AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for def_stmt in reduceTrivialMoves");
+        AD_DEBUG_PRINT("  value: %p, def_stmt: %p, gimple_code: %d", (void*)value, (void*)def_stmt, (int)code);
+        AD_RETURNE(GCC_LOGIC_ERROR);
+      }
+      AD_TRY(reduceTrivialMoves(detector, AD_ARGS, rhs, function, def_bb, out_final_value, out_final_stmt_nullable, out_is_phi));
+      AD_RETURNE(OK);
+    }
+    
+    // 非平凡赋值（类型转换、计算等），找到真正的来源
+    out_final_value = rhs;
+    out_final_stmt_nullable = def_stmt;
+    AD_RETURNE(OK);
+  }
+  
+  // 其他类型的语句，返回当前值
+  out_final_value = value;
+  out_final_stmt_nullable = def_stmt;
+  AD_RETURNE(OK);
 } AD_FUNCTION_END
+}
 
 // 从 RHS 表达式提取来源信息
 ArrayDetectErrorCode extractSourceFromRhs(
@@ -231,97 +242,43 @@ ArrayDetectErrorCode extractSourceFromRhs(
     AD_RETURNE(INVALID_ARGUMENT);
   }
   
-  // 如果是 SSA_NAME，先追踪定义链，跳过简单赋值
-  if (TREE_CODE(rhs) == SSA_NAME) {
-    tree final_value;
-    gimple* final_stmt_nullable;
-    bool is_phi = false;
-    
-    AD_TRY(traceSsaNameDefChain(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
-    
-    if (!final_value) {
-      AD_RETURNE(INVALID_ARGUMENT);
-    }
-    
-    // 如果遇到 PHI 节点，记录为来源不明
-    if (is_phi) {
-      FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-      if (!source_info) {
-        AD_RETURNE(MEMORY_ERROR);
+  // 第一步：可选自动缩减平凡 move 操作（放在数据流主路上）
+  tree final_value;
+  gimple* final_stmt_nullable;
+  bool is_phi = false;
+  
+  AD_TRY(reduceTrivialMoves(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
+  
+  if (!final_value) {
+    AD_RETURNE(INVALID_ARGUMENT);
+  }
+  
+  // 如果遇到 PHI 节点，抛出错误
+  if (is_phi) {
+    AD_RETURNE(GCC_LOGIC_ERROR);
+  }
+  
+  // 第二步：根据最终值的类型提取来源信息
+  if (TREE_CODE(final_value) == SSA_NAME) {
+    // 仍然是 SSA_NAME，检查最终语句
+    if (final_stmt_nullable && gimple_code(final_stmt_nullable) == GIMPLE_CALL) {
+      // 来自函数调用（GIMPLE_CALL 可以返回值写入 SSA_NAME）
+      // 获取调用语句所在的基本块
+      // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
+      basic_block call_bb = gimple_bb(final_stmt_nullable);
+      if (!call_bb) {
+        AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for call_stmt in extractSourceFromRhs");
+        AD_DEBUG_PRINT("  final_stmt: %p", (void*)final_stmt_nullable);
+        AD_DEBUG_PRINT("  final_value: %p", (void*)final_value);
+        AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
+        AD_RETURNE(GCC_LOGIC_ERROR);
       }
-      memset(source_info, 0, sizeof(FieldSourceInfo));
-      
-      source_info->source_type = SOURCE_UNKNOWN;
-      *out_source_info = source_info;
-      AD_RETURNE(OK);
-    }
-    
-    // 根据最终值的类型提取来源信息
-    if (TREE_CODE(final_value) == SSA_NAME) {
-      // 仍然是 SSA_NAME，检查最终语句
-      if (final_stmt_nullable && gimple_code(final_stmt_nullable) == GIMPLE_CALL) {
-        // 来自函数调用（GIMPLE_CALL 可以返回值写入 SSA_NAME）
-        // 获取调用语句所在的基本块
-        // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
-        basic_block call_bb = gimple_bb(final_stmt_nullable);
-        if (!call_bb) {
-          AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for call_stmt in extractSourceFromRhs");
-          AD_DEBUG_PRINT("  final_stmt: %p", (void*)final_stmt_nullable);
-          AD_DEBUG_PRINT("  final_value: %p", (void*)final_value);
-          AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
-          AD_RETURNE(GCC_LOGIC_ERROR);
-        }
-        return extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, out_source_info);
-      } else {
-        // 来自变量（可能是参数或其他）
-        return extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, out_source_info);
-      }
-    } else if (CONSTANT_CLASS_P(final_value)) {
-      // 常量
-      FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-      if (!source_info) {
-        AD_RETURNE(MEMORY_ERROR);
-      }
-      memset(source_info, 0, sizeof(FieldSourceInfo));
-      
-      source_info->source_type = SOURCE_CONSTANT;
-      ConstantSource* const_source = &source_info->data.constant;
-      const_source->constant_value = final_value;
-      
-      // 尝试获取常量字符串表示
-      if (TREE_CODE(final_value) == INTEGER_CST) {
-        if (ctx.address_format_buffer && ctx.address_format_buffer_size > 0) {
-          snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, 
-                   "%lld", (long long)TREE_INT_CST_LOW(final_value));
-          const_source->constant_str = ggc_strdup(ctx.address_format_buffer);
-        }
-      } else if (TREE_CODE(final_value) == STRING_CST) {
-        const_source->constant_str = ggc_strdup(TREE_STRING_POINTER(final_value));
-      } else {
-        const_source->constant_str = ggc_strdup("<constant>");
-      }
-      
-      *out_source_info = source_info;
-      AD_RETURNE(OK);
+      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, out_source_info));
     } else {
-      // 计算表达式
-      FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-      if (!source_info) {
-        AD_RETURNE(MEMORY_ERROR);
-      }
-      memset(source_info, 0, sizeof(FieldSourceInfo));
-      
-      source_info->source_type = SOURCE_COMPUTATION;
-      ComputationSource* comp_source = &source_info->data.computation;
-      comp_source->compute_stmt = final_stmt_nullable ? final_stmt_nullable : stmt;
-      comp_source->compute_expr = final_value;
-      comp_source->location = location;
-      comp_source->description = ggc_strdup("<computation>");
-      
-      *out_source_info = source_info;
-      AD_RETURNE(OK);
+      // 来自变量（可能是参数或其他）
+      AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, out_source_info));
     }
-  } else if (CONSTANT_CLASS_P(rhs)) {
+  } else if (CONSTANT_CLASS_P(final_value)) {
     // 常量
     FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
     if (!source_info) {
@@ -331,19 +288,17 @@ ArrayDetectErrorCode extractSourceFromRhs(
     
     source_info->source_type = SOURCE_CONSTANT;
     ConstantSource* const_source = &source_info->data.constant;
-    const_source->constant_value = rhs;
+    const_source->constant_value = final_value;
     
     // 尝试获取常量字符串表示
-    if (TREE_CODE(rhs) == INTEGER_CST) {
-      // 整数常量
+    if (TREE_CODE(final_value) == INTEGER_CST) {
       if (ctx.address_format_buffer && ctx.address_format_buffer_size > 0) {
         snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, 
-                 "%lld", (long long)TREE_INT_CST_LOW(rhs));
+                 "%lld", (long long)TREE_INT_CST_LOW(final_value));
         const_source->constant_str = ggc_strdup(ctx.address_format_buffer);
       }
-    } else if (TREE_CODE(rhs) == STRING_CST) {
-      // 字符串常量
-      const_source->constant_str = ggc_strdup(TREE_STRING_POINTER(rhs));
+    } else if (TREE_CODE(final_value) == STRING_CST) {
+      const_source->constant_str = ggc_strdup(TREE_STRING_POINTER(final_value));
     } else {
       const_source->constant_str = ggc_strdup("<constant>");
     }
@@ -360,8 +315,8 @@ ArrayDetectErrorCode extractSourceFromRhs(
     
     source_info->source_type = SOURCE_COMPUTATION;
     ComputationSource* comp_source = &source_info->data.computation;
-    comp_source->compute_stmt = stmt;
-    comp_source->compute_expr = rhs;
+    comp_source->compute_stmt = final_stmt_nullable ? final_stmt_nullable : stmt;
+    comp_source->compute_expr = final_value;
     comp_source->location = location;
     comp_source->description = ggc_strdup("<computation>");
     
@@ -376,8 +331,7 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
   
   // 检查 hash_map 是否已初始化
   if (!detector.m_type_field_writes) {
-    AD_DEBUG_PRINT("Warning: m_type_field_writes not initialized");
-    AD_RETURNE(OK);
+    AD_RETURNE(NOT_INITIALIZED);
   }
   
   // 直接遍历 hash_map，使用迭代器
