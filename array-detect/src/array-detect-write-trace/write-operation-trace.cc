@@ -79,9 +79,9 @@ ArrayDetectErrorCode extractSourceFromCall(
   }
   
   // 提取调用签名
-  const char* signature = NULL;
-  if (array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature) == OK && signature) {
-    call_source->signature = ggc_strdup(signature);
+  const char* signature_nullable = NULL;
+  if (array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature_nullable) == OK && signature_nullable) {
+    call_source->signature = ggc_strdup(signature_nullable);
   } else {
     call_source->signature = NULL;
   }
@@ -123,11 +123,11 @@ ArrayDetectErrorCode extractSourceFromVariable(
   var_source->location = location;
   
   // 获取变量声明
-  tree var_decl = SSA_NAME_VAR(ssa_name);
-  if (var_decl) {
-    var_source->var_decl = var_decl;
-    if (DECL_NAME(var_decl)) {
-      var_source->var_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(var_decl)));
+  tree var_decl_nullable = SSA_NAME_VAR(ssa_name);
+  if (var_decl_nullable) {
+    var_source->var_decl = var_decl_nullable;
+    if (DECL_NAME(var_decl_nullable)) {
+      var_source->var_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(var_decl_nullable)));
     }
   }
   
@@ -161,29 +161,37 @@ static ArrayDetectErrorCode traceSsaNameDefChain(
   out_is_phi = false;
   
   // 获取定义语句
-  gimple* def_stmt = SSA_NAME_DEF_STMT(ssa_name);
-  if (!def_stmt) {
+  gimple* def_stmt_nullable = SSA_NAME_DEF_STMT(ssa_name);
+  if (!def_stmt_nullable) {
     out_final_value = ssa_name;
     out_final_stmt = NULL;
     AD_RETURNE(OK);
   }
   
   // 处理不同类型的定义语句
-  enum gimple_code code = gimple_code(def_stmt);
+  enum gimple_code code = gimple_code(def_stmt_nullable);
   
   if (code == GIMPLE_ASSIGN) {
     // 赋值语句：检查是否是简单赋值（SSA_NAME = SSA_NAME）
-    tree rhs = gimple_assign_rhs1(def_stmt);
+    tree rhs = gimple_assign_rhs1(def_stmt_nullable);
     
     if (TREE_CODE(rhs) == SSA_NAME) {
       // 简单赋值，继续追踪
       // 获取定义语句所在的基本块
-      basic_block def_bb = gimple_bb(def_stmt);
-      return traceSsaNameDefChain(detector, AD_ARGS, rhs, function, def_bb ? def_bb : bb, out_final_value, out_final_stmt, out_is_phi);
+      // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
+      basic_block def_bb = gimple_bb(def_stmt_nullable);
+      if (!def_bb) {
+        AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for def_stmt in traceSsaNameDefChain");
+        AD_DEBUG_PRINT("  SSA_NAME: %p", (void*)ssa_name);
+        AD_DEBUG_PRINT("  def_stmt: %p", (void*)def_stmt_nullable);
+        AD_DEBUG_PRINT("  gimple_code: %d", (int)code);
+        AD_RETURNE(LOGICAL_ERROR);
+      }
+      return traceSsaNameDefChain(detector, AD_ARGS, rhs, function, def_bb, out_final_value, out_final_stmt, out_is_phi);
     } else {
       // 复杂赋值，找到真正的来源
       out_final_value = rhs;
-      out_final_stmt = def_stmt;
+      out_final_stmt = def_stmt_nullable;
       AD_RETURNE(OK);
     }
   } else if (code == GIMPLE_CALL) {
@@ -191,19 +199,19 @@ static ArrayDetectErrorCode traceSsaNameDefChain(
     // gimple_call_lhs(call_stmt) 返回这个 SSA_NAME
     // 所以当 SSA_NAME 的定义是 GIMPLE_CALL 时，说明它来自函数调用的返回值
     out_final_value = ssa_name;
-    out_final_stmt = def_stmt;
+    out_final_stmt = def_stmt_nullable;
     AD_RETURNE(OK);
   } else if (code == GIMPLE_PHI) {
     // PHI 节点：多个来源的合并点（因分支导致）
     // 记录为来源不明，不继续处理
     out_final_value = ssa_name;
-    out_final_stmt = def_stmt;
+    out_final_stmt = def_stmt_nullable;
     out_is_phi = true;
     AD_RETURNE(OK);
   } else {
     // 其他类型的语句，返回当前值
     out_final_value = ssa_name;
-    out_final_stmt = def_stmt;
+    out_final_stmt = def_stmt_nullable;
     AD_RETURNE(OK);
   }
 } AD_FUNCTION_END
@@ -226,10 +234,10 @@ ArrayDetectErrorCode extractSourceFromRhs(
   // 如果是 SSA_NAME，先追踪定义链，跳过简单赋值
   if (TREE_CODE(rhs) == SSA_NAME) {
     tree final_value = NULL_TREE;
-    gimple* final_stmt = NULL;
+    gimple* final_stmt_nullable = NULL;
     bool is_phi = false;
     
-    AD_TRY(traceSsaNameDefChain(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt, is_phi));
+    AD_TRY(traceSsaNameDefChain(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
     
     if (!final_value) {
       AD_RETURNE(INVALID_ARGUMENT);
@@ -251,11 +259,19 @@ ArrayDetectErrorCode extractSourceFromRhs(
     // 根据最终值的类型提取来源信息
     if (TREE_CODE(final_value) == SSA_NAME) {
       // 仍然是 SSA_NAME，检查最终语句
-      if (final_stmt && gimple_code(final_stmt) == GIMPLE_CALL) {
+      if (final_stmt_nullable && gimple_code(final_stmt_nullable) == GIMPLE_CALL) {
         // 来自函数调用（GIMPLE_CALL 可以返回值写入 SSA_NAME）
         // 获取调用语句所在的基本块
-        basic_block call_bb = gimple_bb(final_stmt);
-        return extractSourceFromCall(detector, AD_ARGS, final_stmt, final_value, function, call_bb ? call_bb : bb, out_source_info);
+        // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
+        basic_block call_bb = gimple_bb(final_stmt_nullable);
+        if (!call_bb) {
+          AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for call_stmt in extractSourceFromRhs");
+          AD_DEBUG_PRINT("  final_stmt: %p", (void*)final_stmt_nullable);
+          AD_DEBUG_PRINT("  final_value: %p", (void*)final_value);
+          AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
+          AD_RETURNE(LOGICAL_ERROR);
+        }
+        return extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, out_source_info);
       } else {
         // 来自变量（可能是参数或其他）
         return extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, out_source_info);
@@ -297,7 +313,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
       
       source_info->source_type = SOURCE_COMPUTATION;
       ComputationSource* comp_source = &source_info->data.computation;
-      comp_source->compute_stmt = final_stmt ? final_stmt : stmt;
+      comp_source->compute_stmt = final_stmt_nullable ? final_stmt_nullable : stmt;
       comp_source->compute_expr = final_value;
       comp_source->location = location;
       comp_source->description = ggc_strdup("<computation>");
@@ -373,39 +389,39 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
        iter != detector.m_type_field_writes->end();
        ++iter) {
     // iter->first 是键（TypeFieldKey），iter->second 是值（TypeFieldWriteOps*）
-    TypeFieldWriteOps* tfwo = (*iter).second;
-    if (!tfwo || !tfwo->write_ops) {
+    TypeFieldWriteOps* tfwo_nullable = (*iter).second;
+    if (!tfwo_nullable || !tfwo_nullable->write_ops) {
       continue;
     }
     
     // 遍历该 type -> field 的所有写入操作
-    for (unsigned int j = 0; j < tfwo->write_ops->length(); ++j) {
-      FieldWriteCapture* capture = (*tfwo->write_ops)[j];
-      if (!capture) {
+    for (unsigned int j = 0; j < tfwo_nullable->write_ops->length(); ++j) {
+      FieldWriteCapture* capture_nullable = (*tfwo_nullable->write_ops)[j];
+      if (!capture_nullable) {
         continue;
       }
       
       // 提取来源信息
       processed_count++;
       
-      tree rhs = capture->rhs;
-      gimple* stmt = capture->stmt;
-      location_t location = capture->location;
-      tree function = capture->function_decl;
-      basic_block bb = capture->bb;
+      tree rhs = capture_nullable->rhs;
+      gimple* stmt = capture_nullable->stmt;
+      location_t location = capture_nullable->location;
+      tree function = capture_nullable->function_decl;
+      basic_block bb = capture_nullable->bb;
       
-      FieldSourceInfo* source_info = NULL;
+      FieldSourceInfo* source_info_nullable = NULL;
       ArrayDetectErrorCode extract_result = extractSourceFromRhs(
-        detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info);
+        detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info_nullable);
       
-      if (extract_result == OK && source_info) {
+      if (extract_result == OK && source_info_nullable) {
         // 将来源信息存储到 FieldWriteCapture 的 next 字段中
-        capture->next = source_info;
+        capture_nullable->next = source_info_nullable;
         source_extracted_count++;
         
         TypeFieldKey key = (*iter).first;
         AD_DEBUG_PRINT("Extracted source for field write: type=%p, field=%p, source_type=%d",
-                      (void*)key.type, (void*)key.field_decl, source_info->source_type);
+                      (void*)key.type, (void*)key.field_decl, source_info_nullable->source_type);
       }
     }
   }
