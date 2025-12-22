@@ -14,7 +14,7 @@ namespace array_detect_ns {
 // 函数级写入分析
 // ============================================================================
 // 分析单个函数中所有字段的写入操作
-// 输出：map(field_decl -> list of WriteOperation)
+// 输出：map(field_decl -> list of FieldWriteCapture)
 // ============================================================================
 
 // 分析函数中的字段写入操作
@@ -27,7 +27,7 @@ ArrayDetectErrorCode analyzeFunctionFieldWrites(
   const char* function_name,
   tree function_decl,
   vec<tree> &field_decls,
-  vec<vec<WriteOperation*>*> &field_writes
+  vec<vec<FieldWriteCapture*>*> &field_writes
 );
 
 } // namespace array_detect_ns

@@ -1,5 +1,6 @@
 #include "pipeline.hh"
 #include "array-detector-driver.hh"
+#include "array-detector.hh"
 #include "info-print.hh"
 #include "field-analysis-main.hh"
 
@@ -32,6 +33,24 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
   
   AD_DEBUG_PRINT("=== Array Detection Pipeline Completed ===");
   AD_RETURNE(OK);
+} AD_FUNCTION_END
+
+// ============================================================================
+// 顶层入口：创建检测器并执行分析
+// ============================================================================
+
+ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Starting array member detection analysis");
+  ArrayDetector detector;
+  // 延迟初始化：在使用前分配 vec 指针
+  AD_TRY (init (detector, AD_ARGS));
+  // 直接调用 pipeline 执行完整流程
+  AD_TRY_LABEL (runArrayDetectionPipeline (AD_ARGS, detector), analysis_cleanup);
+  analysis_cleanup:
+  // 清理资源
+  deinit (detector, AD_ARGS);
+  AD_DEBUG_PRINT ("Array member detection analysis completed");
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns

@@ -27,5 +27,11 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
   ArrayDetector &detector
 );
 
+// 顶层入口：创建检测器并执行分析
+// 返回值：ArrayDetectErrorCode
+// 这个函数负责创建 ArrayDetector，初始化，调用 pipeline，然后清理
+// 这是插件的主要入口点
+ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS);
+
 } // namespace array_detect_ns
 

@@ -8,8 +8,8 @@
 #include "context.hh"
 #include "context-init.hh"
 #include "array-detector.hh"
-#include "array-detector-driver.hh"
 #include "array-detect-context-gcc.hh"
+#include "pipeline.hh"
 
 #include "gcc-ext-util.hh"
 #include "info.hh"

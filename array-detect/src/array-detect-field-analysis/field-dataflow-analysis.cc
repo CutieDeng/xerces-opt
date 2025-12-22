@@ -8,7 +8,7 @@ ArrayDetectErrorCode buildDataFlowGraph(
   AD_FUNC_ARGS,
   tree field_decl,
   function* fn,
-  vec<WriteOperation*> const &field_writes,
+  vec<FieldWriteCapture*> const &field_writes,
   DataFlowGraph &graph
 ) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
@@ -30,7 +30,7 @@ ArrayDetectErrorCode buildDataFlowGraph(
   
   // 创建定义节点（从写入操作）
   for (unsigned int i = 0; i < field_writes.length(); i++) {
-    WriteOperation* write_op = field_writes[i];
+    FieldWriteCapture* write_op = field_writes[i];
     if (!write_op || !write_op->stmt) {
       continue;
     }
@@ -42,8 +42,16 @@ ArrayDetectErrorCode buildDataFlowGraph(
     def_node->field_decl = field_decl;
     def_node->location = write_op->location;
     
-    // 设置描述
-    if (write_op->is_from_call) {
+    // 设置描述（检查是否是函数调用结果）
+    bool is_from_call = false;
+    if (write_op->rhs && TREE_CODE(write_op->rhs) == SSA_NAME) {
+      gimple* def_stmt = SSA_NAME_DEF_STMT(write_op->rhs);
+      if (def_stmt && is_gimple_call(def_stmt)) {
+        is_from_call = true;
+      }
+    }
+    
+    if (is_from_call) {
       def_node->type = DEF_FIELD_CALL;
       def_node->description = ggc_strdup("field write from call");
     } else {
@@ -51,8 +59,8 @@ ArrayDetectErrorCode buildDataFlowGraph(
     }
     
     // 设置 SSA 变量（如果有）
-    if (write_op->rhs_value && TREE_CODE(write_op->rhs_value) == SSA_NAME) {
-      def_node->ssa_var = write_op->rhs_value;
+    if (write_op->rhs && TREE_CODE(write_op->rhs) == SSA_NAME) {
+      def_node->ssa_var = write_op->rhs;
     }
     
     graph.nodes->safe_push(def_node);
@@ -177,7 +185,7 @@ ArrayDetectErrorCode backwardDataFlowAnalysis(
 ArrayDetectErrorCode traceValueSource(
   AD_FUNC_ARGS,
   tree field_decl,
-  WriteOperation* write_op,
+  FieldWriteCapture* write_op,
   vec<ValueSource*> &sources
 ) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
@@ -190,7 +198,7 @@ ArrayDetectErrorCode traceValueSource(
   
   AD_DEBUG_PRINT("Tracing value source for field write");
   
-  tree current_value = write_op->rhs_value;
+  tree current_value = write_op->rhs;
   int depth = 0;
   const int MAX_DEPTH = 10;  // 防止无限循环
   

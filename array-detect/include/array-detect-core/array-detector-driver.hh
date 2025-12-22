@@ -26,7 +26,4 @@ namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
 
-// 顶层入口：创建检测器并执行分析
-ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS);
-
 } // namespace array_detect_ns

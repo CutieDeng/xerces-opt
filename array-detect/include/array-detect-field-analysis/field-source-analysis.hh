@@ -13,7 +13,7 @@ namespace array_detect_ns {
 // 源变量分析
 // ============================================================================
 // 从写入操作中提取源变量（SSA_NAME）
-// 输入：map(field_decl -> list of WriteOperation)
+// 输入：map(field_decl -> list of FieldWriteCapture)
 // 输出：map(field_decl -> list of source var (SSA_NAME))
 // ============================================================================
 
@@ -25,7 +25,7 @@ namespace array_detect_ns {
 ArrayDetectErrorCode extractSourceVariables(
   AD_FUNC_ARGS,
   vec<tree> const &field_decls,
-  vec<vec<WriteOperation*>*> const &field_writes,
+  vec<vec<FieldWriteCapture*>*> const &field_writes,
   vec<vec<tree>*> &field_sources
 );
 

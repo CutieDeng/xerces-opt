@@ -6,7 +6,7 @@ namespace array_detect_ns {
 ArrayDetectErrorCode extractSourceVariables(
   AD_FUNC_ARGS,
   vec<tree> const &field_decls,
-  vec<vec<WriteOperation*>*> const &field_writes,
+  vec<vec<FieldWriteCapture*>*> const &field_writes,
   vec<vec<tree>*> &field_sources
 ) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
@@ -23,7 +23,7 @@ ArrayDetectErrorCode extractSourceVariables(
   // 遍历所有字段的写入操作
   for (unsigned int i = 0; i < field_decls.length(); i++) {
     tree field_decl = field_decls[i];
-    vec<WriteOperation*>* write_ops = field_writes[i];
+    vec<FieldWriteCapture*>* write_ops = field_writes[i];
     
     if (!write_ops) {
       vec<tree>* empty_list = ggc_alloc<vec<tree>>();
@@ -38,12 +38,12 @@ ArrayDetectErrorCode extractSourceVariables(
     
     // 从写入操作中提取源变量（SSA_NAME）
     for (unsigned int j = 0; j < write_ops->length(); j++) {
-      WriteOperation* write_op = (*write_ops)[j];
+      FieldWriteCapture* write_op = (*write_ops)[j];
       if (!write_op) {
         continue;
       }
       
-      tree rhs_value = write_op->rhs_value;
+      tree rhs_value = write_op->rhs;
       
       // 如果右值是 SSA_NAME，直接添加
       if (TREE_CODE(rhs_value) == SSA_NAME) {
@@ -57,20 +57,6 @@ ArrayDetectErrorCode extractSourceVariables(
         }
         if (!exists) {
           source_list->safe_push(rhs_value);
-        }
-      } else if (write_op->is_from_call && write_op->call_stmt) {
-        // 如果是函数调用，右值应该是 SSA_NAME（调用结果）
-        if (TREE_CODE(rhs_value) == SSA_NAME) {
-          bool exists = false;
-          for (unsigned int k = 0; k < source_list->length(); k++) {
-            if ((*source_list)[k] == rhs_value) {
-              exists = true;
-              break;
-            }
-          }
-          if (!exists) {
-            source_list->safe_push(rhs_value);
-          }
         }
       }
     }

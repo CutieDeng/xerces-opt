@@ -12,6 +12,24 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN 
     AD_RETURNE(MEMORY_ERROR);
   }
   self.m_fields->create(0);
+  
+  // 初始化新的数据结构：使用 hash_map
+  // 使用 ggc_alloc 分配内存（GCC 垃圾回收）
+  // 注意：ggc_alloc<T>() 只分配内存，不调用构造函数
+  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* raw_ptr = 
+      ggc_alloc<hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>>();
+  if (raw_ptr == nullptr) {
+    AD_RETURNE(MEMORY_ERROR);
+  }
+  // 使用 placement new 在已分配的内存上构造 hash_map 对象
+  // 这是关键：ggc_alloc 只分配内存，必须使用 placement new 调用构造函数
+  self.m_type_field_writes = new (raw_ptr) hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>();
+  if (self.m_type_field_writes == nullptr) {
+    AD_RETURNE(MEMORY_ERROR);
+  }
+  // hash_map 构造后需要调用 create_ggc() 来初始化内部哈希表
+  self.m_type_field_writes->create_ggc(0);
+  
   AD_DEBUG_PRINT("ArrayDetector initialized (eager)");
   AD_RETURNE(OK);
 } AD_FUNCTION_END
@@ -153,7 +171,16 @@ void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
     // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
     self.m_fields = nullptr;
     AD_DEBUG_PRINT("ArrayDetector deinitialized: m_fields released");
-  } else {
+  }
+  
+  if (self.m_type_field_writes != nullptr) {
+    // hash_map 使用 ggc_alloc 分配，由 GCC 垃圾回收系统自动管理
+    // 不需要显式释放，只需要清空指针
+    self.m_type_field_writes = nullptr;
+    AD_DEBUG_PRINT("ArrayDetector deinitialized: m_type_field_writes cleared");
+  }
+  
+  if (self.m_fields == nullptr && self.m_type_field_writes == nullptr) {
     AD_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
   }
 }

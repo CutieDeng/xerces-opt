@@ -13,7 +13,7 @@ namespace array_detect_ns {
 // 内存持有者判定
 // ============================================================================
 // 综合所有分析结果，判定字段是否为内存持有者
-// 输入：map(field_decl -> list of WriteOperation)
+// 输入：map(field_decl -> list of FieldWriteCapture)
 // 输入：map(field_decl -> list of EscapeSite)
 // 输入：map(field_decl -> list of SourceOperation)
 // 输出：map(field_decl -> FieldAnalysisResult)
@@ -29,7 +29,7 @@ namespace array_detect_ns {
 ArrayDetectErrorCode determineMemoryOwner(
   AD_FUNC_ARGS,
   tree field_decl,
-  vec<WriteOperation*> const &write_ops,
+  vec<FieldWriteCapture*> const &write_ops,
   vec<EscapeSite*> const &escape_sites,
   vec<SourceOperation*> const &source_ops,
   FieldAnalysisResult &result

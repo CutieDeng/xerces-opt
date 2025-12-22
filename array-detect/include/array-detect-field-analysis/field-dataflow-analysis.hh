@@ -106,7 +106,7 @@ ArrayDetectErrorCode buildDataFlowGraph(
   AD_FUNC_ARGS,
   tree field_decl,
   function* fn,
-  vec<WriteOperation*> const &field_writes,
+  vec<FieldWriteCapture*> const &field_writes,
   DataFlowGraph &graph
 );
 
@@ -140,7 +140,7 @@ ArrayDetectErrorCode backwardDataFlowAnalysis(
 ArrayDetectErrorCode traceValueSource(
   AD_FUNC_ARGS,
   tree field_decl,
-  WriteOperation* write_op,
+  FieldWriteCapture* write_op,
   vec<ValueSource*> &sources
 );
 

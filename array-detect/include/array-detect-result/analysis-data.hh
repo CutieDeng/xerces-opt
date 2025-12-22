@@ -7,20 +7,35 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 数据结构：写入操作信息
+// 数据结构：字段写入捕获（Pipeline 第一步输出）
 // ============================================================================
+// Pipeline 第一步：只抓取字段写入信息，不向下解析
 // 垃圾回收：所有指针字段使用 ggc_alloc/ggc_strdup 分配，由 GCC 自动管理
 // ============================================================================
 
-struct WriteOperation {
-  gimple* stmt;                 // GIMPLE 赋值语句（GCC 内部管理）
-  tree rhs_value;              // 右值表达式（SSA_NAME，GCC 内部管理）
-  const char* function_name;    // 所在函数名（ggc_strdup 分配）
+struct FieldWriteCapture {
+  // 核心信息：类型和字段
+  tree type;                    // 类型（TYPE_MAIN_VARIANT，GCC 内部管理）
+  tree field_decl;              // 字段声明（FIELD_DECL，GCC 内部管理）
+  
+  // 上下文信息：函数和基本块
   tree function_decl;           // 函数声明（GCC 内部管理）
-  location_t location;         // 源码位置（GCC 内部管理）
-  bool is_from_call;           // 是否来自函数调用
-  gimple* call_stmt;           // 如果是调用，记录调用语句（GCC 内部管理）
-  const char* rhs_description; // 右值描述（ggc_strdup 分配）
+  basic_block bb;               // 基本块（GCC 内部管理）
+  const char* function_name;    // 所在函数名（ggc_strdup 分配，用于调试）
+  
+  // GIMPLE 语句信息
+  gimple* stmt;                 // GIMPLE_ASSIGN 语句（GCC 内部管理）
+  tree lhs;                     // 左值表达式（MEM，GCC 内部管理）
+  tree rhs;                     // 右值表达式（SSA_NAME，GCC 内部管理）
+  
+  // 源码位置
+  location_t location;          // 源码位置（GCC 内部管理）
+  
+  // Pipeline 链接：供下一轮解析管线使用
+  void* next;                   // 下一轮解析管线扩展数据（由后续阶段分配和管理）
+  
+  // 调试和辅助字段
+  int bb_index;                 // 基本块索引（用于调试）
 };
 
 // ============================================================================
@@ -69,7 +84,7 @@ struct SourceOperation {
 
 struct FieldAnalysisResult {
   tree field_decl;                    // 字段声明（GCC 内部管理）
-  vec<WriteOperation*>* write_ops;   // 写入操作列表（ggc_alloc<vec<...>>() 分配）
+  vec<FieldWriteCapture*>* write_ops; // 字段写入捕获列表（ggc_alloc<vec<...>>() 分配）
   vec<tree>* source_vars;             // 源变量列表（SSA_NAME，ggc_alloc<vec<...>>() 分配）
   vec<EscapeSite*>* escape_sites;     // 逃逸位置列表（ggc_alloc<vec<...>>() 分配）
   vec<SourceOperation*>* sources;     // 源操作列表（ggc_alloc<vec<...>>() 分配）

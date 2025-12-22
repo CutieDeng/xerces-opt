@@ -34,9 +34,9 @@ ArrayDetectErrorCode analyzeFunctionFields(
   function_result.field_results->create(0);
   
   // 阶段1：分析字段写入操作
-  // map(field_decl -> list of WriteOperation)
+  // map(field_decl -> list of FieldWriteCapture)
   vec<tree> field_decls;
-  vec<vec<WriteOperation*>*> field_writes;
+  vec<vec<FieldWriteCapture*>*> field_writes;
   AD_TRY(analyzeFunctionFieldWrites(AD_ARGS, fn, function_name, function_decl, 
                                      field_decls, field_writes));
   
@@ -56,7 +56,7 @@ ArrayDetectErrorCode analyzeFunctionFields(
   // 阶段3：分析每个字段
   for (unsigned int i = 0; i < field_decls.length(); i++) {
     tree field_decl = field_decls[i];
-    vec<WriteOperation*>* write_ops = field_writes[i];
+    vec<FieldWriteCapture*>* write_ops = field_writes[i];
     vec<tree>* source_vars = i < field_sources.length() ? field_sources[i] : NULL;
     
     if (!write_ops) {
@@ -100,7 +100,7 @@ ArrayDetectErrorCode analyzeFunctionFields(
     
     // 追踪值来源
     if (write_ops->length() > 0) {
-      WriteOperation* first_write = (*write_ops)[0];
+      FieldWriteCapture* first_write = (*write_ops)[0];
       vec<ValueSource*> value_sources;
       AD_TRY(traceValueSource(AD_ARGS, field_decl, first_write, value_sources));
       
@@ -189,7 +189,7 @@ ArrayDetectErrorCode integrateFunctionResults(
         global_result = ggc_alloc<FieldAnalysisResult>();
         memset(global_result, 0, sizeof(FieldAnalysisResult));
         global_result->field_decl = field_decl;
-        global_result->write_ops = ggc_alloc<vec<WriteOperation*>>();
+        global_result->write_ops = ggc_alloc<vec<FieldWriteCapture*>>();
         global_result->write_ops->create(0);
         global_result->source_vars = ggc_alloc<vec<tree>>();
         global_result->source_vars->create(0);

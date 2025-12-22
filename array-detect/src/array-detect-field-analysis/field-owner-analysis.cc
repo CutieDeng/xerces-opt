@@ -64,7 +64,7 @@ ArrayDetectErrorCode extractSourceOperations(
 ArrayDetectErrorCode determineMemoryOwner(
   AD_FUNC_ARGS,
   tree field_decl,
-  vec<WriteOperation*> const &write_ops,
+  vec<FieldWriteCapture*> const &write_ops,
   vec<EscapeSite*> const &escape_sites,
   vec<SourceOperation*> const &source_ops,
   FieldAnalysisResult &result
