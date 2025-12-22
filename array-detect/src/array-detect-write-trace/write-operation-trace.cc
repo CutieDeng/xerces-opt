@@ -79,9 +79,9 @@ ArrayDetectErrorCode extractSourceFromCall(
   }
   
   // 提取调用签名
-  const char* signature_nullable = NULL;
-  if (array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature_nullable) == OK && signature_nullable) {
-    call_source->signature = ggc_strdup(signature_nullable);
+  const char* signature;
+  if (array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature) == OK && signature) {
+    call_source->signature = ggc_strdup(signature);
   } else {
     call_source->signature = NULL;
   }
@@ -185,7 +185,7 @@ static ArrayDetectErrorCode traceSsaNameDefChain(
         AD_DEBUG_PRINT("  SSA_NAME: %p", (void*)ssa_name);
         AD_DEBUG_PRINT("  def_stmt: %p", (void*)def_stmt_nullable);
         AD_DEBUG_PRINT("  gimple_code: %d", (int)code);
-        AD_RETURNE(LOGICAL_ERROR);
+        AD_RETURNE(GCC_LOGIC_ERROR);
       }
       return traceSsaNameDefChain(detector, AD_ARGS, rhs, function, def_bb, out_final_value, out_final_stmt, out_is_phi);
     } else {
@@ -233,8 +233,8 @@ ArrayDetectErrorCode extractSourceFromRhs(
   
   // 如果是 SSA_NAME，先追踪定义链，跳过简单赋值
   if (TREE_CODE(rhs) == SSA_NAME) {
-    tree final_value = NULL_TREE;
-    gimple* final_stmt_nullable = NULL;
+    tree final_value;
+    gimple* final_stmt_nullable;
     bool is_phi = false;
     
     AD_TRY(traceSsaNameDefChain(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
@@ -269,7 +269,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
           AD_DEBUG_PRINT("  final_stmt: %p", (void*)final_stmt_nullable);
           AD_DEBUG_PRINT("  final_value: %p", (void*)final_value);
           AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
-          AD_RETURNE(LOGICAL_ERROR);
+          AD_RETURNE(GCC_LOGIC_ERROR);
         }
         return extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, out_source_info);
       } else {
@@ -410,19 +410,17 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
       tree function = capture_nullable->function_decl;
       basic_block bb = capture_nullable->bb;
       
-      FieldSourceInfo* source_info_nullable = NULL;
-      ArrayDetectErrorCode extract_result = extractSourceFromRhs(
-        detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info_nullable);
+      FieldSourceInfo* source_info;
+      AD_TRY(extractSourceFromRhs(
+        detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info));
       
-      if (extract_result == OK && source_info_nullable) {
-        // 将来源信息存储到 FieldWriteCapture 的 next 字段中
-        capture_nullable->next = source_info_nullable;
-        source_extracted_count++;
-        
-        TypeFieldKey key = (*iter).first;
-        AD_DEBUG_PRINT("Extracted source for field write: type=%p, field=%p, source_type=%d",
-                      (void*)key.type, (void*)key.field_decl, source_info_nullable->source_type);
-      }
+      // 将来源信息存储到 FieldWriteCapture 的 next 字段中
+      capture_nullable->next = source_info;
+      source_extracted_count++;
+      
+      TypeFieldKey key = (*iter).first;
+      AD_DEBUG_PRINT("Extracted source for field write: type=%p, field=%p, source_type=%d",
+                    (void*)key.type, (void*)key.field_decl, source_info->source_type);
     }
   }
   
