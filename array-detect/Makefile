@@ -420,3 +420,6 @@ prepare:
 test-simple-virtual-call: out/plugin-array-detect.dylib
 	cd ../test/test-simple-virtual-call; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
 
+test-simple-ptr-field: out/plugin-array-detect.dylib
+	cd ../test/test-simple-ptr-field; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
+
