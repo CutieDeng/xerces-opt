@@ -30,13 +30,6 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN 
   // hash_map 构造后需要调用 create_ggc() 来初始化内部哈希表
   self.m_type_field_writes->create_ggc(0);
   
-  // 初始化键列表（用于遍历，因为 GCC hash_map 不支持直接遍历）
-  self.m_type_field_keys = ggc_alloc<vec<TypeFieldKey>>();
-  if (!self.m_type_field_keys) {
-    AD_RETURNE(MEMORY_ERROR);
-  }
-  self.m_type_field_keys->create(0);
-  
   AD_DEBUG_PRINT("ArrayDetector initialized (eager)");
   AD_RETURNE(OK);
 } AD_FUNCTION_END
@@ -187,14 +180,7 @@ void deinit(ArrayDetector &self, AD_FUNC_ARGS) {
     AD_DEBUG_PRINT("ArrayDetector deinitialized: m_type_field_writes cleared");
   }
   
-  if (self.m_type_field_keys != nullptr) {
-    // vec 使用 ggc_alloc 分配，由 GCC 垃圾回收系统自动管理
-    // 不需要显式释放，只需要清空指针
-    self.m_type_field_keys = nullptr;
-    AD_DEBUG_PRINT("ArrayDetector deinitialized: m_type_field_keys cleared");
-  }
-  
-  if (self.m_fields == nullptr && self.m_type_field_writes == nullptr && self.m_type_field_keys == nullptr) {
+  if (self.m_fields == nullptr && self.m_type_field_writes == nullptr) {
     AD_DEBUG_PRINT("ArrayDetector already deinitialized or was never initialized");
   }
 }

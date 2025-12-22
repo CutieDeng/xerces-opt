@@ -12,11 +12,9 @@ using namespace ::array_detect_ns;
 // 辅助函数：查找或创建 type -> field 的写入操作列表
 // 使用 hash_map 提供 O(1) 查找性能
 // 输入/输出：map_ptr - hash_map 的指针的指针，如果为 NULL 则自动初始化
-// 输入/输出：keys_vec_ptr - 键列表的指针的指针，用于遍历（GCC hash_map 不支持直接遍历）
 static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps(
   AD_FUNC_ARGS,
   hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>** map_ptr,
-  vec<TypeFieldKey>** keys_vec_ptr,
   tree type,
   tree field_decl,
   TypeFieldWriteOps** out_tfwo
@@ -100,14 +98,6 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps(
   
   // 插入到 hash_map 中
   map->put(key, tfwo);
-  
-  // 同时将键添加到键列表中（用于遍历，因为 GCC hash_map 不支持直接遍历）
-  // 去重机制：只有当 get() 返回 NULL（即键不存在）时才会执行到这里
-  // 因此不需要额外的 hash_set 去重，hash_map 本身就是去重的数据源
-  if (keys_vec_ptr && *keys_vec_ptr) {
-    (*keys_vec_ptr)->safe_push(key);
-  }
-  
   *out_tfwo = tfwo;
   AD_RETURNE(OK);
 } AD_FUNCTION_END
@@ -211,7 +201,7 @@ ArrayDetectErrorCode collectTypesAndFields(ArrayDetector &detector, AD_FUNC_ARGS
       
       // 查找或创建 type -> field 的写入操作列表
       TypeFieldWriteOps* tfwo = NULL;
-      AD_TRY(findOrCreateTypeFieldWriteOps(AD_ARGS, &detector.m_type_field_writes, &detector.m_type_field_keys, containing_type, field_decl, &tfwo));
+      AD_TRY(findOrCreateTypeFieldWriteOps(AD_ARGS, &detector.m_type_field_writes, containing_type, field_decl, &tfwo));
       
       // 添加到列表
       tfwo->write_ops->safe_push(capture);
