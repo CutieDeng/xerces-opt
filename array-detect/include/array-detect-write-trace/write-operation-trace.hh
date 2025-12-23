@@ -24,7 +24,7 @@ class ArrayDetector;
 // 前置条件：字段已通过 collectTypesAndFields 收集到 detector.m_type_field_writes
 // 输入：detector - ArrayDetector 对象（包含 m_type_field_writes hash_map）
 // 输出：在 FieldWriteCapture 的 aux 字段中存储 FieldSourceInfo*（由后续阶段使用）
-ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS);
+ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARGS);
 
 // ============================================================================
 // 字段来源信息提取（内部函数，高内聚）
@@ -37,7 +37,7 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
 // 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
-ArrayDetectErrorCode extractSourceFromRhs(
+ArrayDetectErrorCode extractSourceFromRhs (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree rhs,
@@ -53,7 +53,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
 // 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
-ArrayDetectErrorCode extractSourceFromCall(
+ArrayDetectErrorCode extractSourceFromCall (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   gimple* call_stmt,
@@ -68,7 +68,7 @@ ArrayDetectErrorCode extractSourceFromCall(
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
 // 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
-ArrayDetectErrorCode extractSourceFromVariable(
+ArrayDetectErrorCode extractSourceFromVariable (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree ssa_name,
