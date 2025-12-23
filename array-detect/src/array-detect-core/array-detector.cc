@@ -101,12 +101,6 @@ ArrayDetectErrorCode analyzeFieldUsage (ArrayDetector &self, AD_FUNC_ARGS) AD_FU
   (void )ctx;
   AD_DEBUG_PRINT ("start analyze fields usage");
   
-  // 检查 m_fields 是否已初始化
-  if (self.m_fields == nullptr) {
-    AD_DEBUG_PRINT ("Warning: ArrayDetector not initialized, m_fields is null");
-    AD_RETURNE (OK);
-  }
-  
   // 分析使用情况，判断是否是数组候选
   for (unsigned int i = 0; i < self.m_fields->length (); i++) {
     FieldInfo * field = (*self.m_fields)[i];
@@ -191,12 +185,6 @@ ArrayDetectErrorCode addField (ArrayDetector &self, AD_FUNC_ARGS, FieldInfo * fi
     AD_RETURNE (OK);
   }
   
-  // 检查 m_fields 是否已初始化
-  if (self.m_fields == nullptr) {
-    AD_DEBUG_PRINT ("Error: ArrayDetector not initialized, m_fields is null");
-    AD_RETURNE (LOGICAL_ERROR);
-  }
-  
   // 添加字段信息
   self.m_fields->safe_push (field_info);
   // 调试信息：输出字段添加情况
@@ -213,12 +201,6 @@ ArrayDetectErrorCode getFieldCount (ArrayDetector const &self, AD_FUNC_ARGS, siz
     AD_RETURNE (INVALID_PARAMETER);
   }
 
-  if (self.m_fields == nullptr) {
-    *out_count = 0;
-    AD_DEBUG_PRINT ("ArrayDetector not initialized, returning 0 fields");
-    AD_RETURNE (OK);
-  }
-
   *out_count = self.m_fields->length ();
   AD_DEBUG_PRINT ("ArrayDetector field count retrieved successfully");
   AD_RETURNE (OK);
@@ -228,12 +210,6 @@ ArrayDetectErrorCode getField (ArrayDetector const &self, AD_FUNC_ARGS, size_t i
   if (!out_field) {
     AD_DEBUG_PRINT ("Error: out_field parameter is null");
     AD_RETURNE (INVALID_PARAMETER);
-  }
-
-  if (self.m_fields == nullptr) {
-    *out_field = nullptr;
-    AD_DEBUG_PRINT ("ArrayDetector not initialized, returning null field");
-    AD_RETURNE (NOT_INITIALIZED);
   }
 
   if (index < self.m_fields->length ()) {

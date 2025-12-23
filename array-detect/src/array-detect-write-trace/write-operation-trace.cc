@@ -198,11 +198,6 @@ ArrayDetectErrorCode extractSourceFromRhs (
 ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Tracing field assignments");
   
-  // 检查 hash_map 是否已初始化
-  if (!detector.m_type_field_writes) {
-    AD_RETURNE (NOT_INITIALIZED);
-  }
-  
   // 直接遍历 hash_map，使用迭代器
   typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
   size_t processed_count = 0;

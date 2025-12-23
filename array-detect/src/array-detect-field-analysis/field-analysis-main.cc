@@ -13,13 +13,9 @@ ArrayDetectErrorCode performFieldAnalysis (
   vec<FieldAnalysisResult*> &field_results
 ) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
+  (void)detector;  // 保留参数以保持接口一致性
   
   AD_DEBUG_PRINT ("=== Starting field analysis ===");
-  
-  // 检查 detector 是否已初始化
-  if (!detector.m_fields) {
-    AD_RETURNE (NOT_INITIALIZED);
-  }
   
   // 存储所有函数的分析结果
   vec<FunctionAnalysisResult*> all_function_results;
@@ -78,10 +74,6 @@ ArrayDetectErrorCode updateFieldInfoFromResults (
   
   if (field_decls.length () != field_results.length ()) {
     AD_RETURNE (LOGICAL_ERROR);
-  }
-  
-  if (!detector.m_fields) {
-    AD_RETURNE (NOT_INITIALIZED);
   }
   
   AD_DEBUG_PRINT ("Updating FieldInfo from analysis results");
