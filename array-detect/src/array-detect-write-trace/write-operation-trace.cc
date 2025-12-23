@@ -115,6 +115,48 @@ ArrayDetectErrorCode extractSourceFromVariable (
   AD_RETURNO (info);
 } AD_FUNCTION_END
 
+// 从常量提取来源信息
+ArrayDetectErrorCode extractSourceFromConstant (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  tree constant_value,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo* &result
+) AD_FUNCTION_BEGIN {
+  (void)detector;
+  (void)function;
+  (void)bb;
+  
+  // 分配来源信息结构
+  FieldSourceInfo *info = ggc_alloc<FieldSourceInfo> ();
+  if (!info) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memset (info, 0, sizeof (FieldSourceInfo));
+  
+  info->source_type = SOURCE_CONSTANT;
+  LET_SOURCE_CONSTANT (const_source, *info)
+    // 初始化常量来源信息
+    const_source.constant_value = constant_value;
+    
+    // 尝试获取常量字符串表示
+    if (TREE_CODE (constant_value) == INTEGER_CST) {
+      if (ctx.address_format_buffer && ctx.address_format_buffer_size > 0) {
+        snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, 
+                 "%lld", (long long)TREE_INT_CST_LOW (constant_value));
+        const_source.constant_str = ggc_strdup (ctx.address_format_buffer);
+      }
+    } else if (TREE_CODE (constant_value) == STRING_CST) {
+      const_source.constant_str = ggc_strdup (TREE_STRING_POINTER (constant_value));
+    } else {
+      const_source.constant_str = ggc_strdup ("<constant>");
+    }
+    
+    AD_RETURNO (info);
+  END_LET ()
+} AD_FUNCTION_END
+
 // 可选自动缩减平凡 move 操作的分析器
 // 追踪值的定义链，跳过简单赋值（平凡 move），直到找到真正的来源
 // 输入：value - 要追踪的值（可以是任意 tree，如果是 SSA_NAME 则追踪，否则直接返回）
@@ -283,30 +325,8 @@ ArrayDetectErrorCode extractSourceFromRhs (
     AD_RETURNE (OK);
   } else if (CONSTANT_CLASS_P (final_value)) {
     // 常量
-    FieldSourceInfo* info = ggc_alloc<FieldSourceInfo> ();
-    if (!info) {
-      AD_RETURNE (MEMORY_ERROR);
-    }
-    memset (info, 0, sizeof (FieldSourceInfo));
-    
-    info->source_type = SOURCE_CONSTANT;
-    ConstantSource* const_source = &info->data.constant;
-    const_source->constant_value = final_value;
-    
-    // 尝试获取常量字符串表示
-    if (TREE_CODE (final_value) == INTEGER_CST) {
-      if (ctx.address_format_buffer && ctx.address_format_buffer_size > 0) {
-        snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, 
-                 "%lld", (long long)TREE_INT_CST_LOW (final_value));
-        const_source->constant_str = ggc_strdup (ctx.address_format_buffer);
-      }
-    } else if (TREE_CODE (final_value) == STRING_CST) {
-      const_source->constant_str = ggc_strdup (TREE_STRING_POINTER (final_value));
-    } else {
-      const_source->constant_str = ggc_strdup ("<constant>");
-    }
-    
-    AD_RETURNO (info);
+    AD_TRY (extractSourceFromConstant (detector, AD_ARGS, final_value, function, bb, result));
+    AD_RETURNE (OK);
   } else {
     // 计算表达式
     FieldSourceInfo* info = ggc_alloc<FieldSourceInfo> ();

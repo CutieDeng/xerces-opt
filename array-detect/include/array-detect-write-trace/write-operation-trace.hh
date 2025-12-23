@@ -78,4 +78,18 @@ ArrayDetectErrorCode extractSourceFromVariable (
   FieldSourceInfo* &result
 );
 
+// 从常量提取来源信息
+// 输入：constant_value - 常量值（CONSTANT_CLASS_P）
+//       function - 所在函数（用于上下文信息）
+//       bb - 所在基本块（用于上下文信息）
+// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
+ArrayDetectErrorCode extractSourceFromConstant (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  tree constant_value,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo* &result
+);
+
 } // namespace array_detector
