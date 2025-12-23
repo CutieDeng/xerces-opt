@@ -1,5 +1,7 @@
 #include "info-print.hh"
 #include "array-detector.hh"
+#include "virtual-call-analysis.hh"
+#include "gcc-ext-util.hh"
 
 using array_detector::ArrayDetector;
 
@@ -161,6 +163,209 @@ ArrayDetectErrorCode printResults(AD_FUNC_ARGS, ArrayDetector &detector) AD_FUNC
   }
   
   fclose(output_file);
+  AD_RETURNE(OK);
+} AD_FUNCTION_END
+
+// ----------------------------------------------------------------------------
+// printGimpleCallDetails 函数：打印 GIMPLE_CALL 语句的详细信息
+// ----------------------------------------------------------------------------
+
+ArrayDetectErrorCode printGimpleCallDetails(
+  AD_FUNC_ARGS,
+  gimple* call_stmt,
+  FILE* output_file
+) AD_FUNCTION_BEGIN {
+  if (!call_stmt || gimple_code(call_stmt) != GIMPLE_CALL) {
+    AD_RETURNE(INVALID_ARGUMENT);
+  }
+  
+  if (!output_file) {
+    output_file = ctx.debug_file;
+    if (!output_file) {
+      output_file = stderr;
+    }
+  }
+  
+  fprintf(output_file, "=== GIMPLE_CALL Details ===\n");
+  
+  // 基本信息
+  location_t loc = gimple_location(call_stmt);
+  fprintf(output_file, "Location: ");
+  if (loc != UNKNOWN_LOCATION) {
+    if (ctx.source_location_buffer && ctx.source_location_buffer_size > 0) {
+      gcc_ext_util::get_source_location_string(AD_ARGS, loc,
+        ctx.source_location_buffer, ctx.source_location_buffer_size);
+      fprintf(output_file, "%s\n", ctx.source_location_buffer);
+    } else {
+      fprintf(output_file, "<location available but buffer not set>\n");
+    }
+  } else {
+    fprintf(output_file, "<unknown>\n");
+  }
+  
+  // 获取函数表达式
+  tree fn = gimple_call_fn(call_stmt);
+  if (!fn) {
+    fprintf(output_file, "Function expression: NULL_TREE\n");
+    fprintf(output_file, "Call type: <unknown> (NULL function expression)\n");
+    AD_RETURNE(OK);
+  }
+  
+  fprintf(output_file, "Function expression tree code: %s\n", get_tree_code_name(TREE_CODE(fn)));
+  
+  // 使用 match-API 匹配调用表达式
+  CallMatchResult match_result;
+  ArrayDetectErrorCode match_ecode = matchCallExpression(AD_ARGS, fn, match_result);
+  
+  if (match_ecode != OK) {
+    fprintf(output_file, "Call type: <match failed>\n");
+    fprintf(output_file, "Match error code: %d\n", match_ecode);
+    fprintf(output_file, "Raw function expression:\n");
+    print_generic_expr(output_file, fn, TDF_DETAILS);
+    fprintf(output_file, "\n");
+    AD_RETURNE(OK);
+  }
+  
+  // 根据调用类型输出详细信息
+  switch (match_result.call_type) {
+    case CALL_VIRTUAL: {
+      fprintf(output_file, "Call type: VIRTUAL (C++ virtual function call)\n");
+      
+      AD_MATCH_VIRTUAL_CALL(match_result, virtual_info) {
+        fprintf(output_file, "  Method declaration:\n");
+        if (virtual_info.method_decl) {
+          if (DECL_NAME(virtual_info.method_decl)) {
+            fprintf(output_file, "    Name: %s\n", IDENTIFIER_POINTER(DECL_NAME(virtual_info.method_decl)));
+          } else {
+            fprintf(output_file, "    Name: <unnamed>\n");
+          }
+          fprintf(output_file, "    Tree:\n    ");
+          print_generic_expr(output_file, virtual_info.method_decl, TDF_DETAILS);
+          fprintf(output_file, "\n");
+        } else {
+          fprintf(output_file, "    <null>\n");
+        }
+        
+        fprintf(output_file, "  Object expression:\n    ");
+        if (virtual_info.object) {
+          print_generic_expr(output_file, virtual_info.object, TDF_DETAILS);
+          fprintf(output_file, "\n");
+        } else {
+          fprintf(output_file, "<null>\n");
+        }
+        
+        fprintf(output_file, "  Object type:\n    ");
+        if (virtual_info.object_type) {
+          print_generic_expr(output_file, virtual_info.object_type, TDF_DETAILS);
+          fprintf(output_file, "\n");
+        } else {
+          fprintf(output_file, "<null>\n");
+        }
+        
+        fprintf(output_file, "  VTable type:\n    ");
+        if (virtual_info.vtable_type) {
+          print_generic_expr(output_file, virtual_info.vtable_type, TDF_DETAILS);
+          fprintf(output_file, "\n");
+        } else {
+          fprintf(output_file, "<null>\n");
+        }
+      } AD_MATCH_END()
+      
+      break;
+    }
+    
+    case CALL_DIRECT: {
+      fprintf(output_file, "Call type: DIRECT (direct function call)\n");
+      
+      AD_MATCH_DIRECT_CALL(match_result, direct_info) {
+        fprintf(output_file, "  Function declaration:\n");
+        if (direct_info.function_decl) {
+          if (DECL_NAME(direct_info.function_decl)) {
+            fprintf(output_file, "    Name: %s\n", IDENTIFIER_POINTER(DECL_NAME(direct_info.function_decl)));
+          } else {
+            fprintf(output_file, "    Name: <unnamed>\n");
+          }
+          fprintf(output_file, "    Tree:\n    ");
+          print_generic_expr(output_file, direct_info.function_decl, TDF_DETAILS);
+          fprintf(output_file, "\n");
+        } else {
+          fprintf(output_file, "    <null>\n");
+        }
+      } AD_MATCH_END()
+      
+      break;
+    }
+    
+    case CALL_INDIRECT: {
+      fprintf(output_file, "Call type: INDIRECT (indirect function call via function pointer)\n");
+      
+      AD_MATCH_INDIRECT_CALL(match_result, indirect_info) {
+        fprintf(output_file, "  Function expression:\n    ");
+        if (indirect_info.function_expr) {
+          fprintf(output_file, "Tree code: %s\n    ", get_tree_code_name(TREE_CODE(indirect_info.function_expr)));
+          print_generic_expr(output_file, indirect_info.function_expr, TDF_DETAILS);
+          fprintf(output_file, "\n");
+          
+          // 如果是 SSA_NAME，尝试追踪其定义
+          if (TREE_CODE(indirect_info.function_expr) == SSA_NAME) {
+            gimple* def_stmt = SSA_NAME_DEF_STMT(indirect_info.function_expr);
+            if (def_stmt) {
+              fprintf(output_file, "  Definition statement:\n    ");
+              print_gimple_stmt(output_file, def_stmt, 0, TDF_DETAILS);
+              fprintf(output_file, "\n");
+            }
+          }
+        } else {
+          fprintf(output_file, "<null>\n");
+        }
+      } AD_MATCH_END()
+      
+      break;
+    }
+    
+    case CALL_UNKNOWN:
+    default: {
+      fprintf(output_file, "Call type: UNKNOWN\n");
+      break;
+    }
+  }
+  
+  // 输出调用参数信息
+  unsigned int num_args = gimple_call_num_args(call_stmt);
+  fprintf(output_file, "Number of arguments: %u\n", num_args);
+  if (num_args > 0) {
+    fprintf(output_file, "Arguments:\n");
+    for (unsigned int i = 0; i < num_args; i++) {
+      tree arg = gimple_call_arg(call_stmt, i);
+      fprintf(output_file, "  Arg[%u]: ", i);
+      if (arg) {
+        fprintf(output_file, "Tree code: %s\n    ", get_tree_code_name(TREE_CODE(arg)));
+        print_generic_expr(output_file, arg, TDF_DETAILS);
+        fprintf(output_file, "\n");
+      } else {
+        fprintf(output_file, "<null>\n");
+      }
+    }
+  }
+  
+  // 输出返回值信息
+  tree lhs = gimple_call_lhs(call_stmt);
+  if (lhs) {
+    fprintf(output_file, "Return value (LHS):\n  ");
+    fprintf(output_file, "Tree code: %s\n  ", get_tree_code_name(TREE_CODE(lhs)));
+    print_generic_expr(output_file, lhs, TDF_DETAILS);
+    fprintf(output_file, "\n");
+  } else {
+    fprintf(output_file, "Return value: <void>\n");
+  }
+  
+  // 输出完整的 GIMPLE 语句
+  fprintf(output_file, "Full GIMPLE statement:\n  ");
+  print_gimple_stmt(output_file, call_stmt, 0, TDF_DETAILS);
+  fprintf(output_file, "\n");
+  
+  fprintf(output_file, "=== End GIMPLE_CALL Details ===\n\n");
+  
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 

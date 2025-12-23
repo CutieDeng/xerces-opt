@@ -15,7 +15,6 @@ ArrayDetectErrorCode extractSourceFromCall(
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   gimple* call_stmt,
-  tree return_ssa,
   tree function,
   basic_block bb,
   FieldSourceInfo* &result
@@ -30,13 +29,11 @@ ArrayDetectErrorCode extractSourceFromCall(
     AD_RETURNE(MEMORY_ERROR);
   }
   memset(info, 0, sizeof(FieldSourceInfo));
-  
-  info->source_type = SOURCE_FUNCTION_CALL;
 
+  info->source_type = SOURCE_FUNCTION_CALL;
   LET_SOURCE_FUNCTION_CALL (call_source, *info)
     // 初始化函数调用来源信息
     call_source.call_stmt = call_stmt;
-    call_source.return_value_ssa = return_ssa;
     call_source.location = gimple_location(call_stmt);
     
     // 获取函数名
@@ -66,21 +63,13 @@ ArrayDetectErrorCode extractSourceFromCall(
     // 分析调用类型
     bool is_virtual = false;
     CallType call_type = CALL_UNKNOWN;
-    if (array_detect_ns::isVirtualFunctionCall(AD_ARGS, call_stmt, is_virtual, call_type) == OK && is_virtual) {
+    if (isVirtualFunctionCall(AD_ARGS, call_stmt, is_virtual, call_type) == OK && is_virtual) {
       call_source.call_type = CALL_VIRTUAL;
     } else if (fn && TREE_CODE(fn) == FUNCTION_DECL) {
       call_source.call_type = CALL_DIRECT;
     } else {
       call_source.call_type = CALL_INDIRECT;
     }
-
-    // 提取调用签名
-    const char* signature;
-    AD_TRY(extractCallSignature(AD_ARGS, call_stmt, signature));
-    if (!signature) {
-      AD_RETURNE(GCC_LOGIC_ERROR);
-    }
-    call_source.signature = ggc_strdup(signature);
     
     AD_RETURNO(info);
   END_LET()
@@ -141,20 +130,20 @@ ArrayDetectErrorCode reduceTrivialMoves(
   tree value,
   tree function,
   basic_block bb,
-  tree &out_final_value,
-  gimple* &out_final_stmt_nullable,
-  bool &out_is_phi
+  tree &result_final_value,
+  gimple* &result_final_stmt_nullable,
+  bool &result_is_phi
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
   (void)bb;
   
-  out_is_phi = false;
+  result_is_phi = false;
   
   // 非 SSA_NAME 直接返回
   if (TREE_CODE(value) != SSA_NAME) {
-    out_final_value = value;
-    out_final_stmt_nullable = NULL;
+    result_final_value = value;
+    result_final_stmt_nullable = NULL;
     AD_RETURNE(OK);
   }
   
@@ -166,8 +155,8 @@ ArrayDetectErrorCode reduceTrivialMoves(
   // 4. 已释放的 SSA：在 SSA 释放阶段，定义语句可能已被清除
   gimple* def_stmt = SSA_NAME_DEF_STMT(value);
   if (!def_stmt) {
-    out_final_value = value;
-    out_final_stmt_nullable = NULL;
+    result_final_value = value;
+    result_final_stmt_nullable = NULL;
     AD_RETURNE(OK);
   }
   
@@ -175,16 +164,16 @@ ArrayDetectErrorCode reduceTrivialMoves(
   
   // 处理 PHI 节点：多个来源的合并点（因分支导致），标记为来源不明
   if (code == GIMPLE_PHI) {
-    out_final_value = value;
-    out_final_stmt_nullable = def_stmt;
-    out_is_phi = true;
+    result_final_value = value;
+    result_final_stmt_nullable = def_stmt;
+    result_is_phi = true;
     AD_RETURNE(OK);
   }
   
   // 处理函数调用：返回值直接赋值给 SSA_NAME
   if (code == GIMPLE_CALL) {
-    out_final_value = value;
-    out_final_stmt_nullable = def_stmt;
+    result_final_value = value;
+    result_final_stmt_nullable = def_stmt;
     AD_RETURNE(OK);
   }
   
@@ -201,19 +190,19 @@ ArrayDetectErrorCode reduceTrivialMoves(
         AD_DEBUG_PRINT("  value: %p, def_stmt: %p, gimple_code: %d", (void*)value, (void*)def_stmt, (int)code);
         AD_RETURNE(GCC_LOGIC_ERROR);
       }
-      AD_TRY(reduceTrivialMoves(detector, AD_ARGS, rhs, function, def_bb, out_final_value, out_final_stmt_nullable, out_is_phi));
+      AD_TRY(reduceTrivialMoves(detector, AD_ARGS, rhs, function, def_bb, result_final_value, result_final_stmt_nullable, result_is_phi));
       AD_RETURNE(OK);
     }
     
     // 非平凡赋值（类型转换、计算等），找到真正的来源
-    out_final_value = rhs;
-    out_final_stmt_nullable = def_stmt;
+    result_final_value = rhs;
+    result_final_stmt_nullable = def_stmt;
     AD_RETURNE(OK);
   }
   
   // 其他类型的语句，返回当前值
-  out_final_value = value;
-  out_final_stmt_nullable = def_stmt;
+  result_final_value = value;
+  result_final_stmt_nullable = def_stmt;
   AD_RETURNE(OK);
 } AD_FUNCTION_END
 }
@@ -256,7 +245,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
         AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
         AD_RETURNE(GCC_LOGIC_ERROR);
       }
-      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, result));
+      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, function, call_bb, result));
     } else {
       // 来自变量（可能是参数或其他）
       AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, result));

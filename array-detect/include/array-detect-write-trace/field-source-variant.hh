@@ -28,8 +28,6 @@ struct FunctionCallSource {
   gimple* call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
   CallType call_type;          // 调用类型（CALL_VIRTUAL, CALL_DIRECT, CALL_INDIRECT, CALL_UNKNOWN）
   const char* function_name;   // 函数名（mangled，ggc_strdup 分配）
-  tree return_value_ssa;       // 返回值的 SSA_NAME（GCC 内部管理）
-  const char* signature;       // 调用签名（ggc_strdup 分配）
   location_t location;         // 调用位置（GCC 内部管理）
 };
 
