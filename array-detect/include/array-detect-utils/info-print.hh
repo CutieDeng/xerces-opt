@@ -52,4 +52,20 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
   ::array_detector::FieldSourceInfo *source_info
 );
 
+// ----------------------------------------------------------------------------
+// 辅助函数：提取虚函数调用的函数名
+// ----------------------------------------------------------------------------
+// 从 GIMPLE_CALL 语句中提取虚函数调用的实际函数名
+// 使用 matchCallExpression API 来可靠地提取虚函数信息
+// 输入：call_stmt - GIMPLE_CALL 语句
+// 输出：function_name - 提取的函数名（如果成功，使用 ggc_strdup 分配）
+// 返回值：OK 表示成功提取，其他值表示失败或不是虚函数调用
+// ----------------------------------------------------------------------------
+
+ArrayDetectErrorCode extractVirtualCallFunctionName (
+  AD_FUNC_ARGS,
+  gimple * call_stmt,
+  char const * &function_name
+);
+
 } // namespace array_detect_ns

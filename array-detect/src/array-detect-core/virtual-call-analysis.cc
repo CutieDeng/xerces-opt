@@ -118,11 +118,36 @@ ArrayDetectErrorCode matchVirtualFunctionCall (
   }
 
   tree method = OBJ_TYPE_REF_EXPR (call_expr);
-  if (!method || TREE_CODE (method) != FUNCTION_DECL) {
+  
+  // OBJ_TYPE_REF_EXPR 可能返回 SSA_NAME 而不是直接的 FUNCTION_DECL
+  // 需要追踪 SSA_NAME 的定义
+  tree method_decl_result = method;
+  if (method && TREE_CODE (method) == SSA_NAME) {
+    gimple * method_def = SSA_NAME_DEF_STMT (method);
+    if (method_def && gimple_code (method_def) == GIMPLE_ASSIGN) {
+      tree method_rhs = gimple_assign_rhs1 (method_def);
+      if (method_rhs && TREE_CODE (method_rhs) == FUNCTION_DECL) {
+        method_decl_result = method_rhs;
+      } else if (method_rhs && TREE_CODE (method_rhs) == ADDR_EXPR) {
+        tree addr_operand = TREE_OPERAND (method_rhs, 0);
+        if (addr_operand && TREE_CODE (addr_operand) == FUNCTION_DECL) {
+          method_decl_result = addr_operand;
+        }
+      } else if (method_rhs && TREE_CODE (method_rhs) == MEM_REF) {
+        // mem_ref 表示从内存读取，可能是从虚表读取函数指针
+        // 对于这种情况，我们无法直接获取函数名，但可以尝试从其他方式获取
+        // 暂时返回 MATCH_ERROR，让调用者处理
+        log_match_failure (AD_ARGS, call_expr);
+        AD_RETURNE (MATCH_ERROR);
+      }
+    }
+  }
+  
+  if (!method_decl_result || TREE_CODE (method_decl_result) != FUNCTION_DECL) {
     log_match_failure (AD_ARGS, call_expr);
     AD_RETURNE (MATCH_ERROR);
   }
-  method_decl = method;
+  method_decl = method_decl_result;
 
   tree object = OBJ_TYPE_REF_OBJECT (call_expr);
   if (!object) {
@@ -369,10 +394,29 @@ ArrayDetectErrorCode matchCallExpression (
     
     // 提取方法声明
     tree method = OBJ_TYPE_REF_EXPR (fn);
-    if (!method || TREE_CODE (method) != FUNCTION_DECL) {
+    
+    // OBJ_TYPE_REF_EXPR 可能返回 SSA_NAME 而不是直接的 FUNCTION_DECL
+    // 需要追踪 SSA_NAME 的定义
+    tree method_decl = method;
+    if (method && TREE_CODE (method) == SSA_NAME) {
+      gimple * method_def = SSA_NAME_DEF_STMT (method);
+      if (method_def && gimple_code (method_def) == GIMPLE_ASSIGN) {
+        tree method_rhs = gimple_assign_rhs1 (method_def);
+        if (method_rhs && TREE_CODE (method_rhs) == FUNCTION_DECL) {
+          method_decl = method_rhs;
+        } else if (method_rhs && TREE_CODE (method_rhs) == ADDR_EXPR) {
+          tree addr_operand = TREE_OPERAND (method_rhs, 0);
+          if (addr_operand && TREE_CODE (addr_operand) == FUNCTION_DECL) {
+            method_decl = addr_operand;
+          }
+        }
+      }
+    }
+    
+    if (!method_decl || TREE_CODE (method_decl) != FUNCTION_DECL) {
       AD_RETURNE (MATCH_ERROR);  // 匹配失败：无效的方法声明
     }
-    result.info.virtual_.method_decl = method;
+    result.info.virtual_.method_decl = method_decl;
     
     // 提取对象表达式（用于访问虚表，可能是局部变量 SSA_NAME）
     tree object = OBJ_TYPE_REF_OBJECT (fn);

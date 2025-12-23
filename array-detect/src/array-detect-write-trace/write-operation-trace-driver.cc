@@ -44,6 +44,8 @@ ArrayDetectErrorCode extractSourceFromCall (
     
     // 获取函数名
     tree fn = gimple_call_fn (call_stmt);
+    AD_DEBUG_PRINT ("[extractSourceFromCall] gimple_call_fn tree code: %s", 
+                    fn ? get_tree_code_name (TREE_CODE (fn)) : "<null>");
     if (fn) {
       if (TREE_CODE (fn) == FUNCTION_DECL) {
         if (DECL_NAME (fn)) {
@@ -61,13 +63,62 @@ ArrayDetectErrorCode extractSourceFromCall (
         }
       } else if (TREE_CODE (fn) == SSA_NAME) {
         // 间接调用：尝试追踪 SSA_NAME 的定义来找到函数名
+        AD_DEBUG_PRINT ("[extractSourceFromCall] fn is SSA_NAME, tracing definition");
         gimple * def_stmt = SSA_NAME_DEF_STMT (fn);
+        AD_DEBUG_PRINT ("[extractSourceFromCall] def_stmt: %p, gimple_code: %d", 
+                        (void*)def_stmt, def_stmt ? (int)gimple_code (def_stmt) : -1);
         if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
           tree rhs = gimple_assign_rhs1 (def_stmt);
           enum tree_code rhs_code = gimple_assign_rhs_code (def_stmt);
+          AD_DEBUG_PRINT ("[extractSourceFromCall] rhs tree code: %s, rhs_code: %s",
+                          rhs ? get_tree_code_name (TREE_CODE (rhs)) : "<null>",
+                          get_tree_code_name (rhs_code));
           
+          // 首先检查是否是 OBJ_TYPE_REF（虚函数调用）
+          if (TREE_CODE (rhs) == OBJ_TYPE_REF) {
+            AD_DEBUG_PRINT ("[extractSourceFromCall] Found OBJ_TYPE_REF in SSA_NAME definition!");
+            call_source.call_type = CALL_VIRTUAL;  // 直接设置为虚函数调用
+            tree method = OBJ_TYPE_REF_EXPR (rhs);
+            AD_DEBUG_PRINT ("[extractSourceFromCall] OBJ_TYPE_REF_EXPR: %p, method tree code: %s",
+                            (void*)method, method ? get_tree_code_name (TREE_CODE (method)) : "<null>");
+            
+            // OBJ_TYPE_REF_EXPR 可能返回 SSA_NAME 而不是直接的 FUNCTION_DECL
+            // 需要追踪 SSA_NAME 的定义
+            tree method_decl = method;
+            if (method && TREE_CODE (method) == SSA_NAME) {
+              AD_DEBUG_PRINT ("[extractSourceFromCall] method is SSA_NAME, tracing definition");
+              gimple * method_def = SSA_NAME_DEF_STMT (method);
+              if (method_def && gimple_code (method_def) == GIMPLE_ASSIGN) {
+                tree method_rhs = gimple_assign_rhs1 (method_def);
+                AD_DEBUG_PRINT ("[extractSourceFromCall] method_def rhs tree code: %s",
+                                method_rhs ? get_tree_code_name (TREE_CODE (method_rhs)) : "<null>");
+                if (method_rhs && TREE_CODE (method_rhs) == FUNCTION_DECL) {
+                  method_decl = method_rhs;
+                  AD_DEBUG_PRINT ("[extractSourceFromCall] Found FUNCTION_DECL in SSA_NAME definition");
+                } else if (method_rhs && TREE_CODE (method_rhs) == ADDR_EXPR) {
+                  tree addr_operand = TREE_OPERAND (method_rhs, 0);
+                  if (addr_operand && TREE_CODE (addr_operand) == FUNCTION_DECL) {
+                    method_decl = addr_operand;
+                    AD_DEBUG_PRINT ("[extractSourceFromCall] Found FUNCTION_DECL in ADDR_EXPR");
+                  }
+                }
+              }
+            }
+            
+            if (method_decl && TREE_CODE (method_decl) == FUNCTION_DECL && DECL_NAME (method_decl)) {
+              char const * method_name = IDENTIFIER_POINTER (DECL_NAME (method_decl));
+              AD_DEBUG_PRINT ("[extractSourceFromCall] Extracted virtual function name: %s", method_name);
+              call_source.function_name = ggc_strdup (method_name);
+            } else {
+              AD_DEBUG_PRINT ("[extractSourceFromCall] Failed to extract method name from OBJ_TYPE_REF, method_decl tree code: %s",
+                              method_decl ? get_tree_code_name (TREE_CODE (method_decl)) : "<null>");
+              call_source.function_name = ggc_strdup ("<virtual-call>");
+            }
+            // 跳过后续的 call_type 分析，因为已经确定是虚函数调用
+            AD_RETURNO (info);
+          }
           // 检查是否是 ADDR_EXPR（函数地址）
-          if (rhs_code == ADDR_EXPR) {
+          else if (rhs_code == ADDR_EXPR) {
             tree addr_expr = TREE_OPERAND (rhs, 0);
             if (addr_expr && TREE_CODE (addr_expr) == FUNCTION_DECL && DECL_NAME (addr_expr)) {
               call_source.function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (addr_expr)));

@@ -417,7 +417,20 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
     else if (call.call_type == ::array_detect_ns::CALL_DIRECT) call_type_str = "DIRECT";
     else if (call.call_type == ::array_detect_ns::CALL_INDIRECT) call_type_str = "INDIRECT";
     AD_DEBUG_PRINT ("  Source type: FUNCTION_CALL (%s)", call_type_str);
-    AD_DEBUG_PRINT ("  Call function name: %s", call.function_name ? call.function_name : "<unknown>");
+    
+    // 对于虚函数调用，如果 function_name 是 <virtual-call>，尝试提取实际的函数名
+    // 注意：即使 call_type 不是 CALL_VIRTUAL（可能被错误识别为 CALL_INDIRECT），
+    // 只要 function_name 是 <virtual-call>，也应该尝试提取
+    char const * display_function_name = call.function_name;
+    if (call.call_stmt && 
+        (!call.function_name || strcmp (call.function_name, "<virtual-call>") == 0)) {
+      char const * extracted_name = NULL;
+      if (extractVirtualCallFunctionName (AD_ARGS, call.call_stmt, extracted_name) == OK && extracted_name) {
+        display_function_name = extracted_name;
+      }
+    }
+    
+    AD_DEBUG_PRINT ("  Call function name: %s", display_function_name ? display_function_name : "<unknown>");
   } END_LET ()
   else LET_SOURCE_VARIABLE (var, *source_info) {
     AD_DEBUG_PRINT ("  Source type: VARIABLE");
@@ -440,6 +453,272 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
   }
   
   AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// ----------------------------------------------------------------------------
+// 辅助函数：提取虚函数调用的函数名
+// ----------------------------------------------------------------------------
+
+ArrayDetectErrorCode extractVirtualCallFunctionName (
+  AD_FUNC_ARGS,
+  gimple * call_stmt,
+  char const * &function_name
+) AD_FUNCTION_BEGIN {
+  function_name = NULL;
+  
+  if (!call_stmt || gimple_code (call_stmt) != GIMPLE_CALL) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
+  
+  tree fn = gimple_call_fn (call_stmt);
+  if (!fn) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
+  
+  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] gimple_call_fn tree code: %s",
+                  get_tree_code_name (TREE_CODE (fn)));
+  
+  // 首先尝试直接检查 OBJ_TYPE_REF（虚函数调用的直接形式）
+  tree current_expr = fn;
+  
+  // 如果 fn 是 SSA_NAME，尝试追踪其定义
+  if (TREE_CODE (current_expr) == SSA_NAME) {
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] fn is SSA_NAME, tracing definition");
+    gimple * def_stmt = SSA_NAME_DEF_STMT (current_expr);
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] def_stmt: %p, gimple_code: %d",
+                    (void*)def_stmt, def_stmt ? (int)gimple_code (def_stmt) : -1);
+    if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
+      tree rhs = gimple_assign_rhs1 (def_stmt);
+      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] rhs tree code: %s",
+                      rhs ? get_tree_code_name (TREE_CODE (rhs)) : "<null>");
+      if (rhs) {
+        current_expr = rhs;
+      }
+    }
+  }
+  
+  // 检查是否是 OBJ_TYPE_REF
+  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] current_expr tree code: %s",
+                  get_tree_code_name (TREE_CODE (current_expr)));
+  if (TREE_CODE (current_expr) == OBJ_TYPE_REF) {
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found OBJ_TYPE_REF!");
+    
+    // 尝试从 OBJ_TYPE_REF 的类型信息中提取函数名
+    tree obj_type_ref_type = TREE_TYPE (current_expr);
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF type: %s",
+                    obj_type_ref_type ? get_tree_code_name (TREE_CODE (obj_type_ref_type)) : "<null>");
+    
+    // 首先尝试从 OBJ_TYPE_REF_TOKEN 获取函数名（如果可用）
+    // OBJ_TYPE_REF_TOKEN 可能包含原始的方法声明信息
+#ifdef OBJ_TYPE_REF_TOKEN
+    tree obj_type_ref_token = OBJ_TYPE_REF_TOKEN (current_expr);
+    if (obj_type_ref_token) {
+      enum tree_code token_code = TREE_CODE (obj_type_ref_token);
+      char const * token_code_name = get_tree_code_name (token_code);
+      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_TOKEN: %p, tree code: %s (%d)",
+                      (void*)obj_type_ref_token, token_code_name ? token_code_name : "<unknown>", (int)token_code);
+      
+      if (token_code == FUNCTION_DECL && DECL_NAME (obj_type_ref_token)) {
+        char const * method_name = IDENTIFIER_POINTER (DECL_NAME (obj_type_ref_token));
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found function name from OBJ_TYPE_REF_TOKEN: %s", method_name);
+        function_name = ggc_strdup (method_name);
+        AD_RETURNE (OK);
+      } else if (token_code == INTEGER_CST) {
+        // OBJ_TYPE_REF_TOKEN 是虚表索引（整数常量）
+        // 无法直接从索引获取函数名，需要从对象类型和虚表信息推断
+        long long vtable_index = (long long)TREE_INT_CST_LOW (obj_type_ref_token);
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_TOKEN is INTEGER_CST (vtable index): %lld",
+                        vtable_index);
+        
+        // 尝试从对象类型和虚表信息推断函数名
+        // 获取对象类型
+        tree obj_type_ref_object = OBJ_TYPE_REF_OBJECT (current_expr);
+        if (obj_type_ref_object) {
+          tree object_type = TREE_TYPE (obj_type_ref_object);
+          if (object_type) {
+            // 处理指针和引用类型
+            if (TREE_CODE (object_type) == POINTER_TYPE || TREE_CODE (object_type) == REFERENCE_TYPE) {
+              object_type = TREE_TYPE (object_type);
+            }
+            if (object_type) {
+              object_type = TYPE_MAIN_VARIANT (object_type);
+              AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Object type: %s",
+                              get_tree_code_name (TREE_CODE (object_type)));
+              
+              // 如果是 RECORD_TYPE，尝试从类型的声明列表中查找虚函数
+              if (TREE_CODE (object_type) == RECORD_TYPE) {
+                // 遍历类型的所有声明（包括方法和字段）
+                int method_index = 0;
+                for (tree decl = TYPE_FIELDS (object_type); decl; decl = DECL_CHAIN (decl)) {
+                  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_VIRTUAL_P (decl)) {
+                    if (method_index == vtable_index) {
+                      // 找到匹配的虚函数
+                      if (DECL_NAME (decl)) {
+                        char const * method_name = IDENTIFIER_POINTER (DECL_NAME (decl));
+                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found function name from vtable index: %s", method_name);
+                        function_name = ggc_strdup (method_name);
+                        AD_RETURNE (OK);
+                      }
+                    }
+                    method_index++;
+                  }
+                }
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Could not find function at vtable index %lld (checked %d methods)",
+                                vtable_index, method_index);
+              }
+            }
+          }
+        }
+      }
+    }
+#endif
+    
+    tree method = OBJ_TYPE_REF_EXPR (current_expr);
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_EXPR: %p, method tree code: %s",
+                    (void*)method, method ? get_tree_code_name (TREE_CODE (method)) : "<null>");
+    
+    // 尝试从 OBJ_TYPE_REF 的其他字段获取信息
+    tree obj_type_ref_object = OBJ_TYPE_REF_OBJECT (current_expr);
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_OBJECT: %p, tree code: %s",
+                    (void*)obj_type_ref_object, obj_type_ref_object ? get_tree_code_name (TREE_CODE (obj_type_ref_object)) : "<null>");
+    
+    // OBJ_TYPE_REF_EXPR 可能返回 SSA_NAME 而不是直接的 FUNCTION_DECL
+    // 需要追踪 SSA_NAME 的定义
+    tree method_decl = method;
+    if (method && TREE_CODE (method) == SSA_NAME) {
+      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] method is SSA_NAME, tracing definition");
+      gimple * method_def = SSA_NAME_DEF_STMT (method);
+      if (method_def && gimple_code (method_def) == GIMPLE_ASSIGN) {
+        tree method_rhs = gimple_assign_rhs1 (method_def);
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] method_def rhs tree code: %s",
+                        method_rhs ? get_tree_code_name (TREE_CODE (method_rhs)) : "<null>");
+        if (method_rhs && TREE_CODE (method_rhs) == FUNCTION_DECL) {
+          method_decl = method_rhs;
+          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found FUNCTION_DECL in SSA_NAME definition");
+        } else if (method_rhs && TREE_CODE (method_rhs) == ADDR_EXPR) {
+          tree addr_operand = TREE_OPERAND (method_rhs, 0);
+          if (addr_operand && TREE_CODE (addr_operand) == FUNCTION_DECL) {
+            method_decl = addr_operand;
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found FUNCTION_DECL in ADDR_EXPR");
+          }
+        } else if (method_rhs && TREE_CODE (method_rhs) == MEM_REF) {
+          // mem_ref 表示从内存读取，可能是从虚表读取函数指针
+          // 尝试从 OBJ_TYPE_REF 的类型信息中提取函数名
+          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] method_rhs is MEM_REF, trying to extract from OBJ_TYPE_REF type");
+          tree obj_type_ref_type = TREE_TYPE (current_expr);
+          if (obj_type_ref_type) {
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF type: %s",
+                            get_tree_code_name (TREE_CODE (obj_type_ref_type)));
+            // 如果是函数指针类型，尝试从类型中提取信息
+            if (TREE_CODE (obj_type_ref_type) == POINTER_TYPE) {
+              tree pointed_type = TREE_TYPE (obj_type_ref_type);
+              if (pointed_type && TREE_CODE (pointed_type) == FUNCTION_TYPE) {
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF points to FUNCTION_TYPE");
+                // 对于虚函数调用，类型信息可能不足以确定函数名
+                // 需要从其他地方获取
+              }
+            }
+          }
+          
+          // 尝试从 OBJ_TYPE_REF 的原始方法声明中获取
+          // 即使 OBJ_TYPE_REF_EXPR 返回 SSA_NAME，原始的方法声明信息可能还在
+          // 尝试通过类型系统查找
+          tree method_var = SSA_NAME_VAR (method);
+          if (method_var && TREE_CODE (method_var) == VAR_DECL) {
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found VAR_DECL from SSA_NAME_VAR");
+            // 继续追踪...
+          }
+          
+          // 如果 mem_ref 的 operand 是 SSA_NAME，继续追踪
+          tree mem_ref_base = TREE_OPERAND (method_rhs, 0);
+          if (mem_ref_base && TREE_CODE (mem_ref_base) == SSA_NAME) {
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] MEM_REF base is SSA_NAME, tracing further");
+            gimple * mem_ref_def = SSA_NAME_DEF_STMT (mem_ref_base);
+            if (mem_ref_def && gimple_code (mem_ref_def) == GIMPLE_ASSIGN) {
+              tree mem_ref_rhs = gimple_assign_rhs1 (mem_ref_def);
+              AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] MEM_REF base rhs tree code: %s",
+                              mem_ref_rhs ? get_tree_code_name (TREE_CODE (mem_ref_rhs)) : "<null>");
+            }
+          }
+          
+          // 对于 mem_ref 的情况，尝试从 OBJ_TYPE_REF 的类型中提取
+          // OBJ_TYPE_REF 的类型应该是函数指针类型，但可能无法直接获取函数名
+          // 尝试使用 gimple_call_fndecl 作为备选方案
+          tree fndecl_from_call = gimple_call_fndecl (call_stmt);
+          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] gimple_call_fndecl: %p",
+                          (void*)fndecl_from_call);
+          if (fndecl_from_call && TREE_CODE (fndecl_from_call) == FUNCTION_DECL && DECL_NAME (fndecl_from_call)) {
+            char const * method_name = IDENTIFIER_POINTER (DECL_NAME (fndecl_from_call));
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found function name via gimple_call_fndecl: %s", method_name);
+            function_name = ggc_strdup (method_name);
+            AD_RETURNE (OK);
+          }
+          
+          // 尝试从 OBJ_TYPE_REF 的类型信息中提取
+          // 对于虚函数调用，即使 OBJ_TYPE_REF_EXPR 返回 SSA_NAME，
+          // OBJ_TYPE_REF 的类型应该包含函数签名信息
+          if (obj_type_ref_type && TREE_CODE (obj_type_ref_type) == POINTER_TYPE) {
+            tree pointed_type = TREE_TYPE (obj_type_ref_type);
+            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF pointed type: %s",
+                            pointed_type ? get_tree_code_name (TREE_CODE (pointed_type)) : "<null>");
+            if (pointed_type && TREE_CODE (pointed_type) == FUNCTION_TYPE) {
+              // 函数类型不包含函数名，但我们可以尝试从其他方式获取
+              // 检查是否有类型属性或其他信息
+            } else if (pointed_type && TREE_CODE (pointed_type) == METHOD_TYPE) {
+              // method_type 是 C++ 成员函数类型
+              // 尝试从 method_type 中提取信息
+              AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF points to METHOD_TYPE");
+              tree basetype = TYPE_METHOD_BASETYPE (pointed_type);
+              AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] METHOD_TYPE basetype: %s",
+                              basetype ? get_tree_code_name (TREE_CODE (basetype)) : "<null>");
+              // method_type 本身不包含函数名，但我们可以尝试从其他方式获取
+            }
+          }
+          
+          // 最后尝试：从 OBJ_TYPE_REF 的原始表达式中提取
+          // 在某些情况下，OBJ_TYPE_REF 可能包含原始的方法声明引用
+          // 尝试打印完整的 OBJ_TYPE_REF 结构用于调试
+          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF structure dump:");
+          if (ctx.debug_file) {
+            print_generic_expr (ctx.debug_file, current_expr, TDF_DETAILS);
+            fprintf (ctx.debug_file, "\n");
+          }
+        }
+      }
+    }
+    
+    if (method_decl && TREE_CODE (method_decl) == FUNCTION_DECL && DECL_NAME (method_decl)) {
+      char const * method_name = IDENTIFIER_POINTER (DECL_NAME (method_decl));
+      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Extracted virtual function name: %s", method_name);
+      function_name = ggc_strdup (method_name);
+      AD_RETURNE (OK);
+    } else {
+      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Failed to extract method name from OBJ_TYPE_REF, method_decl tree code: %s",
+                      method_decl ? get_tree_code_name (TREE_CODE (method_decl)) : "<null>");
+    }
+  } else {
+    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] current_expr is not OBJ_TYPE_REF");
+  }
+  
+  // 如果直接检查失败，尝试使用 match-API
+  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Trying matchCallExpression API");
+  CallMatchResult match_result;
+  ArrayDetectErrorCode match_ecode = matchCallExpression (AD_ARGS, fn, match_result);
+  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] matchCallExpression returned: %lld, call_type: %d",
+                  (long long)match_ecode, (int)match_result.call_type);
+  
+  if (match_ecode == OK && match_result.call_type == CALL_VIRTUAL) {
+    // 提取虚函数名
+    AD_MATCH_VIRTUAL_CALL (match_result, virtual_info) {
+      if (virtual_info.method_decl && DECL_NAME (virtual_info.method_decl)) {
+        function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (virtual_info.method_decl)));
+        AD_RETURNE (OK);
+      }
+    } AD_MATCH_END ()
+  }
+  
+  // 无法提取函数名
+  AD_RETURNE (OK);  // 返回 OK 但 function_name 为 NULL
 } AD_FUNCTION_END
 
 } // namespace array_detect_ns
