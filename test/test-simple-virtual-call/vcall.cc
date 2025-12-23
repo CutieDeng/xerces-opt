@@ -8,4 +8,5 @@ int fuzz (Fuzz &f, Buz &b) {
 int quiz (Fuzz &f, Fuzz &f2, Buz &b) {
   f.dumb ();
   b.y = f2.buz (); 
+  return 2;
 }
