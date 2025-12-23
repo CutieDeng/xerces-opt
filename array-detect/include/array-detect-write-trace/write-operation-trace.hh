@@ -110,4 +110,24 @@ ArrayDetectErrorCode extractSourceFromPhi (
   FieldSourceInfo* &result
 );
 
+// 从计算表达式提取来源信息
+// 输入：compute_expr - 计算表达式（tree）
+//       compute_stmt - 计算语句（GIMPLE_ASSIGN，可能为 NULL，如果为 NULL 则使用 fallback_stmt）
+//       fallback_stmt - 备用语句（当 compute_stmt 为 NULL 时使用）
+//       location - 源码位置
+//       function - 所在函数（用于上下文信息）
+//       bb - 所在基本块（用于上下文信息）
+// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
+ArrayDetectErrorCode extractSourceFromComputation (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  tree compute_expr,
+  gimple* compute_stmt_nullable,
+  gimple* fallback_stmt,
+  location_t location,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo* &result
+);
+
 } // namespace array_detector
