@@ -93,27 +93,23 @@ ArrayDetectErrorCode extractSourceFromVariable(
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo** out_source_info
+  FieldSourceInfo* &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
   (void)bb;
   
-  if (!ssa_name || TREE_CODE(ssa_name) != SSA_NAME || !out_source_info) {
-    AD_RETURNE(INVALID_ARGUMENT);
-  }
-  
   // 分配来源信息结构
-  FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-  if (!source_info) {
+  FieldSourceInfo* info = ggc_alloc<FieldSourceInfo>();
+  if (!info) {
     AD_RETURNE(MEMORY_ERROR);
   }
-  memset(source_info, 0, sizeof(FieldSourceInfo));
+  memset(info, 0, sizeof(FieldSourceInfo));
   
-  source_info->source_type = SOURCE_VARIABLE;
+  info->source_type = SOURCE_VARIABLE;
   
   // 初始化变量来源信息
-  VariableSource* var_source = &source_info->data.variable;
+  VariableSource* var_source = &info->data.variable;
   var_source->ssa_name = ssa_name;
   var_source->location = location;
   
@@ -126,8 +122,7 @@ ArrayDetectErrorCode extractSourceFromVariable(
     }
   }
   
-  *out_source_info = source_info;
-  AD_RETURNE(OK);
+  AD_RETURNO(info);
 } AD_FUNCTION_END
 
 // 可选自动缩减平凡 move 操作的分析器
@@ -273,7 +268,9 @@ ArrayDetectErrorCode extractSourceFromRhs(
       *out_source_info = call_result;
     } else {
       // 来自变量（可能是参数或其他）
-      AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, out_source_info));
+      FieldSourceInfo* var_result;
+      AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, var_result));
+      *out_source_info = var_result;
     }
   } else if (CONSTANT_CLASS_P(final_value)) {
     // 常量
