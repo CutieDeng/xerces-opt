@@ -219,7 +219,7 @@ ArrayDetectErrorCode printGimpleCallDetails(
   
   if (match_ecode != OK) {
     fprintf(output_file, "Call type: <match failed>\n");
-    fprintf(output_file, "Match error code: %d\n", match_ecode);
+    fprintf(output_file, "Match error code: %lld\n", (long long)match_ecode);
     fprintf(output_file, "Raw function expression:\n");
     print_generic_expr(output_file, fn, TDF_DETAILS);
     fprintf(output_file, "\n");

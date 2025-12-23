@@ -179,11 +179,41 @@ ArrayDetectErrorCode reduceTrivialMoves(
   
   // 处理赋值语句
   if (code == GIMPLE_ASSIGN) {
+    tree lhs = gimple_assign_lhs(def_stmt);
     tree rhs = gimple_assign_rhs1(def_stmt);
     enum tree_code rhs_code = gimple_assign_rhs_code(def_stmt);
     
-    // 平凡 move：RHS 是 SSA_NAME 且操作码是 NOP_EXPR（无操作），继续追踪
-    if (TREE_CODE(rhs) == SSA_NAME && rhs_code == NOP_EXPR) {
+    // 判断是否为平凡赋值（trivial move/copy）
+    // RHS 必须是 SSA_NAME
+    bool is_trivial = false;
+    
+    if (TREE_CODE(rhs) == SSA_NAME) {
+      // 情形 1: NOP_EXPR（无操作转换）
+      if (rhs_code == NOP_EXPR) {
+        is_trivial = true;
+      }
+      // 情形 2: CONVERT_EXPR + 纯位等价转换
+      else if (rhs_code == CONVERT_EXPR) {
+        // 使用 GCC 的 useless_type_conversion_p 判断是否为纯位等价转换
+        if (useless_type_conversion_p(TREE_TYPE(lhs), rhs)) {
+          is_trivial = true;
+        }
+      }
+      // 情形 3: VIEW_CONVERT_EXPR（总是纯位等价）
+      else if (rhs_code == VIEW_CONVERT_EXPR) {
+        is_trivial = true;
+      }
+      // 情形 4: 相同类型的直接赋值
+      else if (TREE_TYPE(lhs) == TREE_TYPE(rhs)) {
+        // 检查是否为简单的复制赋值
+        if (gimple_assign_copy_p(def_stmt)) {
+          is_trivial = true;
+        }
+      }
+    }
+    
+    // 如果是平凡赋值，继续追踪
+    if (is_trivial) {
       basic_block def_bb = gimple_bb(def_stmt);
       if (!def_bb) {
         AD_DEBUG_PRINT("Error: gimple_bb() returned NULL for def_stmt in reduceTrivialMoves");

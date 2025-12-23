@@ -249,14 +249,18 @@ obj/array-detect-utils/info-print.o: \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
   include/array-detect-context/context.hh \
+  include/array-detect-gcc/gcc-common.hh \
   include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
-  include/array-detect-gcc/gcc-common.hh \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-core/virtual-call-analysis.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
+  include/array-detect-gcc/gcc-ext-util.hh \
 
 obj/array-detect-field-analysis/field-analysis-integration.o: \
   src/array-detect-field-analysis/field-analysis-integration.cc \
