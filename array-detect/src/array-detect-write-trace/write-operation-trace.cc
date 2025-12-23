@@ -280,6 +280,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
       // 来自变量（可能是参数或其他）
       AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, result));
     }
+    AD_RETURNE (OK);
   } else if (CONSTANT_CLASS_P(final_value)) {
     // 常量
     FieldSourceInfo* info = ggc_alloc<FieldSourceInfo>();

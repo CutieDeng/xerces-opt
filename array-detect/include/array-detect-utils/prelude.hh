@@ -30,9 +30,21 @@
 // 返回控制宏
 // ============================================================================
 
+// 返回错误码并跳转到 cleanup（原始版本，不输出调试信息，用于初始化阶段）
+#define AD_RETURNE_RAW(x) \
+  do { ecode = ::array_detect_ns::x; goto cleanup; } while (0)
+
 // 返回错误码并跳转到 cleanup
 #define AD_RETURNE(x) \
-  do { ecode = ::array_detect_ns::x; goto cleanup; } while (0)
+  do { \
+    ::array_detect_ns::ArrayDetectErrorCode ret_code = ::array_detect_ns::x; \
+    ecode = ret_code; \
+    if (ret_code != ::array_detect_ns::OK) { \
+      const char* err_name = ::array_detect_ns::getErrorCodeName(ret_code); \
+      AD_DEBUG_PRINT("Returning error: %s", err_name); \
+    } \
+    goto cleanup; \
+  } while (0)
 
 // 直接跳转到 cleanup（用于提前返回）
 #define AD_RETURN() \
@@ -77,7 +89,8 @@
     if (ecode1 != ::array_detect_ns::OK) { \
       ecode = ecode1; \
       if (err_debug) { \
-        AD_DEBUG_PRINT(dbg_msg, #rst, ##__VA_ARGS__); \
+        const char* err_name = ::array_detect_ns::getErrorCodeName(ecode1); \
+        AD_DEBUG_PRINT(dbg_msg ": %s", #rst, err_name, ##__VA_ARGS__); \
       } \
       goto brk_label; \
     } else { \
@@ -103,7 +116,7 @@
     } \
   } while (0)
 
-// 简化版错误处理（默认跳转到 cleanup，失败时输出错误）
+// 简化版错误处理（默认跳转到 cleanup，失败时输出错误码名称）
 #define AD_TRY(rst) \
   AD_TRY2(rst, cleanup, false, true, "Failed: %s")
 

@@ -23,10 +23,10 @@ ArrayDetectErrorCode initContextWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file_dtor = closeWrap;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
-    AD_RETURNE (RESOURCE_ERROR);
+    AD_RETURNE_RAW (RESOURCE_ERROR);
   }
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNE (OK);
+  AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
@@ -40,10 +40,10 @@ ArrayDetectErrorCode initContextWithNamedFile(AD_FUNC_ARGS, char const *debug_fi
   ctx.debug_file_dtor = closeWrap;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
-    AD_RETURNE (RESOURCE_ERROR);
+    AD_RETURNE_RAW (RESOURCE_ERROR);
   }
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNE (OK);
+  AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
@@ -56,7 +56,7 @@ ArrayDetectErrorCode initContextWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
-  AD_RETURNE (OK);
+  AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
     fclose(ctx.debug_file);
