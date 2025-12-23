@@ -157,6 +157,48 @@ ArrayDetectErrorCode extractSourceFromConstant (
   END_LET ()
 } AD_FUNCTION_END
 
+// 从 PHI 节点提取来源信息
+ArrayDetectErrorCode extractSourceFromPhi (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  gimple* phi_stmt,
+  tree ssa_name,
+  location_t location,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo* &result
+) AD_FUNCTION_BEGIN {
+  (void)detector;
+  (void)function;
+  (void)bb;
+  
+  // 分配来源信息结构
+  FieldSourceInfo *info = ggc_alloc<FieldSourceInfo> ();
+  if (!info) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memset (info, 0, sizeof (FieldSourceInfo));
+  
+  info->source_type = SOURCE_PHI;
+  LET_SOURCE_PHI (phi_source, *info)
+    // 初始化 PHI 来源信息
+    phi_source.phi_stmt = phi_stmt;
+    phi_source.ssa_name = ssa_name;
+    phi_source.location = location;
+    
+    // 获取变量声明和变量名
+    tree var_decl_nullable = SSA_NAME_VAR (ssa_name);
+    if (var_decl_nullable) {
+      phi_source.var_decl = var_decl_nullable;
+      if (DECL_NAME (var_decl_nullable)) {
+        phi_source.var_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (var_decl_nullable)));
+      }
+    }
+    
+    AD_RETURNO (info);
+  END_LET ()
+} AD_FUNCTION_END
+
 // 可选自动缩减平凡 move 操作的分析器
 // 追踪值的定义链，跳过简单赋值（平凡 move），直到找到真正的来源
 // 输入：value - 要追踪的值（可以是任意 tree，如果是 SSA_NAME 则追踪，否则直接返回）
@@ -297,9 +339,10 @@ ArrayDetectErrorCode extractSourceFromRhs (
   
   AD_TRY (reduceTrivialMoves (detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
   
-  // 如果遇到 PHI 节点，抛出错误
+  // 如果遇到 PHI 节点，提取 PHI 来源信息
   if (is_phi) {
-    AD_RETURNE (GCC_LOGIC_ERROR);
+    AD_TRY (extractSourceFromPhi (detector, AD_ARGS, final_stmt_nullable, final_value, location, function, bb, result));
+    AD_RETURNE (OK);
   }
   
   // 第二步：根据最终值的类型提取来源信息

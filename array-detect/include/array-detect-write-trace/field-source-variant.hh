@@ -20,7 +20,8 @@ enum FieldSourceType {
   SOURCE_FUNCTION_CALL,  // 函数调用（包括虚函数、直接调用、间接调用）
   SOURCE_VARIABLE,       // 变量（SSA_NAME）
   SOURCE_CONSTANT,       // 常量
-  SOURCE_COMPUTATION     // 计算表达式
+  SOURCE_COMPUTATION,    // 计算表达式
+  SOURCE_PHI             // PHI 节点（分支合并点，多个来源）
 };
 
 // 函数调用来源信息
@@ -53,6 +54,15 @@ struct ComputationSource {
   location_t location;         // 计算位置（GCC 内部管理）
 };
 
+// PHI 节点来源信息
+struct PhiSource {
+  gimple* phi_stmt;            // GIMPLE_PHI 语句（GCC 内部管理）
+  tree ssa_name;               // PHI 的结果 SSA_NAME（GCC 内部管理）
+  tree var_decl;               // 变量声明（VAR_DECL，GCC 内部管理，可能为 NULL）
+  const char* var_name;        // 变量名（ggc_strdup 分配，可能为 NULL）
+  location_t location;         // PHI 节点位置（GCC 内部管理）
+};
+
 // 字段来源信息 Variant（使用 union 实现）
 struct FieldSourceInfo {
   FieldSourceType source_type;  // 来源类型（discriminator）
@@ -61,6 +71,7 @@ struct FieldSourceInfo {
     VariableSource variable;           // 变量来源
     ConstantSource constant;           // 常量来源
     ComputationSource computation;    // 计算来源
+    PhiSource phi;                     // PHI 节点来源
   } data;
 };
 
@@ -73,6 +84,7 @@ struct FieldSourceInfo {
 #define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == SOURCE_VARIABLE)
 #define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == SOURCE_CONSTANT)
 #define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == SOURCE_COMPUTATION)
+#define FIELD_SOURCE_IS_PHI(src) ((src).source_type == SOURCE_PHI)
 #define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == SOURCE_UNKNOWN)
 
 // 安全访问函数调用来源
@@ -90,6 +102,10 @@ struct FieldSourceInfo {
 // 安全访问计算来源
 #define FIELD_SOURCE_GET_COMPUTATION(src) \
   (FIELD_SOURCE_IS_COMPUTATION(src) ? &((src).data.computation) : nullptr)
+
+// 安全访问 PHI 来源
+#define FIELD_SOURCE_GET_PHI(src) \
+  (FIELD_SOURCE_IS_PHI(src) ? &((src).data.phi) : nullptr)
 
 // ============================================================================
 // Variant 模式匹配宏（类似 Rust 的 if let，使用引用）
@@ -134,6 +150,13 @@ struct FieldSourceInfo {
 #define LET_SOURCE_COMPUTATION(VAR, SRC) \
   if (FIELD_SOURCE_IS_COMPUTATION(SRC)) { \
     ComputationSource& VAR = (SRC).data.computation;
+
+// PHI 来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_PHI(VAR, SRC) \
+  if (FIELD_SOURCE_IS_PHI(SRC)) { \
+    PhiSource& VAR = (SRC).data.phi;
 
 // 结束模式匹配块
 // 展开为：}
