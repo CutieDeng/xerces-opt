@@ -7,6 +7,11 @@
 
 namespace array_detector {
   class ArrayDetector;
+  struct FieldSourceInfo;
+}
+
+namespace array_detect_ns {
+  struct FieldWriteCapture;
 }
 
 namespace array_detect_ns {
@@ -30,6 +35,21 @@ ArrayDetectErrorCode printGimpleCallDetails (
   AD_FUNC_ARGS,
   gimple * call_stmt,
   FILE * output_file
+);
+
+// ----------------------------------------------------------------------------
+// 调试输出函数：打印字段写入来源信息
+// ----------------------------------------------------------------------------
+// 输出字段写入操作的来源信息，包括类型、字段、函数、基本块和来源详情
+// 使用 LET 宏处理不同的来源类型
+// ----------------------------------------------------------------------------
+
+ArrayDetectErrorCode printFieldWriteSourceInfo (
+  AD_FUNC_ARGS,
+  tree type,
+  tree field_decl,
+  ::array_detect_ns::FieldWriteCapture const &capture,
+  ::array_detector::FieldSourceInfo *source_info
 );
 
 } // namespace array_detect_ns

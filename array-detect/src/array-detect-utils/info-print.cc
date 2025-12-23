@@ -2,8 +2,11 @@
 #include "array-detector.hh"
 #include "virtual-call-analysis.hh"
 #include "gcc-ext-util.hh"
+#include "field-source-variant.hh"
+#include "analysis-data.hh"
 
 using array_detector::ArrayDetector;
+using namespace array_detector;  // 为了使用 LET 宏中的类型
 
 // ----------------------------------------------------------------------------
 // printResults 函数（需要在 ArrayDetector 定义之后）
@@ -365,6 +368,67 @@ ArrayDetectErrorCode printGimpleCallDetails (
   fprintf (output_file, "\n");
   
   fprintf (output_file, "=== End GIMPLE_CALL Details ===\n\n");
+  
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// ----------------------------------------------------------------------------
+// 调试输出函数：打印字段写入来源信息
+// ----------------------------------------------------------------------------
+
+ArrayDetectErrorCode printFieldWriteSourceInfo (
+  AD_FUNC_ARGS,
+  tree type,
+  tree field_decl,
+  ::array_detect_ns::FieldWriteCapture const &capture,
+  ::array_detector::FieldSourceInfo *source_info
+) AD_FUNCTION_BEGIN {
+  if (!source_info) {
+    AD_DEBUG_PRINT ("Field write source info: <null>");
+    AD_RETURNE (OK);
+  }
+  
+  // 获取类型名和字段名（使用已有的工具函数，不创建临时缓冲区）
+  char const * type_name = NULL;
+  AD_TRY (gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, type, type_name));
+  char const * field_name = NULL;
+  AD_TRY (gcc_ext_util::getFieldName (AD_ARGS, field_decl, field_name));
+  
+  // 输出基本信息
+  AD_DEBUG_PRINT ("Extracted source for field write:");
+  AD_DEBUG_PRINT ("  Type: %s", type_name ? type_name : "<unknown>");
+  AD_DEBUG_PRINT ("  Field: %s", field_name ? field_name : "<unknown>");
+  AD_DEBUG_PRINT ("  Function: %s", capture.function_name ? capture.function_name : "<unknown>");
+  AD_DEBUG_PRINT ("  BB index: %d", capture.bb_index);
+  
+  // 根据来源类型输出详细信息（使用 LET 宏）
+  LET_SOURCE_FUNCTION_CALL (call, *source_info) {
+    char const * call_type_str = "UNKNOWN";
+    if (call.call_type == ::array_detect_ns::CALL_VIRTUAL) call_type_str = "VIRTUAL";
+    else if (call.call_type == ::array_detect_ns::CALL_DIRECT) call_type_str = "DIRECT";
+    else if (call.call_type == ::array_detect_ns::CALL_INDIRECT) call_type_str = "INDIRECT";
+    AD_DEBUG_PRINT ("  Source type: FUNCTION_CALL (%s)", call_type_str);
+    AD_DEBUG_PRINT ("  Call function: %s", call.function_name ? call.function_name : "<unknown>");
+  } END_LET ()
+  else LET_SOURCE_VARIABLE (var, *source_info) {
+    AD_DEBUG_PRINT ("  Source type: VARIABLE");
+    AD_DEBUG_PRINT ("  Variable name: %s", var.var_name ? var.var_name : "<unknown>");
+  } END_LET ()
+  else LET_SOURCE_CONSTANT (constant, *source_info) {
+    AD_DEBUG_PRINT ("  Source type: CONSTANT");
+    AD_DEBUG_PRINT ("  Constant value: %s", constant.constant_str ? constant.constant_str : "<unknown>");
+  } END_LET ()
+  else LET_SOURCE_COMPUTATION (comp, *source_info) {
+    AD_DEBUG_PRINT ("  Source type: COMPUTATION");
+    AD_DEBUG_PRINT ("  Description: %s", comp.description ? comp.description : "<unknown>");
+  } END_LET ()
+  else LET_SOURCE_PHI (phi, *source_info) {
+    AD_DEBUG_PRINT ("  Source type: PHI");
+    AD_DEBUG_PRINT ("  Variable name: %s", phi.var_name ? phi.var_name : "<unknown>");
+  } END_LET ()
+  else {
+    AD_DEBUG_PRINT ("  Source type: UNKNOWN");
+  }
   
   AD_RETURNE (OK);
 } AD_FUNCTION_END

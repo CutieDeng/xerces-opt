@@ -80,12 +80,12 @@ struct FieldSourceInfo {
 // ============================================================================
 
 // 检查来源类型
-#define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == SOURCE_FUNCTION_CALL)
-#define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == SOURCE_VARIABLE)
-#define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == SOURCE_CONSTANT)
-#define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == SOURCE_COMPUTATION)
-#define FIELD_SOURCE_IS_PHI(src) ((src).source_type == SOURCE_PHI)
-#define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == SOURCE_UNKNOWN)
+#define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == ::array_detector::SOURCE_FUNCTION_CALL)
+#define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == ::array_detector::SOURCE_VARIABLE)
+#define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == ::array_detector::SOURCE_CONSTANT)
+#define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == ::array_detector::SOURCE_COMPUTATION)
+#define FIELD_SOURCE_IS_PHI(src) ((src).source_type == ::array_detector::SOURCE_PHI)
+#define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == ::array_detector::SOURCE_UNKNOWN)
 
 // 安全访问函数调用来源
 #define FIELD_SOURCE_GET_FUNCTION_CALL(src) \
@@ -128,35 +128,35 @@ struct FieldSourceInfo {
 // SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_FUNCTION_CALL(VAR, SRC) \
   if (FIELD_SOURCE_IS_FUNCTION_CALL (SRC)) { \
-    FunctionCallSource& VAR = (SRC).data.function_call;
+    ::array_detector::FunctionCallSource& VAR = (SRC).data.function_call;
 
 // 变量来源模式匹配
 // VAR: 变量名（引用类型）
 // SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_VARIABLE(VAR, SRC) \
   if (FIELD_SOURCE_IS_VARIABLE (SRC)) { \
-    VariableSource& VAR = (SRC).data.variable;
+    ::array_detector::VariableSource& VAR = (SRC).data.variable;
 
 // 常量来源模式匹配
 // VAR: 变量名（引用类型）
 // SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_CONSTANT(VAR, SRC) \
   if (FIELD_SOURCE_IS_CONSTANT (SRC)) { \
-    ConstantSource& VAR = (SRC).data.constant;
+    ::array_detector::ConstantSource& VAR = (SRC).data.constant;
 
 // 计算来源模式匹配
 // VAR: 变量名（引用类型）
 // SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_COMPUTATION(VAR, SRC) \
   if (FIELD_SOURCE_IS_COMPUTATION (SRC)) { \
-    ComputationSource& VAR = (SRC).data.computation;
+    ::array_detector::ComputationSource& VAR = (SRC).data.computation;
 
 // PHI 来源模式匹配
 // VAR: 变量名（引用类型）
 // SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_PHI(VAR, SRC) \
   if (FIELD_SOURCE_IS_PHI (SRC)) { \
-    PhiSource& VAR = (SRC).data.phi;
+    ::array_detector::PhiSource& VAR = (SRC).data.phi;
 
 // 结束模式匹配块
 // 展开为：}

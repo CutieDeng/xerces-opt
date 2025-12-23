@@ -4,6 +4,7 @@
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
 #include "field-source-variant.hh"
+#include "info-print.hh"
 
 namespace array_detector {
 
@@ -211,6 +212,9 @@ ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARG
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     // iter->first 是键（TypeFieldKey），iter->second 是值（TypeFieldWriteOps*）
+    // 注意：虽然插入时不会插入 NULL 值，但 GCC 的 hash_map 可能允许 NULL 值，
+    // 且 findOrCreateTypeFieldWriteOps 中已考虑了"键存在但值为 NULL"的情况。
+    // 因此这里需要防御性检查，避免访问空指针。
     TypeFieldWriteOps *tfwo_nullable = (*iter).second;
     if (!tfwo_nullable || !tfwo_nullable->write_ops) {
       continue;
@@ -242,8 +246,9 @@ ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARG
       source_extracted_count++;
       
       TypeFieldKey key = (*iter).first;
-      AD_DEBUG_PRINT ("Extracted source for field write: type=%p, field=%p, source_type=%d",
-                    (void*)key.type, (void*)key.field_decl, source_info->source_type);
+      
+      // 调用调试模块的函数输出详细信息
+      AD_TRY (printFieldWriteSourceInfo (AD_ARGS, key.type, key.field_decl, capture, source_info));
     }
   }
   
