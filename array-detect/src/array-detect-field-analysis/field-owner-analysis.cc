@@ -119,15 +119,8 @@ ArrayDetectErrorCode determineMemoryOwner (
           break;
         }
         
-        // 也可以使用 areVirtualCallsEquivalent 进行更精确的比较
-        bool equiv;
-        if (base_op->call_stmt && op->call_stmt) {
-          AD_TRY (areVirtualCallsEquivalent (AD_ARGS, base_op->call_stmt, op->call_stmt, equiv));
-          if (!equiv) {
-            all_equivalent = false;
-            break;
-          }
-        }
+        // 注意：更精确的比较需要使用 FunctionCallSource（write-operation-trace 模块的二级信息）
+        // 这里只比较签名字符串，如果需要更精确的比较，应该使用 function-call-comparator 模块
       }
     }
     

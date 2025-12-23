@@ -308,60 +308,105 @@ ArrayDetectErrorCode analyzeCallExpression (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// 检查两个虚函数调用是否等价（使用 match-API 重构）
-ArrayDetectErrorCode areVirtualCallsEquivalent (
+
+// 比较两个函数声明的签名是否相同
+ArrayDetectErrorCode compareFunctionSignatures (
   AD_FUNC_ARGS,
-  gimple * call1,
-  gimple * call2,
-  bool &is_equivalent
+  tree decl1,
+  tree decl2,
+  bool &is_same_signature
 ) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   
-  is_equivalent = false;
+  is_same_signature = false;
   
-  if (!call1 || !call2) {
+  if (!decl1 || !decl2) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
   
-  tree fn1 = gimple_call_fn (call1);
-  tree fn2 = gimple_call_fn (call2);
-  
-  if (!fn1 || !fn2) {
+  // 必须都是函数声明
+  if (TREE_CODE (decl1) != FUNCTION_DECL || TREE_CODE (decl2) != FUNCTION_DECL) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
   
-  // 使用 match-API 匹配两个调用
-  CallMatchResult match1, match2;
-  ArrayDetectErrorCode ecode1 = matchCallExpression (AD_ARGS, fn1, match1);
-  ArrayDetectErrorCode ecode2 = matchCallExpression (AD_ARGS, fn2, match2);
+  // 1. 比较函数名
+  tree name1 = DECL_NAME (decl1);
+  tree name2 = DECL_NAME (decl2);
   
-  // 如果任一匹配失败，则不等价
-  if (ecode1 != OK || ecode2 != OK) {
+  if (!name1 || !name2) {
+    // 如果任一函数没有名称，无法比较
     AD_RETURNE (OK);
   }
   
-  // 类型必须相同
-  if (match1.call_type != match2.call_type) {
+  if (name1 != name2) {
+    // 函数名不同，签名不同
     AD_RETURNE (OK);
   }
   
-  // 根据类型比较
-  if (match1.call_type == CALL_DIRECT && match2.call_type == CALL_DIRECT) {
-    DirectCallInfo const &direct1 = match1.info.direct;
-    DirectCallInfo const &direct2 = match2.info.direct;
-    is_equivalent = (direct1.function_decl == direct2.function_decl);
-  } else if (match1.call_type == CALL_VIRTUAL && match2.call_type == CALL_VIRTUAL) {
-    VirtualCallInfo const &virtual1 = match1.info.virtual_;
-    VirtualCallInfo const &virtual2 = match2.info.virtual_;
-    // 比较方法声明
-    is_equivalent = (virtual1.method_decl == virtual2.method_decl);
-  } else if (match1.call_type == CALL_INDIRECT && match2.call_type == CALL_INDIRECT) {
-    IndirectCallInfo const &indirect1 = match1.info.indirect;
-    IndirectCallInfo const &indirect2 = match2.info.indirect;
-    // 间接调用比较表达式
-    is_equivalent = (indirect1.function_expr == indirect2.function_expr);
+  // 2. 比较函数类型（包含返回类型和参数类型）
+  tree type1 = TREE_TYPE (decl1);
+  tree type2 = TREE_TYPE (decl2);
+  
+  if (!type1 || !type2) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
   
+  // 获取函数类型（METHOD_TYPE 或 FUNCTION_TYPE）
+  if (TREE_CODE (type1) != TREE_CODE (type2)) {
+    // 类型代码不同（如一个是 METHOD_TYPE，一个是 FUNCTION_TYPE）
+    AD_RETURNE (OK);
+  }
+  
+  // 3. 比较返回类型
+  tree ret_type1 = TREE_TYPE (type1);
+  tree ret_type2 = TREE_TYPE (type2);
+  
+  if (!ret_type1 || !ret_type2) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
+  
+  // 获取主变体类型进行比较（去除 const/volatile 等修饰）
+  ret_type1 = TYPE_MAIN_VARIANT (ret_type1);
+  ret_type2 = TYPE_MAIN_VARIANT (ret_type2);
+  
+  if (ret_type1 != ret_type2) {
+    // 返回类型不同
+    AD_RETURNE (OK);
+  }
+  
+  // 4. 比较参数类型
+  tree args1 = TYPE_ARG_TYPES (type1);
+  tree args2 = TYPE_ARG_TYPES (type2);
+  
+  // 遍历参数类型列表
+  while (args1 && args2) {
+    tree arg_type1 = TREE_VALUE (args1);
+    tree arg_type2 = TREE_VALUE (args2);
+    
+    if (!arg_type1 || !arg_type2) {
+      AD_RETURNE (INVALID_ARGUMENT);
+    }
+    
+    // 获取主变体类型
+    arg_type1 = TYPE_MAIN_VARIANT (arg_type1);
+    arg_type2 = TYPE_MAIN_VARIANT (arg_type2);
+    
+    if (arg_type1 != arg_type2) {
+      // 参数类型不同
+      AD_RETURNE (OK);
+    }
+    
+    args1 = TREE_CHAIN (args1);
+    args2 = TREE_CHAIN (args2);
+  }
+  
+  // 如果参数列表长度不同，签名不同
+  if (args1 || args2) {
+    AD_RETURNE (OK);
+  }
+  
+  // 所有检查通过，签名相同
+  is_same_signature = true;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

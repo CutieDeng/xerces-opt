@@ -60,16 +60,6 @@ ArrayDetectErrorCode matchVirtualFunctionCall (
   tree &vtable_index
 );
 
-// 检查两个虚函数调用是否等价
-// 返回值：ArrayDetectErrorCode
-// 输入：call1, call2 - 两个 GIMPLE_CALL 语句
-// 输出：is_equivalent - 是否等价
-ArrayDetectErrorCode areVirtualCallsEquivalent (
-  AD_FUNC_ARGS,
-  gimple * call1,
-  gimple * call2,
-  bool &is_equivalent
-);
 
 // ============================================================================
 // 函数调用匹配与解构
