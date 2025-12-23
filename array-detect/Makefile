@@ -264,6 +264,7 @@ obj/array-detect-utils/info-print.o: \
   include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/address-resolver.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
+  include/array-detect-write-trace/field-source-variant.hh \
 
 obj/array-detect-field-analysis/field-analysis-integration.o: \
   src/array-detect-field-analysis/field-analysis-integration.cc \
@@ -439,6 +440,7 @@ obj/array-detect-write-trace/write-operation-trace.o: \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-write-trace/field-source-variant.hh \
   include/array-detect-gcc/gcc-ext-util.hh \
+  include/array-detect-utils/info-print.hh \
 
 out/plugin-array-detect.dylib: obj/array-detect-core/array-detector.o obj/array-detect-core/field-assignment-debugger.o obj/array-detect-core/type-field-hash.o obj/array-detect-core/virtual-call-analysis.o obj/array-detect-collection/field-write-collector.o obj/array-detect-context/address-resolver.o obj/array-detect-context/array-detect-context-gcc.o obj/array-detect-context/context-init.o obj/array-detect-context/context.o obj/array-detect-context/state.o obj/array-detect-gcc/context-init-gcc.o obj/array-detect-gcc/gcc-ext-util.o obj/array-detect-gcc/plugin-top.o obj/array-detect-utils/info-print.o obj/array-detect-field-analysis/field-analysis-integration.o obj/array-detect-field-analysis/field-analysis-main.o obj/array-detect-field-analysis/field-dataflow-analysis.o obj/array-detect-field-analysis/field-escape-analysis.o obj/array-detect-field-analysis/field-owner-analysis.o obj/array-detect-field-analysis/field-source-analysis.o obj/array-detect-field-analysis/field-write-analysis.o obj/array-detect-pipeline/pipeline.o obj/array-detect-write-trace/write-operation-trace-driver.o obj/array-detect-write-trace/write-operation-trace.o
 

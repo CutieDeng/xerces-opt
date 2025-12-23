@@ -80,6 +80,24 @@
   AD_DEBUG_PRINT2 (ctx.debug_file, fmt_msg, ##__VA_ARGS__)
 
 // ============================================================================
+// GCC 内部逻辑断言宏
+// ============================================================================
+// 用于检查 GCC 内部模型是否出错、非预期情形
+// 如果断言失败，输出调试信息并返回 GCC_LOGIC_ERROR
+// 用法：
+//   AD_ASSERT_GCC_LOGIC(condition, "error message");
+//   AD_ASSERT_GCC_LOGIC(condition, "error message", "context: %p", ptr);
+// ============================================================================
+
+#define AD_ASSERT_GCC_LOGIC(condition, fmt_msg, ...) \
+  do { \
+    if (!(condition)) { \
+      AD_DEBUG_PRINT ("GCC Logic Error: " fmt_msg, ##__VA_ARGS__); \
+      AD_RETURNE (GCC_LOGIC_ERROR); \
+    } \
+  } while (0)
+
+// ============================================================================
 // 错误处理宏
 // ============================================================================
 

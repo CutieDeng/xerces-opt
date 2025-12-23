@@ -116,11 +116,8 @@ ArrayDetectErrorCode reduceTrivialMoves (
     // 如果是平凡赋值，继续追踪
     if (is_trivial) {
       basic_block def_bb = gimple_bb (def_stmt);
-      if (!def_bb) {
-        AD_DEBUG_PRINT ("Error: gimple_bb () returned NULL for def_stmt in reduceTrivialMoves");
-        AD_DEBUG_PRINT ("  value: %p, def_stmt: %p, gimple_code: %d", (void*)value, (void*)def_stmt, (int)code);
-        AD_RETURNE (GCC_LOGIC_ERROR);
-      }
+      AD_ASSERT_GCC_LOGIC (def_bb, "gimple_bb () returned NULL for def_stmt in reduceTrivialMoves: value=%p, def_stmt=%p, gimple_code=%d", 
+                          (void*)value, (void*)def_stmt, (int)code);
       AD_TRY (reduceTrivialMoves (detector, AD_ARGS, rhs, function, def_bb, result_final_value, result_final_stmt_nullable, result_is_phi));
       AD_RETURNE (OK);
     }
@@ -170,13 +167,8 @@ ArrayDetectErrorCode extractSourceFromRhs (
       // 获取调用语句所在的基本块
       // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
       basic_block call_bb = gimple_bb (final_stmt_nullable);
-      if (!call_bb) {
-        AD_DEBUG_PRINT ("Error: gimple_bb () returned NULL for call_stmt in extractSourceFromRhs");
-        AD_DEBUG_PRINT ("  final_stmt: %p", (void*)final_stmt_nullable);
-        AD_DEBUG_PRINT ("  final_value: %p", (void*)final_value);
-        AD_DEBUG_PRINT ("  gimple_code: %d", (int)gimple_code (final_stmt_nullable));
-        AD_RETURNE (GCC_LOGIC_ERROR);
-      }
+      AD_ASSERT_GCC_LOGIC (call_bb, "gimple_bb () returned NULL for call_stmt in extractSourceFromRhs: final_stmt=%p, final_value=%p, gimple_code=%d",
+                          (void*)final_stmt_nullable, (void*)final_value, (int)gimple_code (final_stmt_nullable));
       AD_TRY (extractSourceFromCall (detector, AD_ARGS, final_stmt_nullable, function, call_bb, result));
     } else {
       // 来自变量（可能是参数或其他）
