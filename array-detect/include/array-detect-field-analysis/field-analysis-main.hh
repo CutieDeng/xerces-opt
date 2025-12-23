@@ -26,7 +26,7 @@ using array_detector::ArrayDetector;
 // 输入：detector - ArrayDetector 对象（包含字段列表）
 // 输出：field_decls - 字段声明列表
 // 输出：field_results - 对应的分析结果列表
-ArrayDetectErrorCode performFieldAnalysis(
+ArrayDetectErrorCode performFieldAnalysis (
   AD_FUNC_ARGS,
   ArrayDetector const &detector,
   vec<tree> &field_decls,
@@ -37,7 +37,7 @@ ArrayDetectErrorCode performFieldAnalysis(
 // 返回值：ArrayDetectErrorCode
 // 输入：field_results - 分析结果列表
 // 输入输出：detector - ArrayDetector 对象
-ArrayDetectErrorCode updateFieldInfoFromResults(
+ArrayDetectErrorCode updateFieldInfoFromResults (
   AD_FUNC_ARGS,
   vec<tree> const &field_decls,
   vec<FieldAnalysisResult*> const &field_results,

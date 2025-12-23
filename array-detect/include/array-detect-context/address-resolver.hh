@@ -9,8 +9,8 @@ namespace array_detect_ns {
 
 // 地址解析结果结构
 struct AddressInfo {
-  const char* symbol_name;      // 符号名称
-  const char* source_file;      // 源文件路径
+  char const * symbol_name;      // 符号名称
+  char const * source_file;      // 源文件路径
   unsigned int line_number;     // 行号
   unsigned int column_number;   // 列号
   size_t offset;                // 相对符号的偏移
@@ -20,12 +20,12 @@ struct AddressInfo {
 // 解析地址到源码位置信息
 // 返回值：ArrayDetectErrorCode
 // 输出：通过 info 参数返回解析结果
-ArrayDetectErrorCode resolveAddress(AD_FUNC_ARGS, uint64_t addr, AddressInfo &info);
+ArrayDetectErrorCode resolveAddress (AD_FUNC_ARGS, uint64_t addr, AddressInfo &info);
 
 // 解析地址到字符串形式（使用 Context 缓冲区）
 // 返回值：ArrayDetectErrorCode
 // 输出：通过 result 参数返回格式化字符串
 // 输出：通过 out_is_valid 参数返回是否成功解析
-ArrayDetectErrorCode resolveAddressToString(AD_FUNC_ARGS, uint64_t addr, const char* &result, bool &out_is_valid);
+ArrayDetectErrorCode resolveAddressToString (AD_FUNC_ARGS, uint64_t addr, char const * &result, bool &out_is_valid);
 
 } // namespace array_detect_ns

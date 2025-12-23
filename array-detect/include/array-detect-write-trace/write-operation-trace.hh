@@ -41,11 +41,11 @@ ArrayDetectErrorCode extractSourceFromRhs (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree rhs,
-  gimple* stmt,
+  gimple * stmt,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 // 从函数调用提取来源信息
@@ -56,10 +56,10 @@ ArrayDetectErrorCode extractSourceFromRhs (
 ArrayDetectErrorCode extractSourceFromCall (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
-  gimple* call_stmt,
+  gimple * call_stmt,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 // 从变量提取来源信息
@@ -75,7 +75,7 @@ ArrayDetectErrorCode extractSourceFromVariable (
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 // 从常量提取来源信息
@@ -89,7 +89,7 @@ ArrayDetectErrorCode extractSourceFromConstant (
   tree constant_value,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 // 从 PHI 节点提取来源信息
@@ -102,12 +102,12 @@ ArrayDetectErrorCode extractSourceFromConstant (
 ArrayDetectErrorCode extractSourceFromPhi (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
-  gimple* phi_stmt,
+  gimple * phi_stmt,
   tree ssa_name,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 // 从计算表达式提取来源信息
@@ -122,12 +122,12 @@ ArrayDetectErrorCode extractSourceFromComputation (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree compute_expr,
-  gimple* compute_stmt_nullable,
-  gimple* fallback_stmt,
+  gimple * compute_stmt_nullable,
+  gimple * fallback_stmt,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 );
 
 } // namespace array_detector

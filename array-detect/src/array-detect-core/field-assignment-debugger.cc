@@ -11,28 +11,28 @@ using namespace ::array_detect_ns;
 
 // 调试功能：分析函数中的字段赋值模式
 // 用于详细的调试输出，分析每个函数中的字段赋值情况
-ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions (ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Analyzing field assignments in functions");
   
   // 遍历所有函数
-  struct cgraph_node* node;
-  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY(node) {
-    function* fn = node->get_fun ();
+  struct cgraph_node * node;
+  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node) {
+    function * fn = node->get_fun ();
     if (!fn) continue;
     
     // 获取函数名称（尝试获取可读的名称）
-    const char* func_name = node->name ();
+    char const * func_name = node->name ();
     tree decl = node->decl;
-    if (decl && DECL_NAME(decl)) {
+    if (decl && DECL_NAME (decl)) {
       func_name = IDENTIFIER_POINTER (DECL_NAME (decl));
     }
     // 如果还是空，使用mangled name
     if (!func_name || strlen (func_name) == 0) {
-      func_name = node->name();
+      func_name = node->name ();
     }
     
     // 获取函数所属的类型（对于成员函数）
-    const char* containing_type_name = NULL;
+    char const * containing_type_name = NULL;
     if (decl) {
       tree context = DECL_CONTEXT (decl);
       if (context) {
@@ -40,7 +40,7 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector,
           AD_TRY (gcc_ext_util::get_type_name (AD_ARGS, context, containing_type_name));
         } else if (TREE_CODE (context) == NAMESPACE_DECL) {
           // 命名空间中的函数
-          if (DECL_NAME(context)) {
+          if (DECL_NAME (context)) {
             containing_type_name = IDENTIFIER_POINTER (DECL_NAME (context));
           }
         }
@@ -59,11 +59,11 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions(ArrayDetector &detector,
     
     // 遍历函数中的所有基本块
     basic_block bb;
-    FOR_EACH_BB_FN(bb, fn) {
+    FOR_EACH_BB_FN (bb, fn) {
       AD_DEBUG_PRINT ("Processing basic block %d", bb->index);
       gimple_stmt_iterator gsi;
-      for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
-        gimple* stmt = gsi_stmt (gsi);
+      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi)) {
+        gimple * stmt = gsi_stmt (gsi);
         AD_DEBUG_PRINT ("  Statement type: %s", gimple_code_name[gimple_code (stmt)]);
         
         // 检查是否是赋值语句

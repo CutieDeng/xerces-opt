@@ -15,21 +15,21 @@ using namespace ::array_detect_ns;
 class ArrayDetector;
 
 // 检查字段的所有赋值是否来自同一源（用于判断数组候选）
-bool checkAllAssignmentsFromSameSource(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field, const char** out_unique_source);
+bool checkAllAssignmentsFromSameSource (ArrayDetector &self, AD_FUNC_ARGS, FieldInfo * field, char const ** out_unique_source);
 
 // 分析字段的使用模式
-ArrayDetectErrorCode analyzeFieldUsage(ArrayDetector &self, AD_FUNC_ARGS);
+ArrayDetectErrorCode analyzeFieldUsage (ArrayDetector &self, AD_FUNC_ARGS);
 
 // 清理检测器资源
 void deinit (ArrayDetector &self, AD_FUNC_ARGS);
 
 // 添加字段到检测器
-ArrayDetectErrorCode addField(ArrayDetector &self, AD_FUNC_ARGS, FieldInfo* field_info);
+ArrayDetectErrorCode addField (ArrayDetector &self, AD_FUNC_ARGS, FieldInfo * field_info);
 
 // 获取检测器中的字段数量
-ArrayDetectErrorCode getFieldCount(ArrayDetector const &self, AD_FUNC_ARGS, size_t* out_count);
+ArrayDetectErrorCode getFieldCount (ArrayDetector const &self, AD_FUNC_ARGS, size_t * out_count);
 // 通过索引获取字段信息
-ArrayDetectErrorCode getField(ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
+ArrayDetectErrorCode getField (ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field);
 
 // 初始化检测器（非延迟，直接分配并创建容器，不做空指针检查）
 ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS);
@@ -54,8 +54,8 @@ struct TypeFieldKey {
 
 // 哈希和比较函数声明（实现在 type-field-hash.cc 中）
 // 使用普通函数，不使用成员函数或 C++ 特性
-size_t hashTypeFieldKey(TypeFieldKey const *key);
-bool equalTypeFieldKey(TypeFieldKey const *key1, TypeFieldKey const *key2);
+size_t hashTypeFieldKey (TypeFieldKey const *key);
+bool equalTypeFieldKey (TypeFieldKey const *key1, TypeFieldKey const *key2);
 
 } // namespace array_detector
 
@@ -74,7 +74,7 @@ struct ArrayDetector {
   vec<FieldInfo*>* m_fields; // 使用指针类型，延迟初始化
   
   // 新的数据结构：使用 hash_map 按 type -> field 存储写入操作记录
-  // 使用 hash_map 提供 O(1) 的查找性能，而不是 vec 的 O(n) 线性查找
+  // 使用 hash_map 提供 O (1) 的查找性能，而不是 vec 的 O (n) 线性查找
   // 使用 TypeFieldHashMapTraits 提供 hash 和 equal 函数
   // hash_map 支持迭代器遍历（begin/end），可以直接遍历所有条目
   hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* m_type_field_writes; // 使用指针类型，延迟初始化

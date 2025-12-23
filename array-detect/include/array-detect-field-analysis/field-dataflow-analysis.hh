@@ -32,11 +32,11 @@ enum DataFlowNodeType {
 // 数据流节点
 struct DataFlowNode {
   DataFlowNodeType type;
-  gimple* stmt;              // 相关语句（GCC 内部管理）
+  gimple * stmt;              // 相关语句（GCC 内部管理）
   tree ssa_var;              // 相关 SSA 变量（GCC 内部管理）
   tree field_decl;           // 相关字段（GCC 内部管理）
   location_t location;       // 源码位置（GCC 内部管理）
-  const char* description;   // 节点描述（ggc_strdup 分配）
+  char const * description;   // 节点描述（ggc_strdup 分配）
 };
 
 // 数据流边类型
@@ -49,10 +49,10 @@ enum DataFlowEdgeType {
 
 // 数据流边
 struct DataFlowEdge {
-  DataFlowNode* from;        // 源节点
-  DataFlowNode* to;          // 目标节点
+  DataFlowNode * from;        // 源节点
+  DataFlowNode * to;          // 目标节点
   DataFlowEdgeType type;      // 边类型
-  const char* description;   // 边描述（ggc_strdup 分配）
+  char const * description;   // 边描述（ggc_strdup 分配）
 };
 
 // 数据流图
@@ -60,7 +60,7 @@ struct DataFlowGraph {
   vec<DataFlowNode*>* nodes;  // 节点列表（ggc_alloc<vec<...>>() 分配）
   vec<DataFlowEdge*>* edges;  // 边列表（ggc_alloc<vec<...>>() 分配）
   tree field_decl;            // 分析的字段（GCC 内部管理）
-  function* fn;               // 所在函数（GCC 内部管理）
+  function * fn;               // 所在函数（GCC 内部管理）
 };
 
 // 值来源类型
@@ -75,9 +75,9 @@ enum ValueSourceType {
 // 值来源
 struct ValueSource {
   ValueSourceType type;
-  gimple* stmt;              // 相关语句（GCC 内部管理）
+  gimple * stmt;              // 相关语句（GCC 内部管理）
   tree value;                // 值表达式（GCC 内部管理）
-  const char* description;   // 来源描述（ggc_strdup 分配）
+  char const * description;   // 来源描述（ggc_strdup 分配）
 };
 
 // 值去向类型
@@ -91,9 +91,9 @@ enum ValueSinkType {
 // 值去向
 struct ValueSink {
   ValueSinkType type;
-  gimple* stmt;              // 相关语句（GCC 内部管理）
+  gimple * stmt;              // 相关语句（GCC 内部管理）
   tree value;                // 值表达式（GCC 内部管理）
-  const char* description;   // 去向描述（ggc_strdup 分配）
+  char const * description;   // 去向描述（ggc_strdup 分配）
 };
 
 // 构建字段数据流图
@@ -102,10 +102,10 @@ struct ValueSink {
 // 输入：fn - 函数
 // 输入：field_writes - 字段写入操作列表
 // 输出：graph - 数据流图
-ArrayDetectErrorCode buildDataFlowGraph(
+ArrayDetectErrorCode buildDataFlowGraph (
   AD_FUNC_ARGS,
   tree field_decl,
-  function* fn,
+  function * fn,
   vec<FieldWriteCapture*> const &field_writes,
   DataFlowGraph &graph
 );
@@ -114,7 +114,7 @@ ArrayDetectErrorCode buildDataFlowGraph(
 // 返回值：ArrayDetectErrorCode
 // 输入：graph - 数据流图
 // 输出：use_nodes - 使用节点列表
-ArrayDetectErrorCode forwardDataFlowAnalysis(
+ArrayDetectErrorCode forwardDataFlowAnalysis (
   AD_FUNC_ARGS,
   DataFlowGraph const &graph,
   vec<DataFlowNode*> &use_nodes
@@ -125,10 +125,10 @@ ArrayDetectErrorCode forwardDataFlowAnalysis(
 // 输入：graph - 数据流图
 // 输入：use_node - 使用节点
 // 输出：def_nodes - 定义节点列表
-ArrayDetectErrorCode backwardDataFlowAnalysis(
+ArrayDetectErrorCode backwardDataFlowAnalysis (
   AD_FUNC_ARGS,
   DataFlowGraph const &graph,
-  DataFlowNode* use_node,
+  DataFlowNode * use_node,
   vec<DataFlowNode*> &def_nodes
 );
 
@@ -137,10 +137,10 @@ ArrayDetectErrorCode backwardDataFlowAnalysis(
 // 输入：field_decl - 字段声明
 // 输入：write_op - 写入操作
 // 输出：sources - 值来源列表
-ArrayDetectErrorCode traceValueSource(
+ArrayDetectErrorCode traceValueSource (
   AD_FUNC_ARGS,
   tree field_decl,
-  FieldWriteCapture* write_op,
+  FieldWriteCapture * write_op,
   vec<ValueSource*> &sources
 );
 
@@ -149,10 +149,10 @@ ArrayDetectErrorCode traceValueSource(
 // 输入：field_decl - 字段声明
 // 输入：read_stmt - 读取语句
 // 输出：sinks - 值去向列表
-ArrayDetectErrorCode traceValueSink(
+ArrayDetectErrorCode traceValueSink (
   AD_FUNC_ARGS,
   tree field_decl,
-  gimple* read_stmt,
+  gimple * read_stmt,
   vec<ValueSink*> &sinks
 );
 

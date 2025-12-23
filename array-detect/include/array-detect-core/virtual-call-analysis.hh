@@ -20,9 +20,9 @@ namespace array_detect_ns {
 // 输入：call_stmt - GIMPLE_CALL 语句
 // 输出：is_virtual - 是否为虚函数调用
 // 输出：call_type - 调用类型
-ArrayDetectErrorCode isVirtualFunctionCall(
+ArrayDetectErrorCode isVirtualFunctionCall (
   AD_FUNC_ARGS,
-  gimple* call_stmt,
+  gimple * call_stmt,
   bool &is_virtual,
   CallType &call_type
 );
@@ -31,9 +31,9 @@ ArrayDetectErrorCode isVirtualFunctionCall(
 // 返回值：ArrayDetectErrorCode
 // 输入：call_stmt - GIMPLE_CALL 语句
 // 输出：source_op - 源操作信息
-ArrayDetectErrorCode analyzeCallExpression(
+ArrayDetectErrorCode analyzeCallExpression (
   AD_FUNC_ARGS,
-  gimple* call_stmt,
+  gimple * call_stmt,
   SourceOperation &source_op
 );
 
@@ -41,10 +41,10 @@ ArrayDetectErrorCode analyzeCallExpression(
 // 返回值：ArrayDetectErrorCode
 // 输入：call_stmt - GIMPLE_CALL 语句
 // 输出：signature - 调用签名字符串
-ArrayDetectErrorCode extractCallSignature(
+ArrayDetectErrorCode extractCallSignature (
   AD_FUNC_ARGS,
-  gimple* call_stmt,
-  const char* &signature
+  gimple * call_stmt,
+  char const * &signature
 );
 
 // 匹配虚函数调用并提取细节（直接返回 MATCH_ERROR 代表匹配失败）
@@ -52,7 +52,7 @@ ArrayDetectErrorCode extractCallSignature(
 // 输出：object_type - 对象类型（去除引用/指针后的主变体）
 // 输出：method_decl - 虚函数方法声明（FUNCTION_DECL）
 // 输出：vtable_index - 虚表偏移量/标识（来自 OBJ_TYPE_REF_TOKEN）
-ArrayDetectErrorCode matchVirtualFunctionCall(
+ArrayDetectErrorCode matchVirtualFunctionCall (
   AD_FUNC_ARGS,
   tree call_expr,
   tree &object_type,
@@ -64,10 +64,10 @@ ArrayDetectErrorCode matchVirtualFunctionCall(
 // 返回值：ArrayDetectErrorCode
 // 输入：call1, call2 - 两个 GIMPLE_CALL 语句
 // 输出：is_equivalent - 是否等价
-ArrayDetectErrorCode areVirtualCallsEquivalent(
+ArrayDetectErrorCode areVirtualCallsEquivalent (
   AD_FUNC_ARGS,
-  gimple* call1,
-  gimple* call2,
+  gimple * call1,
+  gimple * call2,
   bool &is_equivalent
 );
 
@@ -107,17 +107,17 @@ struct CallMatchResult {
 
 // 匹配函数调用表达式
 // 返回值：ArrayDetectErrorCode（OK 表示匹配成功，MATCH_ERROR 表示匹配失败）
-// 输入：call_fn_expr - 函数调用表达式（tree），通常来自 gimple_call_fn(call_stmt)
+// 输入：call_fn_expr - 函数调用表达式（tree），通常来自 gimple_call_fn (call_stmt)
 //      可以是 OBJ_TYPE_REF（虚函数）、FUNCTION_DECL（直接调用）、SSA_NAME（间接调用）等
 // 输出：result - 匹配结果和解构信息
 // 注意：匹配失败时，result 中的字段可能未初始化，应使用宏安全访问
 // 使用示例：
-//   tree fn = gimple_call_fn(call_stmt);
+//   tree fn = gimple_call_fn (call_stmt);
 //   CallMatchResult result;
-//   if (matchCallExpression(AD_ARGS, fn, result) == OK) { ... }
-ArrayDetectErrorCode matchCallExpression(
+//   if (matchCallExpression (AD_ARGS, fn, result) == OK) { ... }
+ArrayDetectErrorCode matchCallExpression (
   AD_FUNC_ARGS,
-  tree call_fn_expr,  // 函数表达式（tree），来自 gimple_call_fn() 或类似函数
+  tree call_fn_expr,  // 函数表达式（tree），来自 gimple_call_fn () 或类似函数
   CallMatchResult &result
 );
 
@@ -128,21 +128,21 @@ ArrayDetectErrorCode matchCallExpression(
 // ============================================================================
 
 // 安全访问直接调用信息
-// 用法：AD_MATCH_DIRECT_CALL(result, var_name) { ... } AD_MATCH_END()
+// 用法：AD_MATCH_DIRECT_CALL (result, var_name) { ... } AD_MATCH_END ()
 // 只有在 call_type == CALL_DIRECT 时才会执行代码块
 #define AD_MATCH_DIRECT_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_DIRECT) { \
     DirectCallInfo const &var_name = (result_var).info.direct;
 
 // 安全访问虚函数调用信息
-// 用法：AD_MATCH_VIRTUAL_CALL(result, var_name) { ... } AD_MATCH_END()
+// 用法：AD_MATCH_VIRTUAL_CALL (result, var_name) { ... } AD_MATCH_END ()
 // 只有在 call_type == CALL_VIRTUAL 时才会执行代码块
 #define AD_MATCH_VIRTUAL_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_VIRTUAL) { \
     VirtualCallInfo const &var_name = (result_var).info.virtual_;
 
 // 安全访问间接调用信息
-// 用法：AD_MATCH_INDIRECT_CALL(result, var_name) { ... } AD_MATCH_END()
+// 用法：AD_MATCH_INDIRECT_CALL (result, var_name) { ... } AD_MATCH_END ()
 // 只有在 call_type == CALL_INDIRECT 时才会执行代码块
 #define AD_MATCH_INDIRECT_CALL(result_var, var_name) \
   if ((result_var).call_type == CALL_INDIRECT) { \

@@ -6,7 +6,7 @@
 namespace gcc_ext_util {
 
 // 安全字符串复制函数，防止缓冲区溢出
-void safe_string_copy(char* dest, size_t dest_size, const char* src) {
+void safe_string_copy (char * dest, size_t dest_size, char const * src) {
   if (dest_size == 0) return;
   if (!src) {
     dest[0] = '\0';
@@ -14,108 +14,108 @@ void safe_string_copy(char* dest, size_t dest_size, const char* src) {
   }
   
   // 使用strncpy确保不会溢出，并确保字符串以null结尾
-  strncpy(dest, src, dest_size - 1);
+  strncpy (dest, src, dest_size - 1);
   dest[dest_size - 1] = '\0';
 }
 
 // 新增辅助函数：获取详细的源码位置信息
 // 使用预分配的缓冲区，避免动态内存分配
-ArrayDetectErrorCode get_source_location_string(AD_FUNC_ARGS, location_t loc, char* buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode get_source_location_string (AD_FUNC_ARGS, location_t loc, char * buffer, size_t buffer_size) AD_FUNCTION_BEGIN {
   if (loc == UNKNOWN_LOCATION) {
-    snprintf(buffer, buffer_size, "<unknown location>");
+    snprintf (buffer, buffer_size, "<unknown location>");
     AD_RETURNE (OK);
   }
   
-  expanded_location xloc = expand_location(loc);
+  expanded_location xloc = expand_location (loc);
   
   if (xloc.file) {
     // 输出格式改为 a.cc +linenumber colnumber 的形式
     if (xloc.line > 0) {
       if (xloc.column > 0) {
-        snprintf(buffer, buffer_size, "%s +%d %d", xloc.file, xloc.line, xloc.column);
+        snprintf (buffer, buffer_size, "%s +%d %d", xloc.file, xloc.line, xloc.column);
       } else {
-        snprintf(buffer, buffer_size, "%s +%d", xloc.file, xloc.line);
+        snprintf (buffer, buffer_size, "%s +%d", xloc.file, xloc.line);
       }
     } else {
-      snprintf(buffer, buffer_size, "%s", xloc.file);
+      snprintf (buffer, buffer_size, "%s", xloc.file);
     }
   } else {
-    snprintf(buffer, buffer_size, "<unknown location>");
+    snprintf (buffer, buffer_size, "<unknown location>");
   }
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 新增辅助函数：获取指定位置的源码行内容
 // 使用预分配的缓冲区，避免动态内存分配
-void get_source_line_content(location_t loc, char* buffer, size_t buffer_size) {
+void get_source_line_content (location_t loc, char * buffer, size_t buffer_size) {
   if (loc == UNKNOWN_LOCATION) {
-    snprintf(buffer, buffer_size, "&lt;source line content not available&gt;");
+    snprintf (buffer, buffer_size, "&lt;source line content not available&gt;");
     return;
   }
   
-  expanded_location xloc = expand_location(loc);
+  expanded_location xloc = expand_location (loc);
   
   if (xloc.file && xloc.line > 0) {
     // 尝试读取源代码文件的指定行
-    FILE* file = fopen(xloc.file, "r");
+    FILE * file = fopen (xloc.file, "r");
     if (file) {
       char line_buffer[1024];
       size_t current_line = 0;
-      while (fgets(line_buffer, sizeof(line_buffer), file) && current_line < ((size_t) xloc.line)) {
+      while (fgets (line_buffer, sizeof (line_buffer), file) && current_line < ((size_t) xloc.line)) {
         current_line++;
         if (current_line == ((size_t) xloc.line)) {
           // 移除行尾的换行符
-          size_t len = strlen(line_buffer);
+          size_t len = strlen (line_buffer);
           if (len > 0 && line_buffer[len-1] == '\n') {
             line_buffer[len-1] = '\0';
           }
           // 复制到输出缓冲区，注意不要溢出
-          strncpy(buffer, line_buffer, buffer_size - 1);
+          strncpy (buffer, line_buffer, buffer_size - 1);
           buffer[buffer_size - 1] = '\0';
-          fclose(file);
+          fclose (file);
           return;
         }
       }
-      fclose(file);
+      fclose (file);
     }
   }
   
   // 如果无法读取源代码行，则返回默认值
-  snprintf(buffer, buffer_size, "<source line content not available>");
+  snprintf (buffer, buffer_size, "<source line content not available>");
 }
 
 namespace {
 
-ArrayDetectErrorCode get_call_expr_name(AD_FUNC_ARGS, tree call_expr, char const *&result) AD_FUNCTION_BEGIN {
-  if (TREE_CODE(call_expr) != CALL_EXPR) {
-    AD_RETURNE(INVALID_ARGUMENT);
+ArrayDetectErrorCode get_call_expr_name (AD_FUNC_ARGS, tree call_expr, char const *&result) AD_FUNCTION_BEGIN {
+  if (TREE_CODE (call_expr) != CALL_EXPR) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  tree fn = TREE_OPERAND(call_expr, 0);
+  tree fn = TREE_OPERAND (call_expr, 0);
   if (!fn) {
-    AD_RETURNO("<call-expr>");
+    AD_RETURNO ("<call-expr>");
   }
   
-  if (TREE_CODE(fn) == FUNCTION_DECL && DECL_NAME(fn)) {
-    AD_RETURNO(IDENTIFIER_POINTER(DECL_NAME(fn)));
+  if (TREE_CODE (fn) == FUNCTION_DECL && DECL_NAME (fn)) {
+    AD_RETURNO (IDENTIFIER_POINTER (DECL_NAME (fn)));
   }
-  if (TREE_CODE(fn) == ADDR_EXPR) {
-    tree decl = TREE_OPERAND(fn, 0);
-    if (decl && DECL_NAME(decl)) {
-      AD_RETURNO(IDENTIFIER_POINTER(DECL_NAME(decl)));
+  if (TREE_CODE (fn) == ADDR_EXPR) {
+    tree decl = TREE_OPERAND (fn, 0);
+    if (decl && DECL_NAME (decl)) {
+      AD_RETURNO (IDENTIFIER_POINTER (DECL_NAME (decl)));
     }
   }
-  if (TREE_CODE(fn) == INDIRECT_REF) {
-    AD_RETURNO("<indirect-call>");
+  if (TREE_CODE (fn) == INDIRECT_REF) {
+    AD_RETURNO ("<indirect-call>");
   }
-  AD_RETURNO("<call-expr>");
+  AD_RETURNO ("<call-expr>");
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode gcc_field_desc(AD_FUNC_ARGS, tree field, char const *&result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode gcc_field_desc (AD_FUNC_ARGS, tree field, char const *&result) AD_FUNCTION_BEGIN {
   if (!field) {
     AD_RETURNO ("<null>");
   }
-  if (DECL_NAME(field)) {
-    AD_RETURNO (IDENTIFIER_POINTER(DECL_NAME(field)));
+  if (DECL_NAME (field)) {
+    AD_RETURNO (IDENTIFIER_POINTER (DECL_NAME (field)));
   }
   AD_RETURNO ("<unnamed>");
 } AD_FUNCTION_END
@@ -129,99 +129,99 @@ namespace gcc_ext_util {
 // 语义：返回类型的可读名称，用于调试和报告
 // 垃圾回收：返回的指针指向 GCC 内部管理的字符串，无需释放
 ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
-  if (!type) AD_RETURNO("<unknown>");
+  if (!type) AD_RETURNO ("<unknown>");
   
-  if (TYPE_NAME(type)) {
-    if (TREE_CODE(TYPE_NAME(type)) == IDENTIFIER_NODE) {
+  if (TYPE_NAME (type)) {
+    if (TREE_CODE (TYPE_NAME (type)) == IDENTIFIER_NODE) {
       // 返回 GCC 内部管理的标识符指针
-      AD_RETURNO(IDENTIFIER_POINTER(TYPE_NAME(type)));
-    } else if (TREE_CODE(TYPE_NAME(type)) == TYPE_DECL) {
-      tree name = DECL_NAME(TYPE_NAME(type));
+      AD_RETURNO (IDENTIFIER_POINTER (TYPE_NAME (type)));
+    } else if (TREE_CODE (TYPE_NAME (type)) == TYPE_DECL) {
+      tree name = DECL_NAME (TYPE_NAME (type));
       if (name) {
         // 返回 GCC 内部管理的声明名称指针
-        AD_RETURNO(IDENTIFIER_POINTER(name));
+        AD_RETURNO (IDENTIFIER_POINTER (name));
       }
     }
   }
-  AD_RETURNO("<unnamed>");
+  AD_RETURNO ("<unnamed>");
 } AD_FUNCTION_END
 
 // 子函数：获取类型名（含命名空间），返回格式化的字符串
 // 返回：成功返回 OK，result 指向格式化的类型名字符串
-ArrayDetectErrorCode formatTypeNameWithNamespace(AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
   if (!type) {
     result = "<unknown>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
-  const char* type_name = NULL;
-  AD_TRY(get_type_name(AD_ARGS, type, type_name));
+  char const * type_name = NULL;
+  AD_TRY (get_type_name (AD_ARGS, type, type_name));
   if (!type_name) {
     result = "<unknown>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
   // 尝试获取命名空间
-  tree type_decl = TYPE_NAME(type);
-  if (type_decl && TREE_CODE(type_decl) == TYPE_DECL) {
-    tree context = DECL_CONTEXT(type_decl);
-    if (context && TREE_CODE(context) == NAMESPACE_DECL && DECL_NAME(context)) {
-      const char* ns_name = IDENTIFIER_POINTER(DECL_NAME(context));
+  tree type_decl = TYPE_NAME (type);
+  if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
+    tree context = DECL_CONTEXT (type_decl);
+    if (context && TREE_CODE (context) == NAMESPACE_DECL && DECL_NAME (context)) {
+      char const * ns_name = IDENTIFIER_POINTER (DECL_NAME (context));
       // 组合命名空间和类型名，使用上下文缓冲区
       if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
         result = type_name;
-        AD_RETURNE(OK);
+        AD_RETURNE (OK);
       }
-      snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s", ns_name, type_name);
+      snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s", ns_name, type_name);
       result = ctx.address_format_buffer;
-      AD_RETURNE(OK);
+      AD_RETURNE (OK);
     }
   }
   
   // 无命名空间，直接返回类型名
   result = type_name;
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 子函数：获取字段名
 // 返回：成功返回 OK，result 指向字段名字符串
-ArrayDetectErrorCode getFieldName(AD_FUNC_ARGS, tree field_decl, char const *&result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode getFieldName (AD_FUNC_ARGS, tree field_decl, char const *&result) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!field_decl) {
     result = "<unnamed>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
-  if (DECL_NAME(field_decl)) {
-    result = IDENTIFIER_POINTER(DECL_NAME(field_decl));
+  if (DECL_NAME (field_decl)) {
+    result = IDENTIFIER_POINTER (DECL_NAME (field_decl));
   } else {
     result = "<unnamed>";
   }
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 子函数：获取字段类型名（处理指针）
 // 返回：成功返回 OK，result 指向格式化的字段类型名字符串
-ArrayDetectErrorCode formatFieldTypeName(AD_FUNC_ARGS, tree field_type, char const *&result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char const *&result) AD_FUNCTION_BEGIN {
   if (!field_type) {
     result = "<unknown>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
   // 检查是否是单层指针
-  bool is_pointer = (TREE_CODE(field_type) == POINTER_TYPE);
-  tree base_type = is_pointer ? TREE_TYPE(field_type) : field_type;
+  bool is_pointer = (TREE_CODE (field_type) == POINTER_TYPE);
+  tree base_type = is_pointer ? TREE_TYPE (field_type) : field_type;
   
   if (!base_type) {
     result = "<unknown>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
-  const char* base_type_name = NULL;
-  AD_TRY(get_type_name(AD_ARGS, base_type, base_type_name));
+  char const * base_type_name = NULL;
+  AD_TRY (get_type_name (AD_ARGS, base_type, base_type_name));
   if (!base_type_name) {
     result = "<unknown>";
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
   // 如果是指针，需要格式化输出（加上 *）
@@ -229,75 +229,75 @@ ArrayDetectErrorCode formatFieldTypeName(AD_FUNC_ARGS, tree field_type, char con
     // 使用上下文缓冲区格式化指针类型名
     if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
       result = base_type_name;
-      AD_RETURNE(OK);
+      AD_RETURNE (OK);
     }
-    snprintf(ctx.address_format_buffer, ctx.address_format_buffer_size, "%s*", base_type_name);
+    snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s*", base_type_name);
     result = ctx.address_format_buffer;
   } else {
     result = base_type_name;
   }
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 调试信息增强：打印字段写入捕获信息
 // 包括：类型名（含命名空间）、字段名、字段类型名
-ArrayDetectErrorCode logFieldWriteCapture(AD_FUNC_ARGS, tree containing_type, tree field_decl) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode logFieldWriteCapture (AD_FUNC_ARGS, tree containing_type, tree field_decl) AD_FUNCTION_BEGIN {
   // 获取类型名（含命名空间）
-  const char* type_name = NULL;
-  AD_TRY(formatTypeNameWithNamespace(AD_ARGS, containing_type, type_name));
+  char const * type_name = NULL;
+  AD_TRY (formatTypeNameWithNamespace (AD_ARGS, containing_type, type_name));
   
   // 获取字段名
-  const char* field_name = NULL;
-  AD_TRY(getFieldName(AD_ARGS, field_decl, field_name));
+  char const * field_name = NULL;
+  AD_TRY (getFieldName (AD_ARGS, field_decl, field_name));
   
   // 获取字段类型名
-  const char* field_type_name = NULL;
-  tree field_type = field_decl ? TREE_TYPE(field_decl) : NULL_TREE;
-  AD_TRY(formatFieldTypeName(AD_ARGS, field_type, field_type_name));
+  char const * field_type_name = NULL;
+  tree field_type = field_decl ? TREE_TYPE (field_decl) : NULL_TREE;
+  AD_TRY (formatFieldTypeName (AD_ARGS, field_type, field_type_name));
   
   // 统一输出调试信息
-  AD_DEBUG_PRINT("  Captured field write: type=%s, field=%s, field_type=%s", 
+  AD_DEBUG_PRINT ("  Captured field write: type=%s, field=%s, field_type=%s", 
                  type_name, field_name, field_type_name);
   
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::array_detector::ArrayDetector &detector, char const* func_name, tree func_decl) AD_FUNCTION_BEGIN {
-  if (gimple_code(stmt) != GIMPLE_ASSIGN) {
-    AD_RETURNE(OK);
+ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::array_detector::ArrayDetector &detector, char const * func_name, tree func_decl) AD_FUNCTION_BEGIN {
+  if (gimple_code (stmt) != GIMPLE_ASSIGN) {
+    AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT("  Analyzing assignment statement:");
-  tree lhs = gimple_assign_lhs(stmt);
-  tree rhs = gimple_assign_rhs1(stmt);
+  AD_DEBUG_PRINT ("  Analyzing assignment statement:");
+  tree lhs = gimple_assign_lhs (stmt);
+  tree rhs = gimple_assign_rhs1 (stmt);
 
   tree field_decl = NULL_TREE;
   tree object = NULL_TREE;
   bool is_field_access0;
-  AD_TRY (is_field_access(AD_ARGS, lhs, &field_decl, &object, is_field_access0));
+  AD_TRY (is_field_access (AD_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
-    AD_DEBUG_PRINT("    Not a field access, skipping");
-    AD_RETURNE(OK);
+    AD_DEBUG_PRINT ("    Not a field access, skipping");
+    AD_RETURNE (OK);
   }
 
   // 获取字段信息
-  const char* field_name;
-  AD_TRY (gcc_field_desc(AD_ARGS, field_decl, field_name));
-  tree field_type = TREE_TYPE(field_decl);
-  const char* field_type_name;
-  AD_TRY (get_type_name(AD_ARGS, field_type, field_type_name));
+  char const * field_name;
+  AD_TRY (gcc_field_desc (AD_ARGS, field_decl, field_name));
+  tree field_type = TREE_TYPE (field_decl);
+  char const * field_type_name;
+  AD_TRY (get_type_name (AD_ARGS, field_type, field_type_name));
   
   // 获取对象类型信息
-  tree object_type = TREE_TYPE(object);
-  const char* object_type_name;
-  AD_TRY (get_type_name(AD_ARGS, object_type, object_type_name));
+  tree object_type = TREE_TYPE (object);
+  char const * object_type_name;
+  AD_TRY (get_type_name (AD_ARGS, object_type, object_type_name));
   
-  AD_DEBUG_PRINT("    Field: %s", field_name);
-  AD_DEBUG_PRINT("    Field type: %s", field_type_name);
-  AD_DEBUG_PRINT("    Object type: %s", object_type_name);
+  AD_DEBUG_PRINT ("    Field: %s", field_name);
+  AD_DEBUG_PRINT ("    Field type: %s", field_type_name);
+  AD_DEBUG_PRINT ("    Object type: %s", object_type_name);
   // 使用gimple_assign_rhs_code获取RHS的树节点类型，并手动转换为字符串
-  enum tree_code rhs_code = gimple_assign_rhs_code(stmt);
-  const char* rhs_code_str = "UNKNOWN";
+  enum tree_code rhs_code = gimple_assign_rhs_code (stmt);
+  char const * rhs_code_str = "UNKNOWN";
   
   // 使用switch语句转换为字符串表示
   switch (rhs_code) {
@@ -316,60 +316,60 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
     case RDIV_EXPR: rhs_code_str = "RDIV_EXPR"; break;
     default: rhs_code_str = "UNKNOWN"; break;
   }
-  AD_DEBUG_PRINT("    RHS code: %s", rhs_code_str);
+  AD_DEBUG_PRINT ("    RHS code: %s", rhs_code_str);
 
-  FieldInfo* field_info = NULL;
-  AD_DEBUG_PRINT("    Looking for existing field info...");
+  FieldInfo * field_info = NULL;
+  AD_DEBUG_PRINT ("    Looking for existing field info...");
 
   size_t field_count = 0;
-  ArrayDetectErrorCode count_err = array_detector::getFieldCount(detector, AD_ARGS, &field_count);
+  ArrayDetectErrorCode count_err = array_detector::getFieldCount (detector, AD_ARGS, &field_count);
   if (count_err != OK) {
-    AD_DEBUG_PRINT("    Failed to get field count");
+    AD_DEBUG_PRINT ("    Failed to get field count");
     ecode = count_err;
-    AD_RETURN();
+    AD_RETURN ();
   }
 
   for (size_t i = 0; i < field_count; i++) {
-    FieldInfo* fi = nullptr;
-    ArrayDetectErrorCode field_err = array_detector::getField(detector, AD_ARGS, i, &fi);
+    FieldInfo * fi = nullptr;
+    ArrayDetectErrorCode field_err = array_detector::getField (detector, AD_ARGS, i, &fi);
     if (field_err != OK || !fi) {
-      AD_DEBUG_PRINT("    Failed to get field, continuing...");
+      AD_DEBUG_PRINT ("    Failed to get field, continuing...");
       continue;
     }
     if (fi->field_decl == field_decl) {
       field_info = fi;
-      AD_DEBUG_PRINT("    Found existing field info");
+      AD_DEBUG_PRINT ("    Found existing field info");
       break;
     }
   }
 
   if (!field_info) {
-    AD_DEBUG_PRINT("    Field info not found, trying to create...");
-    tree object_type = TREE_TYPE(object);
+    AD_DEBUG_PRINT ("    Field info not found, trying to create...");
+    tree object_type = TREE_TYPE (object);
     if (object_type) {
-      if (TREE_CODE(object_type) == REFERENCE_TYPE) object_type = TREE_TYPE(object_type);
-      if (TREE_CODE(object_type) == POINTER_TYPE) object_type = TREE_TYPE(object_type);
-      tree containing_type = TYPE_MAIN_VARIANT(object_type);
+      if (TREE_CODE (object_type) == REFERENCE_TYPE) object_type = TREE_TYPE (object_type);
+      if (TREE_CODE (object_type) == POINTER_TYPE) object_type = TREE_TYPE (object_type);
+      tree containing_type = TYPE_MAIN_VARIANT (object_type);
       if (containing_type) {
         hash_set<tree> temp_processed;
-        temp_processed.create_ggc(0);
-        ArrayDetectErrorCode err = process_type_fields(AD_ARGS, containing_type, detector, &temp_processed);
+        temp_processed.create_ggc (0);
+        ArrayDetectErrorCode err = process_type_fields (AD_ARGS, containing_type, detector, &temp_processed);
         if (err == array_detect_ns::OK) {
             size_t new_field_count = 0;
-            ArrayDetectErrorCode new_count_err = array_detector::getFieldCount(detector, AD_ARGS, &new_field_count);
+            ArrayDetectErrorCode new_count_err = array_detector::getFieldCount (detector, AD_ARGS, &new_field_count);
             if (new_count_err != OK) {
-                AD_DEBUG_PRINT("    Failed to get new field count after processing type fields");
+                AD_DEBUG_PRINT ("    Failed to get new field count after processing type fields");
             } else {
                 for (size_t i = 0; i < new_field_count; i++) {
-                   FieldInfo* fi = nullptr;
-                   ArrayDetectErrorCode new_field_err = array_detector::getField(detector, AD_ARGS, i, &fi);
+                   FieldInfo * fi = nullptr;
+                   ArrayDetectErrorCode new_field_err = array_detector::getField (detector, AD_ARGS, i, &fi);
                    if (new_field_err != OK || !fi) {
-                       AD_DEBUG_PRINT("    Failed to get new field, continuing...");
+                       AD_DEBUG_PRINT ("    Failed to get new field, continuing...");
                        continue;
                    }
                    if (fi->field_decl == field_decl) {
                      field_info = fi;
-                     AD_DEBUG_PRINT("    Created new field info");
+                     AD_DEBUG_PRINT ("    Created new field info");
                      break;
                    }
                 }
@@ -378,23 +378,23 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
       }
     }
     if (!field_info) {
-      AD_DEBUG_PRINT("    Failed to find or create field info, skipping");
-      AD_RETURNE(OK);
+      AD_DEBUG_PRINT ("    Failed to find or create field info, skipping");
+      AD_RETURNE (OK);
     }
   }
 
-  const char* source = "UNKNOWN";
+  char const * source = "UNKNOWN";
   bool is_call = false;
   // rhs_code已经在前面定义过
-  const char* rhs_desc = "";
+  char const * rhs_desc = "";
 
   if (rhs_code == INTEGER_CST) {
     source = "CONST";
     rhs_desc = "constant";
   } else if (rhs_code == SSA_NAME || rhs_code == VAR_DECL || rhs_code == PARM_DECL) {
      if (rhs_code == SSA_NAME) {
-        gimple* def_stmt = SSA_NAME_DEF_STMT(rhs);
-        if (def_stmt && is_gimple_call(def_stmt)) {
+        gimple * def_stmt = SSA_NAME_DEF_STMT (rhs);
+        if (def_stmt && is_gimple_call (def_stmt)) {
             AD_TRY (get_call_expr_name (AD_ARGS, gimple_call_fn (def_stmt), source));
             if (!source) source = "<unknown-call>";
             is_call = true;
@@ -407,7 +407,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
        source = "VAR";
        rhs_desc = "variable";
      }
-  } else if (get_gimple_rhs_class(rhs_code) == GIMPLE_BINARY_RHS) {
+  } else if (get_gimple_rhs_class (rhs_code) == GIMPLE_BINARY_RHS) {
      source = "EXPR";
      rhs_desc = "expression";
   } else {
@@ -416,14 +416,14 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
   }
 
   // 获取详细的源码位置信息
-  AD_TRY (get_source_location_string (AD_ARGS, gimple_location(stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
-  const char* loc_str = ctx.source_location_buffer;
+  AD_TRY (get_source_location_string (AD_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+  char const * loc_str = ctx.source_location_buffer;
   
   // 获取源码行内容
-  get_source_line_content(gimple_location(stmt), ctx.source_line_buffer, ctx.source_line_buffer_size);
-  const char* source_line = ctx.source_line_buffer;
+  get_source_line_content (gimple_location (stmt), ctx.source_line_buffer, ctx.source_line_buffer_size);
+  char const * source_line = ctx.source_line_buffer;
  
-  AssignmentDetail* detail = ggc_alloc<AssignmentDetail>();
+  AssignmentDetail * detail = ggc_alloc<AssignmentDetail>();
   detail->source = source;
   detail->is_call = is_call;
   detail->tree_code = (int)rhs_code;
@@ -432,12 +432,12 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
 
   if (!field_info->function_assignments) {
       field_info->function_assignments = ggc_alloc<vec<FunctionAssignment*>>();
-      field_info->function_assignments->create(0);
+      field_info->function_assignments->create (0);
   }
   
-  FunctionAssignment* target_fa = NULL;
-  for (unsigned i = 0; i < field_info->function_assignments->length(); ++i) {
-      FunctionAssignment* fa = (*field_info->function_assignments)[i];
+  FunctionAssignment * target_fa = NULL;
+  for (unsigned i = 0; i < field_info->function_assignments->length (); ++i) {
+      FunctionAssignment * fa = (*field_info->function_assignments)[i];
       // 使用 function_decl 比较更准确，或者 func_name
       if (fa->function_decl == func_decl) {
          target_fa = fa;
@@ -451,86 +451,86 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple* stmt, ::ar
       target_fa->function_decl = func_decl;
       target_fa->function_id = func_name; // 简单起见
       target_fa->assignment_count = 0;
-      target_fa->sources = ggc_alloc<vec<const char*>>();
-      target_fa->sources->create(0);
+      target_fa->sources = ggc_alloc<vec<char const *>>();
+      target_fa->sources->create (0);
       target_fa->assignment_details = ggc_alloc<vec<AssignmentDetail*>>();
-      target_fa->assignment_details->create(0);
+      target_fa->assignment_details->create (0);
       
-      field_info->function_assignments->safe_push(target_fa);
+      field_info->function_assignments->safe_push (target_fa);
   }
 
   target_fa->assignment_count++;
-  target_fa->sources->safe_push(source);
-  target_fa->assignment_details->safe_push(detail);
+  target_fa->sources->safe_push (source);
+  target_fa->assignment_details->safe_push (detail);
   
   // 更新 FieldInfo 级别的统计
   field_info->source_count++;
   if (!field_info->sources) {
-      field_info->sources = ggc_alloc<vec<const char*>>();
-      field_info->sources->create(0);
+      field_info->sources = ggc_alloc<vec<char const *>>();
+      field_info->sources->create (0);
   }
-  field_info->sources->safe_push(source);
+  field_info->sources->safe_push (source);
   
-  AD_DEBUG_PRINT("    Assignment processed successfully:");
-  AD_DEBUG_PRINT("      Field: %s::%s", field_info->containing_type, field_info->field_name);
-  AD_DEBUG_PRINT("      Assignment source: %s (%s)", source, rhs_desc);
-  AD_DEBUG_PRINT("      Location: %s", loc_str);
-  AD_DEBUG_PRINT("      Source line: %s", source_line);
-  AD_DEBUG_PRINT("      Total assignments for this field: %d", field_info->source_count);
+  AD_DEBUG_PRINT ("    Assignment processed successfully:");
+  AD_DEBUG_PRINT ("      Field: %s::%s", field_info->containing_type, field_info->field_name);
+  AD_DEBUG_PRINT ("      Assignment source: %s (%s)", source, rhs_desc);
+  AD_DEBUG_PRINT ("      Location: %s", loc_str);
+  AD_DEBUG_PRINT ("      Source line: %s", source_line);
+  AD_DEBUG_PRINT ("      Total assignments for this field: %d", field_info->source_count);
 
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 处理类型字段：提取类型的所有字段定义
 // 语义：遍历类型的字段，创建 FieldInfo 对象并添加到 detector
 // 垃圾回收：所有分配使用 ggc_alloc，由 GCC 自动管理
-ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ::array_detector::ArrayDetector &detector, hash_set<tree> *processed_types) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode process_type_fields (AD_FUNC_ARGS, tree type, ::array_detector::ArrayDetector &detector, hash_set<tree> *processed_types) AD_FUNCTION_BEGIN {
   if (!type) {
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
   // 只处理结构体/类类型
-  if (TREE_CODE(type) != RECORD_TYPE && TREE_CODE(type) != UNION_TYPE) {
-    AD_RETURNE(OK);
+  if (TREE_CODE (type) != RECORD_TYPE && TREE_CODE (type) != UNION_TYPE) {
+    AD_RETURNE (OK);
   }
   
   // 检查是否已处理过（避免重复处理）
-  if (!processed_types->add(type)) {
+  if (!processed_types->add (type)) {
     // 已处理过，跳过
-    AD_RETURNE(OK);
+    AD_RETURNE (OK);
   }
   
-  const char* type_name;
-  AD_TRY (gcc_ext_util::get_type_name(AD_ARGS, type, type_name));
-  AD_DEBUG_PRINT("Processing type: %s", type_name);
+  char const * type_name;
+  AD_TRY (gcc_ext_util::get_type_name (AD_ARGS, type, type_name));
+  AD_DEBUG_PRINT ("Processing type: %s", type_name);
   
   // 遍历类型的所有字段
   tree field;
-  for (field = TYPE_FIELDS(type); field; field = DECL_CHAIN(field)) {
-    if (TREE_CODE(field) != FIELD_DECL) continue;
+  for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field)) {
+    if (TREE_CODE (field) != FIELD_DECL) continue;
     
-    const char* field_name;
-    AD_TRY (gcc_field_desc(AD_ARGS, field, field_name));
+    char const * field_name;
+    AD_TRY (gcc_field_desc (AD_ARGS, field, field_name));
     
     // 跳过虚函数表指针（编译器生成的内部字段）
-    if (strstr(field_name, "_vptr") != NULL) {
+    if (strstr (field_name, "_vptr") != NULL) {
       continue;
     }
     
-    tree field_type = TREE_TYPE(field);
+    tree field_type = TREE_TYPE (field);
     bool is_ptr;
     AD_TRY (is_pointer_type (AD_ARGS, field_type, is_ptr));
     
-    AD_DEBUG_PRINT("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
+    AD_DEBUG_PRINT ("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
     
     // 创建字段信息结构体（使用 GCC 垃圾回收分配）
     // 语义：分配 FieldInfo 结构体，由 GCC 自动管理生命周期
-    FieldInfo* field_info = ggc_alloc<FieldInfo>();
+    FieldInfo * field_info = ggc_alloc<FieldInfo>();
     if (!field_info) {
-      AD_RETURNE(MEMORY_ERROR);
+      AD_RETURNE (MEMORY_ERROR);
     }
     // 初始化字段为零
-    memset(field_info, 0, sizeof(FieldInfo));
+    memset (field_info, 0, sizeof (FieldInfo));
     
     // 设置字段基本信息
     field_info->field_name = field_name;
@@ -543,14 +543,14 @@ ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ::array_detect
     
     // 分配 vec 容器（使用 GCC 垃圾回收）
     // 语义：为字段分配三个 vec 容器，用于存储赋值信息
-    field_info->sources = ggc_alloc<vec<const char*>>();
-    field_info->sources->create(0);
+    field_info->sources = ggc_alloc<vec<char const *>>();
+    field_info->sources->create (0);
     
-    field_info->conflicting_assigns = ggc_alloc<vec<const char*>>();
-    field_info->conflicting_assigns->create(0);
+    field_info->conflicting_assigns = ggc_alloc<vec<char const *>>();
+    field_info->conflicting_assigns->create (0);
     
     field_info->function_assignments = ggc_alloc<vec<FunctionAssignment*>>();
-    field_info->function_assignments->create(0);
+    field_info->function_assignments->create (0);
     
     // 添加字段到 detector
     // 语义：将字段信息添加到全局字段列表
@@ -561,33 +561,33 @@ ArrayDetectErrorCode process_type_fields(AD_FUNC_ARGS, tree type, ::array_detect
     // 错误处理：释放已分配的 vec 容器
     // 注意：FieldInfo 本身由 GCC 管理，不需要 delete
     if (field_info->sources) {
-      field_info->sources->release();
+      field_info->sources->release ();
     }
     if (field_info->conflicting_assigns) {
-      field_info->conflicting_assigns->release();
+      field_info->conflicting_assigns->release ();
     }
     if (field_info->function_assignments) {
-      field_info->function_assignments->release();
+      field_info->function_assignments->release ();
     }
-    AD_RETURN();
+    AD_RETURN ();
   }
   
-  AD_RETURNE(OK);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // 检查类型是否是指针类型
-ArrayDetectErrorCode is_pointer_type(AD_FUNC_ARGS, tree type, bool &result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode is_pointer_type (AD_FUNC_ARGS, tree type, bool &result) AD_FUNCTION_BEGIN {
   if (!type) AD_RETURNO (false);
-  AD_RETURNO (TREE_CODE(type) == POINTER_TYPE);
+  AD_RETURNO (TREE_CODE (type) == POINTER_TYPE);
 } AD_FUNCTION_END
 
 // 检查是否是字段访问（COMPONENT_REF）
-ArrayDetectErrorCode is_field_access(AD_FUNC_ARGS, tree expr, tree* field_decl_out, tree* object_out, bool &result) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode is_field_access (AD_FUNC_ARGS, tree expr, tree * field_decl_out, tree * object_out, bool &result) AD_FUNCTION_BEGIN {
   if (!expr) AD_RETURNO (false);
   
-  if (TREE_CODE(expr) == COMPONENT_REF) {
-    *field_decl_out = TREE_OPERAND(expr, 1);
-    *object_out = TREE_OPERAND(expr, 0);
+  if (TREE_CODE (expr) == COMPONENT_REF) {
+    *field_decl_out = TREE_OPERAND (expr, 1);
+    *object_out = TREE_OPERAND (expr, 0);
     AD_RETURNO (true);
   }
   AD_RETURNO (false);

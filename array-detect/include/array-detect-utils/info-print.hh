@@ -17,7 +17,7 @@ using array_detector::ArrayDetector;
 // printResults 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode printResults(AD_FUNC_ARGS, ArrayDetector &detector);
+ArrayDetectErrorCode printResults (AD_FUNC_ARGS, ArrayDetector &detector);
 
 // ----------------------------------------------------------------------------
 // 调试输出函数：打印 GIMPLE_CALL 语句的详细信息
@@ -26,10 +26,10 @@ ArrayDetectErrorCode printResults(AD_FUNC_ARGS, ArrayDetector &detector);
 // 用于复杂调试场景
 // ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode printGimpleCallDetails(
+ArrayDetectErrorCode printGimpleCallDetails (
   AD_FUNC_ARGS,
-  gimple* call_stmt,
-  FILE* output_file
+  gimple * call_stmt,
+  FILE * output_file
 );
 
 } // namespace array_detect_ns

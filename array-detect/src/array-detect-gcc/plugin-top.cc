@@ -49,8 +49,8 @@ const pass_data array_detect_pass_data = {
 
 class pass_array_detect : public ipa_opt_pass_d {
  public:
-  pass_array_detect(gcc::context* ctxt)
-      : ipa_opt_pass_d(array_detect_pass_data, ctxt,
+  pass_array_detect (gcc::context * ctxt)
+      : ipa_opt_pass_d (array_detect_pass_data, ctxt,
                        NULL,  // generate_summary
                        NULL,  // write_summary
                        NULL,  // read_summary
@@ -62,10 +62,10 @@ class pass_array_detect : public ipa_opt_pass_d {
                        NULL)  // variable_transform
   {}
 
-  opt_pass* clone() override { return new pass_array_detect(g); }
+  opt_pass * clone () override { return new pass_array_detect (g); }
 
-  unsigned int execute(function*) override {
-    // Regular IPA passes in WPA mode call execute() with NULL function
+  unsigned int execute (function*) override {
+    // Regular IPA passes in WPA mode call execute () with NULL function
     // 使用局部上下文，避免全局状态问题
     ::array_detect_ns::ArrayDetectContext local_ctx;
     ::array_detect_ns::ArrayDetectContextGcc local_gcc_ctx;
@@ -80,8 +80,8 @@ class pass_array_detect : public ipa_opt_pass_d {
 // 插件初始化
 // ----------------------------------------------------------------------------
 
-int plugin_init(struct plugin_name_args* plugin_info,
-                struct plugin_gcc_version* version) {
+int plugin_init (struct plugin_name_args * plugin_info,
+                struct plugin_gcc_version * version) {
   // 版本检查
   if (!plugin_default_version_check (version, &gcc_version)) {
     return 1;

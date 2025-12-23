@@ -38,7 +38,7 @@ void printStackFrameSource (AD_FUNC_ARGS, uint64_t frame_addr);
 // 将栈帧地址解析为源码位置字符串（使用内部缓冲区）
 // 返回值：ArrayDetectErrorCode
 // 输出：通过 buffer 参数返回格式化字符串
-ArrayDetectErrorCode getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char* buffer, size_t buffer_size);
+ArrayDetectErrorCode getFrameSourceLocation (AD_FUNC_ARGS, uint64_t frame_addr, char * buffer, size_t buffer_size);
 
 } // namespace array_detect_ns
 
@@ -51,15 +51,15 @@ namespace array_detect_ns {
 // 返回值：ArrayDetectErrorCode
 // 输出：通过 result 参数返回格式化字符串
 // 输出：通过 out_is_valid 参数返回是否成功解析
-ArrayDetectErrorCode resolveFrameAddressToSource (AD_FUNC_ARGS, uint64_t frame_addr, const char* &result, bool &out_is_valid);
+ArrayDetectErrorCode resolveFrameAddressToSource (AD_FUNC_ARGS, uint64_t frame_addr, char const * &result, bool &out_is_valid);
 
 // 当前栈帧信息结构
 struct CurrentFrameInfo {
   uint64_t frame_address;        // 栈帧地址
   bool is_valid;                  // 是否有效
-  const char* source_location;    // 源码位置信息（使用上下文缓冲区）
-  const char* demangled_name;    // 解析后的函数名（使用上下文缓冲区）
-  const char* source_file;        // 源码文件名（使用上下文缓冲区）
+  char const * source_location;    // 源码位置信息（使用上下文缓冲区）
+  char const * demangled_name;    // 解析后的函数名（使用上下文缓冲区）
+  char const * source_file;        // 源码文件名（使用上下文缓冲区）
   unsigned int source_line;       // 源码行号
   size_t stack_depth;             // 当前栈深度
 };

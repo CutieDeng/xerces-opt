@@ -31,7 +31,7 @@ ArrayDetectErrorCode reduceTrivialMoves (
   tree function,
   basic_block bb,
   tree &result_final_value,
-  gimple* &result_final_stmt_nullable,
+  gimple *&result_final_stmt_nullable,
   bool &result_is_phi
 ) AD_FUNCTION_BEGIN {
   (void)detector;
@@ -53,7 +53,7 @@ ArrayDetectErrorCode reduceTrivialMoves (
   // 2. 默认定义：某些特殊变量（如 __builtin_unreachable 的结果）可能没有定义语句
   // 3. SSA 构建阶段：在 SSA 构建过程中，某些变量可能暂时没有定义语句
   // 4. 已释放的 SSA：在 SSA 释放阶段，定义语句可能已被清除
-  gimple* def_stmt = SSA_NAME_DEF_STMT (value);
+  gimple * def_stmt = SSA_NAME_DEF_STMT (value);
   if (!def_stmt) {
     result_final_value = value;
     result_final_stmt_nullable = NULL;
@@ -116,7 +116,7 @@ ArrayDetectErrorCode reduceTrivialMoves (
     if (is_trivial) {
       basic_block def_bb = gimple_bb (def_stmt);
       if (!def_bb) {
-        AD_DEBUG_PRINT ("Error: gimple_bb() returned NULL for def_stmt in reduceTrivialMoves");
+        AD_DEBUG_PRINT ("Error: gimple_bb () returned NULL for def_stmt in reduceTrivialMoves");
         AD_DEBUG_PRINT ("  value: %p, def_stmt: %p, gimple_code: %d", (void*)value, (void*)def_stmt, (int)code);
         AD_RETURNE (GCC_LOGIC_ERROR);
       }
@@ -142,15 +142,15 @@ ArrayDetectErrorCode extractSourceFromRhs (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree rhs,
-  gimple* stmt,
+  gimple *stmt,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo *&result
 ) AD_FUNCTION_BEGIN {
   // 第一步：可选自动缩减平凡 move 操作（放在数据流主路上）
   tree final_value;
-  gimple* final_stmt_nullable;
+  gimple *final_stmt_nullable;
   bool is_phi = false;
   
   AD_TRY (reduceTrivialMoves (detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
@@ -170,7 +170,7 @@ ArrayDetectErrorCode extractSourceFromRhs (
       // 在正常的 GIMPLE 流程中，每个语句都应该属于某个基本块
       basic_block call_bb = gimple_bb (final_stmt_nullable);
       if (!call_bb) {
-        AD_DEBUG_PRINT ("Error: gimple_bb() returned NULL for call_stmt in extractSourceFromRhs");
+        AD_DEBUG_PRINT ("Error: gimple_bb () returned NULL for call_stmt in extractSourceFromRhs");
         AD_DEBUG_PRINT ("  final_stmt: %p", (void*)final_stmt_nullable);
         AD_DEBUG_PRINT ("  final_value: %p", (void*)final_value);
         AD_DEBUG_PRINT ("  gimple_code: %d", (int)gimple_code (final_stmt_nullable));
@@ -211,14 +211,14 @@ ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARG
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     // iter->first 是键（TypeFieldKey），iter->second 是值（TypeFieldWriteOps*）
-    TypeFieldWriteOps* tfwo_nullable = (*iter).second;
+    TypeFieldWriteOps *tfwo_nullable = (*iter).second;
     if (!tfwo_nullable || !tfwo_nullable->write_ops) {
       continue;
     }
     
     // 遍历该 type -> field 的所有写入操作
     for (unsigned int j = 0; j < tfwo_nullable->write_ops->length (); ++j) {
-      FieldWriteCapture* capture_nullable = (*tfwo_nullable->write_ops)[j];
+      FieldWriteCapture *capture_nullable = (*tfwo_nullable->write_ops)[j];
       if (!capture_nullable) {
         continue;
       }
@@ -228,12 +228,12 @@ ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARG
       processed_count++;
       
       tree rhs = capture.rhs;
-      gimple* stmt = capture.stmt;
+      gimple * stmt = capture.stmt;
       location_t location = capture.location;
       tree function = capture.function_decl;
       basic_block bb = capture.bb;
       
-      FieldSourceInfo* source_info;
+      FieldSourceInfo *source_info;
       AD_TRY (extractSourceFromRhs (
         detector, AD_ARGS, rhs, stmt, location, function, bb, source_info));
       

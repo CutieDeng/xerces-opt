@@ -10,8 +10,8 @@ struct ArrayDetectContextGcc;
 
 namespace controlflow {
 
-void pushStackFrame(AD_FUNC_ARGS, uint64_t frame_id);
-void popStackFrame(AD_FUNC_ARGS);
+void pushStackFrame (AD_FUNC_ARGS, uint64_t frame_id);
+void popStackFrame (AD_FUNC_ARGS);
 
 } // namespace controlflow
 

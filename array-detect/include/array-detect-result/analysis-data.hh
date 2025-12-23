@@ -21,10 +21,10 @@ struct FieldWriteCapture {
   // 上下文信息：函数和基本块
   tree function_decl;           // 函数声明（GCC 内部管理）
   basic_block bb;               // 基本块（GCC 内部管理）
-  const char* function_name;    // 所在函数名（ggc_strdup 分配，用于调试）
+  char const * function_name;    // 所在函数名（ggc_strdup 分配，用于调试）
   
   // GIMPLE 语句信息
-  gimple* stmt;                 // GIMPLE_ASSIGN 语句（GCC 内部管理）
+  gimple * stmt;                 // GIMPLE_ASSIGN 语句（GCC 内部管理）
   tree lhs;                     // 左值表达式（MEM，GCC 内部管理）
   tree rhs;                     // 右值表达式（SSA_NAME，GCC 内部管理）
   
@@ -32,7 +32,7 @@ struct FieldWriteCapture {
   location_t location;          // 源码位置（GCC 内部管理）
   
   // 通用用途功能指针：用于存储有意义的结果（由后续阶段分配和管理）
-  void* aux;
+  void * aux;
   
   // 调试和辅助字段
   int bb_index;                 // 基本块索引（用于调试）
@@ -50,11 +50,11 @@ enum EscapeType {
 };
 
 struct EscapeSite {
-  gimple* stmt;                 // 发生逃逸的语句（GCC 内部管理）
+  gimple * stmt;                 // 发生逃逸的语句（GCC 内部管理）
   EscapeType escape_type;      // 逃逸类型
-  const char* function_name;    // 所在函数名（ggc_strdup 分配）
+  char const * function_name;    // 所在函数名（ggc_strdup 分配）
   location_t location;         // 源码位置（GCC 内部管理）
-  const char* description;     // 逃逸描述（ggc_strdup 分配）
+  char const * description;     // 逃逸描述（ggc_strdup 分配）
 };
 
 // ============================================================================
@@ -69,12 +69,12 @@ enum CallType {
 };
 
 struct SourceOperation {
-  gimple* call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
+  gimple * call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
   CallType call_type;          // 调用类型
-  const char* function_name;   // 函数名（mangled，ggc_strdup 分配）
+  char const * function_name;   // 函数名（mangled，ggc_strdup 分配）
   tree return_value_ssa;       // 返回值的 SSA_NAME（GCC 内部管理）
   tree vtable_ref;             // 虚表引用（如果是虚函数，GCC 内部管理）
-  const char* signature;       // 调用签名（ggc_strdup 分配）
+  char const * signature;       // 调用签名（ggc_strdup 分配）
   location_t location;         // 调用位置（GCC 内部管理）
 };
 
@@ -89,7 +89,7 @@ struct FieldAnalysisResult {
   vec<EscapeSite*>* escape_sites;     // 逃逸位置列表（ggc_alloc<vec<...>>() 分配）
   vec<SourceOperation*>* sources;     // 源操作列表（ggc_alloc<vec<...>>() 分配）
   bool is_memory_owner;                // 是否为内存持有者
-  const char* reason;                  // 判定原因（ggc_strdup 分配）
+  char const * reason;                  // 判定原因（ggc_strdup 分配）
 };
 
 // ============================================================================
@@ -99,7 +99,7 @@ struct FieldAnalysisResult {
 // map: field_decl -> FieldAnalysisResult
 // 使用 vec 配对实现映射关系
 struct FunctionAnalysisResult {
-  const char* function_name;           // 函数名（ggc_strdup 分配）
+  char const * function_name;           // 函数名（ggc_strdup 分配）
   tree function_decl;                  // 函数声明（GCC 内部管理）
   vec<tree>* field_decls;              // 字段声明列表
   vec<FieldAnalysisResult*>* field_results; // 对应的分析结果列表

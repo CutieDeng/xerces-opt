@@ -9,17 +9,17 @@ namespace array_detect_ns {
 
 namespace {
 
-void closeWrap(FILE *f) {
-  (void) fclose(f);
+void closeWrap (FILE *f) {
+  (void) fclose (f);
 }
 
-void nothingWithFile(FILE *) {
+void nothingWithFile (FILE *) {
 }
 
 }
 
-ArrayDetectErrorCode initContextWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
-  ctx.debug_file = fopen("/tmp/array-detect.log", "w");
+ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  ctx.debug_file = fopen ("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
@@ -29,14 +29,14 @@ ArrayDetectErrorCode initContextWithTmpFile(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose(ctx.debug_file);
-    AD_RETURN();
+    fclose (ctx.debug_file);
+    AD_RETURN ();
   }
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode initContextWithNamedFile(AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
-  ctx.debug_file = fopen(debug_file_path, "w");
+  ctx.debug_file = fopen (debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
@@ -46,12 +46,12 @@ ArrayDetectErrorCode initContextWithNamedFile(AD_FUNC_ARGS, char const *debug_fi
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose(ctx.debug_file);
-    AD_RETURN();
+    fclose (ctx.debug_file);
+    AD_RETURN ();
   }
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode initContextWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
@@ -59,13 +59,13 @@ ArrayDetectErrorCode initContextWithStderr(AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose(ctx.debug_file);
-    AD_RETURN();
+    fclose (ctx.debug_file);
+    AD_RETURN ();
   }
 } AD_FUNCTION_END
 
-void deinitContext(AD_FUNC_ARGS) {
-  ctx.debug_file_dtor(ctx.debug_file);
+void deinitContext (AD_FUNC_ARGS) {
+  ctx.debug_file_dtor (ctx.debug_file);
   deinitGccContext (AD_ARGS);
 }
 

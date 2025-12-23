@@ -22,10 +22,10 @@ namespace array_detect_ns {
 // 输入：function_name - 函数名
 // 输入：function_decl - 函数声明
 // 输出：function_result - 函数分析结果
-ArrayDetectErrorCode analyzeFunctionFields(
+ArrayDetectErrorCode analyzeFunctionFields (
   AD_FUNC_ARGS,
-  function* fn,
-  const char* function_name,
+  function * fn,
+  char const * function_name,
   tree function_decl,
   FunctionAnalysisResult &function_result
 );
@@ -35,7 +35,7 @@ ArrayDetectErrorCode analyzeFunctionFields(
 // 输入：all_function_results - 所有函数的分析结果列表
 // 输出：field_decls - 字段声明列表
 // 输出：field_results - 对应的最终分析结果列表
-ArrayDetectErrorCode integrateFunctionResults(
+ArrayDetectErrorCode integrateFunctionResults (
   AD_FUNC_ARGS,
   vec<FunctionAnalysisResult*> const &all_function_results,
   vec<tree> &field_decls,

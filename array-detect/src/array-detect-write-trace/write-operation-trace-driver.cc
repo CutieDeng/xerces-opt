@@ -20,10 +20,10 @@ using namespace ::array_detect_ns;
 ArrayDetectErrorCode extractSourceFromCall (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
-  gimple* call_stmt,
+  gimple * call_stmt,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
@@ -89,14 +89,14 @@ ArrayDetectErrorCode extractSourceFromVariable (
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
   (void)bb;
   
   // 分配来源信息结构
-  FieldSourceInfo* info = ggc_alloc<FieldSourceInfo> ();
+  FieldSourceInfo * info = ggc_alloc<FieldSourceInfo> ();
   if (!info) {
     AD_RETURNE (MEMORY_ERROR);
   }
@@ -105,7 +105,7 @@ ArrayDetectErrorCode extractSourceFromVariable (
   info->source_type = SOURCE_VARIABLE;
   
   // 初始化变量来源信息
-  VariableSource* var_source = &info->data.variable;
+  VariableSource * var_source = &info->data.variable;
   var_source->ssa_name = ssa_name;
   var_source->location = location;
   
@@ -128,7 +128,7 @@ ArrayDetectErrorCode extractSourceFromConstant (
   tree constant_value,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
@@ -167,12 +167,12 @@ ArrayDetectErrorCode extractSourceFromConstant (
 ArrayDetectErrorCode extractSourceFromPhi (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
-  gimple* phi_stmt,
+  gimple * phi_stmt,
   tree ssa_name,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
@@ -210,12 +210,12 @@ ArrayDetectErrorCode extractSourceFromComputation (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree compute_expr,
-  gimple* compute_stmt_nullable,
-  gimple* fallback_stmt,
+  gimple * compute_stmt_nullable,
+  gimple * fallback_stmt,
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo* &result
+  FieldSourceInfo * &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;

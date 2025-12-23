@@ -27,7 +27,7 @@ using array_detector::ArrayDetector;
 //   1. 提取字段信息：收集所有类型和字段
 //   2. 分析信息：追踪字段赋值，判断是否为数组候选
 //   3. 输出信息：生成并输出分析报告
-ArrayDetectErrorCode runArrayDetectionPipeline(
+ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_FUNC_ARGS,
   ArrayDetector &detector
 );
@@ -36,7 +36,7 @@ ArrayDetectErrorCode runArrayDetectionPipeline(
 // 返回值：ArrayDetectErrorCode
 // 这个函数负责创建 ArrayDetector，初始化，调用 pipeline，然后清理
 // 这是插件的主要入口点
-ArrayDetectErrorCode runArrayDetectorAnalysis(AD_FUNC_ARGS);
+ArrayDetectErrorCode runArrayDetectorAnalysis (AD_FUNC_ARGS);
 
 } // namespace array_detect_ns
 
