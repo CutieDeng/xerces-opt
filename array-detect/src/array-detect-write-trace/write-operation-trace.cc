@@ -18,27 +18,23 @@ ArrayDetectErrorCode extractSourceFromCall(
   tree return_ssa,
   tree function,
   basic_block bb,
-  FieldSourceInfo** out_source_info
+  FieldSourceInfo* &result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
   (void)function;
   (void)bb;
   
-  if (!call_stmt || !out_source_info) {
-    AD_RETURNE(INVALID_ARGUMENT);
-  }
-  
   // 分配来源信息结构
-  FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-  if (!source_info) {
+  FieldSourceInfo *info = ggc_alloc<FieldSourceInfo>();
+  if (!info) {
     AD_RETURNE(MEMORY_ERROR);
   }
-  memset(source_info, 0, sizeof(FieldSourceInfo));
+  memset(info, 0, sizeof(FieldSourceInfo));
   
-  source_info->source_type = SOURCE_FUNCTION_CALL;
+  info->source_type = SOURCE_FUNCTION_CALL;
   
   // 初始化函数调用来源信息
-  FunctionCallSource* call_source = &source_info->data.function_call;
+  FunctionCallSource* call_source = &info->data.function_call;
   call_source->call_stmt = call_stmt;
   call_source->return_value_ssa = return_ssa;
   call_source->location = gimple_location(call_stmt);
@@ -86,8 +82,7 @@ ArrayDetectErrorCode extractSourceFromCall(
   }
   call_source->signature = ggc_strdup(signature);
   
-  *out_source_info = source_info;
-  AD_RETURNE(OK);
+  AD_RETURNO(info);
 } AD_FUNCTION_END
 
 // 从变量提取来源信息
@@ -273,7 +268,9 @@ ArrayDetectErrorCode extractSourceFromRhs(
         AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
         AD_RETURNE(GCC_LOGIC_ERROR);
       }
-      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, out_source_info));
+      FieldSourceInfo* call_result;
+      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, call_result));
+      *out_source_info = call_result;
     } else {
       // 来自变量（可能是参数或其他）
       AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, out_source_info));

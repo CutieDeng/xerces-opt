@@ -53,7 +53,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
 //       return_ssa - 返回值的 SSA_NAME（如果存在）
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
-// 输出：source_info - 提取的来源信息（已分配内存，使用 ggc_alloc）
+// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
 ArrayDetectErrorCode extractSourceFromCall(
   ArrayDetector &detector,
   AD_FUNC_ARGS,
@@ -61,7 +61,7 @@ ArrayDetectErrorCode extractSourceFromCall(
   tree return_ssa,
   tree function,
   basic_block bb,
-  FieldSourceInfo** out_source_info
+  FieldSourceInfo* &result
 );
 
 // 从变量提取来源信息
