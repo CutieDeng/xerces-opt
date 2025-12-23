@@ -59,6 +59,38 @@ ArrayDetectErrorCode extractSourceFromCall (
         } else {
           call_source.function_name = ggc_strdup ("<virtual-call>");
         }
+      } else if (TREE_CODE (fn) == SSA_NAME) {
+        // 间接调用：尝试追踪 SSA_NAME 的定义来找到函数名
+        gimple * def_stmt = SSA_NAME_DEF_STMT (fn);
+        if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
+          tree rhs = gimple_assign_rhs1 (def_stmt);
+          enum tree_code rhs_code = gimple_assign_rhs_code (def_stmt);
+          
+          // 检查是否是 ADDR_EXPR（函数地址）
+          if (rhs_code == ADDR_EXPR) {
+            tree addr_expr = TREE_OPERAND (rhs, 0);
+            if (addr_expr && TREE_CODE (addr_expr) == FUNCTION_DECL && DECL_NAME (addr_expr)) {
+              call_source.function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (addr_expr)));
+            } else {
+              call_source.function_name = ggc_strdup ("<indirect-call>");
+            }
+          } else if (TREE_CODE (rhs) == FUNCTION_DECL && DECL_NAME (rhs)) {
+            // 直接赋值函数声明
+            call_source.function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (rhs)));
+          } else {
+            call_source.function_name = ggc_strdup ("<indirect-call>");
+          }
+        } else {
+          call_source.function_name = ggc_strdup ("<indirect-call>");
+        }
+      } else if (TREE_CODE (fn) == ADDR_EXPR) {
+        // 函数地址表达式
+        tree addr_expr = TREE_OPERAND (fn, 0);
+        if (addr_expr && TREE_CODE (addr_expr) == FUNCTION_DECL && DECL_NAME (addr_expr)) {
+          call_source.function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (addr_expr)));
+        } else {
+          call_source.function_name = ggc_strdup ("<indirect-call>");
+        }
       } else {
         call_source.function_name = ggc_strdup ("<indirect-call>");
       }

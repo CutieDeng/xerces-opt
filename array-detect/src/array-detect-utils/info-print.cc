@@ -401,6 +401,15 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
   AD_DEBUG_PRINT ("  Function: %s", capture.function_name ? capture.function_name : "<unknown>");
   AD_DEBUG_PRINT ("  BB index: %d", capture.bb_index);
   
+  // 输出原始代码位置
+  if (capture.location != UNKNOWN_LOCATION) {
+    if (ctx.source_location_buffer && ctx.source_location_buffer_size > 0) {
+      AD_TRY (gcc_ext_util::get_source_location_string (AD_ARGS, capture.location,
+                                                        ctx.source_location_buffer, ctx.source_location_buffer_size));
+      AD_DEBUG_PRINT ("  Location: %s", ctx.source_location_buffer);
+    }
+  }
+  
   // 根据来源类型输出详细信息（使用 LET 宏）
   LET_SOURCE_FUNCTION_CALL (call, *source_info) {
     char const * call_type_str = "UNKNOWN";
@@ -408,7 +417,7 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
     else if (call.call_type == ::array_detect_ns::CALL_DIRECT) call_type_str = "DIRECT";
     else if (call.call_type == ::array_detect_ns::CALL_INDIRECT) call_type_str = "INDIRECT";
     AD_DEBUG_PRINT ("  Source type: FUNCTION_CALL (%s)", call_type_str);
-    AD_DEBUG_PRINT ("  Call function: %s", call.function_name ? call.function_name : "<unknown>");
+    AD_DEBUG_PRINT ("  Call function name: %s", call.function_name ? call.function_name : "<unknown>");
   } END_LET ()
   else LET_SOURCE_VARIABLE (var, *source_info) {
     AD_DEBUG_PRINT ("  Source type: VARIABLE");
