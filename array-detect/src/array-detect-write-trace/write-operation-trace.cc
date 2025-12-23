@@ -226,22 +226,14 @@ ArrayDetectErrorCode extractSourceFromRhs(
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo** out_source_info
+  FieldSourceInfo* &result
 ) AD_FUNCTION_BEGIN {
-  if (!rhs || !stmt || !out_source_info) {
-    AD_RETURNE(INVALID_ARGUMENT);
-  }
-  
   // 第一步：可选自动缩减平凡 move 操作（放在数据流主路上）
   tree final_value;
   gimple* final_stmt_nullable;
   bool is_phi = false;
   
   AD_TRY(reduceTrivialMoves(detector, AD_ARGS, rhs, function, bb, final_value, final_stmt_nullable, is_phi));
-  
-  if (!final_value) {
-    AD_RETURNE(INVALID_ARGUMENT);
-  }
   
   // 如果遇到 PHI 节点，抛出错误
   if (is_phi) {
@@ -263,25 +255,21 @@ ArrayDetectErrorCode extractSourceFromRhs(
         AD_DEBUG_PRINT("  gimple_code: %d", (int)gimple_code(final_stmt_nullable));
         AD_RETURNE(GCC_LOGIC_ERROR);
       }
-      FieldSourceInfo* call_result;
-      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, call_result));
-      *out_source_info = call_result;
+      AD_TRY(extractSourceFromCall(detector, AD_ARGS, final_stmt_nullable, final_value, function, call_bb, result));
     } else {
       // 来自变量（可能是参数或其他）
-      FieldSourceInfo* var_result;
-      AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, var_result));
-      *out_source_info = var_result;
+      AD_TRY(extractSourceFromVariable(detector, AD_ARGS, final_value, location, function, bb, result));
     }
   } else if (CONSTANT_CLASS_P(final_value)) {
     // 常量
-    FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-    if (!source_info) {
+    FieldSourceInfo* info = ggc_alloc<FieldSourceInfo>();
+    if (!info) {
       AD_RETURNE(MEMORY_ERROR);
     }
-    memset(source_info, 0, sizeof(FieldSourceInfo));
+    memset(info, 0, sizeof(FieldSourceInfo));
     
-    source_info->source_type = SOURCE_CONSTANT;
-    ConstantSource* const_source = &source_info->data.constant;
+    info->source_type = SOURCE_CONSTANT;
+    ConstantSource* const_source = &info->data.constant;
     const_source->constant_value = final_value;
     
     // 尝试获取常量字符串表示
@@ -297,25 +285,23 @@ ArrayDetectErrorCode extractSourceFromRhs(
       const_source->constant_str = ggc_strdup("<constant>");
     }
     
-    *out_source_info = source_info;
-    AD_RETURNE(OK);
+    AD_RETURNO(info);
   } else {
     // 计算表达式
-    FieldSourceInfo* source_info = ggc_alloc<FieldSourceInfo>();
-    if (!source_info) {
+    FieldSourceInfo* info = ggc_alloc<FieldSourceInfo>();
+    if (!info) {
       AD_RETURNE(MEMORY_ERROR);
     }
-    memset(source_info, 0, sizeof(FieldSourceInfo));
+    memset(info, 0, sizeof(FieldSourceInfo));
     
-    source_info->source_type = SOURCE_COMPUTATION;
-    ComputationSource* comp_source = &source_info->data.computation;
+    info->source_type = SOURCE_COMPUTATION;
+    ComputationSource* comp_source = &info->data.computation;
     comp_source->compute_stmt = final_stmt_nullable ? final_stmt_nullable : stmt;
     comp_source->compute_expr = final_value;
     comp_source->location = location;
     comp_source->description = ggc_strdup("<computation>");
     
-    *out_source_info = source_info;
-    AD_RETURNE(OK);
+    AD_RETURNO(info);
   }
 } AD_FUNCTION_END
 
@@ -361,7 +347,7 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
       
       FieldSourceInfo* source_info;
       AD_TRY(extractSourceFromRhs(
-        detector, AD_ARGS, rhs, stmt, location, function, bb, &source_info));
+        detector, AD_ARGS, rhs, stmt, location, function, bb, source_info));
       
       // 将来源信息存储到 FieldWriteCapture 的 aux 字段中
       capture.aux = source_info;

@@ -36,7 +36,7 @@ ArrayDetectErrorCode traceFieldAssignments(ArrayDetector &detector, AD_FUNC_ARGS
 //       location - 源码位置
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
-// 输出：source_info - 提取的来源信息（已分配内存，使用 ggc_alloc）
+// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
 ArrayDetectErrorCode extractSourceFromRhs(
   ArrayDetector &detector,
   AD_FUNC_ARGS,
@@ -45,7 +45,7 @@ ArrayDetectErrorCode extractSourceFromRhs(
   location_t location,
   tree function,
   basic_block bb,
-  FieldSourceInfo** out_source_info
+  FieldSourceInfo* &result
 );
 
 // 从函数调用提取来源信息
