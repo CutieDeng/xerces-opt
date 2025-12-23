@@ -32,57 +32,58 @@ ArrayDetectErrorCode extractSourceFromCall(
   memset(info, 0, sizeof(FieldSourceInfo));
   
   info->source_type = SOURCE_FUNCTION_CALL;
-  
-  // 初始化函数调用来源信息
-  FunctionCallSource* call_source = &info->data.function_call;
-  call_source->call_stmt = call_stmt;
-  call_source->return_value_ssa = return_ssa;
-  call_source->location = gimple_location(call_stmt);
-  
-  // 获取函数名
-  tree fn = gimple_call_fn(call_stmt);
-  if (fn) {
-    if (TREE_CODE(fn) == FUNCTION_DECL) {
-      if (DECL_NAME(fn)) {
-        call_source->function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(fn)));
+
+  LET_SOURCE_FUNCTION_CALL (call_source, *info)
+    // 初始化函数调用来源信息
+    call_source.call_stmt = call_stmt;
+    call_source.return_value_ssa = return_ssa;
+    call_source.location = gimple_location(call_stmt);
+    
+    // 获取函数名
+    tree fn = gimple_call_fn(call_stmt);
+    if (fn) {
+      if (TREE_CODE(fn) == FUNCTION_DECL) {
+        if (DECL_NAME(fn)) {
+          call_source.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(fn)));
+        } else {
+          call_source.function_name = ggc_strdup("<unnamed-function>");
+        }
+      } else if (TREE_CODE(fn) == OBJ_TYPE_REF) {
+        // 虚函数调用
+        tree method = OBJ_TYPE_REF_EXPR(fn);
+        if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
+          call_source.function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(method)));
+        } else {
+          call_source.function_name = ggc_strdup("<virtual-call>");
+        }
       } else {
-        call_source->function_name = ggc_strdup("<unnamed-function>");
-      }
-    } else if (TREE_CODE(fn) == OBJ_TYPE_REF) {
-      // 虚函数调用
-      tree method = OBJ_TYPE_REF_EXPR(fn);
-      if (method && TREE_CODE(method) == FUNCTION_DECL && DECL_NAME(method)) {
-        call_source->function_name = ggc_strdup(IDENTIFIER_POINTER(DECL_NAME(method)));
-      } else {
-        call_source->function_name = ggc_strdup("<virtual-call>");
+        call_source.function_name = ggc_strdup("<indirect-call>");
       }
     } else {
-      call_source->function_name = ggc_strdup("<indirect-call>");
+      call_source.function_name = ggc_strdup("<unknown-call>");
     }
-  } else {
-    call_source->function_name = ggc_strdup("<unknown-call>");
-  }
-  
-  // 分析调用类型
-  bool is_virtual = false;
-  CallType call_type = CALL_UNKNOWN;
-  if (array_detect_ns::isVirtualFunctionCall(AD_ARGS, call_stmt, is_virtual, call_type) == OK && is_virtual) {
-    call_source->call_type = CALL_VIRTUAL;
-  } else if (fn && TREE_CODE(fn) == FUNCTION_DECL) {
-    call_source->call_type = CALL_DIRECT;
-  } else {
-    call_source->call_type = CALL_INDIRECT;
-  }
-  
-  // 提取调用签名
-  const char* signature;
-  AD_TRY(array_detect_ns::extractCallSignature(AD_ARGS, call_stmt, signature));
-  if (!signature) {
-    AD_RETURNE(GCC_LOGIC_ERROR);
-  }
-  call_source->signature = ggc_strdup(signature);
-  
-  AD_RETURNO(info);
+    
+    // 分析调用类型
+    bool is_virtual = false;
+    CallType call_type = CALL_UNKNOWN;
+    if (array_detect_ns::isVirtualFunctionCall(AD_ARGS, call_stmt, is_virtual, call_type) == OK && is_virtual) {
+      call_source.call_type = CALL_VIRTUAL;
+    } else if (fn && TREE_CODE(fn) == FUNCTION_DECL) {
+      call_source.call_type = CALL_DIRECT;
+    } else {
+      call_source.call_type = CALL_INDIRECT;
+    }
+
+    // 提取调用签名
+    const char* signature;
+    AD_TRY(extractCallSignature(AD_ARGS, call_stmt, signature));
+    if (!signature) {
+      AD_RETURNE(GCC_LOGIC_ERROR);
+    }
+    call_source.signature = ggc_strdup(signature);
+    
+    AD_RETURNO(info);
+  END_LET()
 } AD_FUNCTION_END
 
 // 从变量提取来源信息
