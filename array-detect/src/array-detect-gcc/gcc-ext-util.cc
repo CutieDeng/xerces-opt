@@ -169,8 +169,7 @@ ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char 
       char const * ns_name = IDENTIFIER_POINTER (DECL_NAME (context));
       // 组合命名空间和类型名，使用上下文缓冲区
       if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
-        result = type_name;
-        AD_RETURNE (OK);
+        AD_RETURNE (RESOURCE_ERROR);
       }
       snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s", ns_name, type_name);
       result = ctx.address_format_buffer;
@@ -228,8 +227,7 @@ ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char co
   if (is_pointer) {
     // 使用上下文缓冲区格式化指针类型名
     if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
-      result = base_type_name;
-      AD_RETURNE (OK);
+      AD_RETURNE (RESOURCE_ERROR);
     }
     snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s*", base_type_name);
     result = ctx.address_format_buffer;
