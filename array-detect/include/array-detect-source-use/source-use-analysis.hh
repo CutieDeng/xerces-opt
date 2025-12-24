@@ -1,50 +1,57 @@
 #pragma once
 
-#include "gcc-plugin.h"
-#include "tree.h"
-#include "gimple.h"
-#include "vec.h"
-#include "state.hh"
+#include "gcc-common.hh"
 #include "context.hh"
+#include "array-detect-context-gcc.hh"
+#include "state.hh"
 #include "prelude.hh"
+#include "analysis-data.hh"
 
 namespace array_detector {
+
   class ArrayDetector;
-}
+
+} // namespace array_detector
 
 namespace array_detect_ns {
+
+// ============================================================================
+// 源操作数使用分析
+// ============================================================================
+// 分析字段写入操作中源操作数的使用流和逃逸情况
+// 追踪 SSA 使用链，检测逃逸路径
+// ============================================================================
 
 // ============================================================================
 // 逃逸类型定义
 // ============================================================================
 
 enum SourceUseEscapeKind {
-  SOURCE_ESCAPE_NONE = 0,           // 无逃逸
-  SOURCE_ESCAPE_RETURN,             // 通过返回值逃逸
-  SOURCE_ESCAPE_PARAMETER,          // 通过参数传递逃逸（传递给其他函数）
-  SOURCE_ESCAPE_GLOBAL_STORE,       // 存储到全局变量
-  SOURCE_ESCAPE_HEAP_STORE,         // 存储到堆对象
-  SOURCE_ESCAPE_FIELD_STORE,        // 存储到对象字段
-  SOURCE_ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸（函数指针）
-  SOURCE_ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
-  SOURCE_ESCAPE_EXTERNAL_CALL,      // 传递给外部函数（非内联）
-  SOURCE_ESCAPE_UNKNOWN             // 未知逃逸路径
+  SU_ESCAPE_NONE = 0,           // 无逃逸
+  SU_ESCAPE_RETURN,             // 通过返回值逃逸
+  SU_ESCAPE_PARAMETER,          // 通过参数传递逃逸
+  SU_ESCAPE_GLOBAL_STORE,       // 存储到全局变量
+  SU_ESCAPE_HEAP_STORE,         // 存储到堆对象
+  SU_ESCAPE_FIELD_STORE,        // 存储到对象字段
+  SU_ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸
+  SU_ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
+  SU_ESCAPE_EXTERNAL_CALL,      // 传递给外部函数
+  SU_ESCAPE_UNKNOWN             // 未知逃逸路径
 };
 
 // 逃逸使用位置信息
 struct SourceUseEscapeLocation {
   SourceUseEscapeKind kind;
-  gimple* stmt;                    // 逃逸发生的语句
-  tree use_operand;                // 使用的操作数
-  const char* escape_target;       // 逃逸目标描述（函数名、字段名等）
-  location_t source_location;      // 源码位置
-  unsigned int bb_index;           // 基本块索引
+  gimple * stmt;                    // 逃逸发生的语句
+  tree use_operand;                 // 使用的操作数
+  char const * escape_target;        // 逃逸目标描述
+  location_t source_location;       // 源码位置
+  unsigned int bb_index;            // 基本块索引
 
-  // 辅助信息
   union {
-    tree function_decl;            // 对于函数调用：被调用的函数
-    tree field_decl;               // 对于字段存储：目标字段
-    tree global_var;               // 对于全局存储：全局变量
+    tree function_decl;             // 对于函数调用
+    tree field_decl;                // 对于字段存储
+    tree global_var;                // 对于全局存储
   } target_info;
 };
 
@@ -53,73 +60,60 @@ struct SourceUseEscapeLocation {
 // ============================================================================
 
 enum SourceUseKind {
-  USE_LOAD,              // 读取使用（右值）
-  USE_STORE,             // 存储使用（作为右值存储到其他位置）
-  USE_CALL_ARG,          // 作为函数调用参数
-  USE_RETURN,            // 作为返回值
-  USE_PHI,               // PHI 节点使用
-  USE_ASSIGN,            // 赋值使用
-  USE_ARITHMETIC,        // 算术运算使用
-  USE_COMPARISON,        // 比较运算使用
-  USE_ADDRESS_TAKEN,     // 取地址使用
-  USE_CONDITIONAL,       // 条件表达式使用
-  USE_OTHER              // 其他使用
+  SU_USE_LOAD,              // 读取使用
+  SU_USE_STORE,             // 存储使用
+  SU_USE_CALL_ARG,          // 函数调用参数
+  SU_USE_RETURN,            // 返回值
+  SU_USE_PHI,               // PHI 节点
+  SU_USE_ASSIGN,            // 赋值
+  SU_USE_ARITHMETIC,        // 算术运算
+  SU_USE_COMPARISON,        // 比较运算
+  SU_USE_ADDRESS_TAKEN,     // 取地址
+  SU_USE_CONDITIONAL,       // 条件表达式
+  SU_USE_OTHER              // 其他
 };
 
 // 单个使用信息
 struct SourceUseInfo {
   SourceUseKind kind;
-  gimple* use_stmt;                // 使用语句
-  tree use_operand;                // 使用的操作数（SSA_NAME 或其他）
-  location_t source_location;      // 源码位置
-  unsigned int bb_index;           // 基本块索引
-  bool is_escape;                  // 是否为逃逸使用
-  SourceUseEscapeKind escape_kind; // 如果逃逸，逃逸类型
+  gimple * use_stmt;                 // 使用语句
+  tree use_operand;                 // 使用的操作数
+  location_t source_location;       // 源码位置
+  unsigned int bb_index;            // 基本块索引
+  bool is_escape;                   // 是否逃逸
+  SourceUseEscapeKind escape_kind;  // 逃逸类型
 };
 
 // ============================================================================
-// 源操作数使用分析结果
+// 分析结果
 // ============================================================================
 
-// 使用链信息（追踪数据流）
 struct SourceUseChainNode {
-  tree ssa_name;                   // 当前 SSA 名称
-  gimple* def_stmt;                // 定义语句
-  vec<SourceUseInfo>* uses;        // 该节点的所有使用
-  vec<SourceUseChainNode*>* next_nodes; // 数据流下一步节点
+  tree ssa_name;                    // 当前 SSA 名称
+  gimple * def_stmt;                // 定义语句
+  vec<SourceUseInfo> * uses;        // 所有使用
+  vec<SourceUseChainNode*> * next_nodes; // 下一步节点
 };
 
-// 顶层分析结果（带 aux 字段用于异构链表）
 struct SourceUseAnalysisResult {
-  // ========== 核心数据 ==========
-  tree source_operand;             // 源操作数（write 的右值）
-  gimple* source_stmt;             // 源操作数的定义语句
+  tree source_operand;              // 源操作数
+  gimple * source_stmt;             // 源语句
 
-  // 使用信息
-  vec<SourceUseInfo>* all_uses;    // 所有使用列表
-  unsigned int total_use_count;    // 总使用次数
+  vec<SourceUseInfo> * all_uses;    // 所有使用
+  unsigned int total_use_count;     // 总使用次数
 
-  // 逃逸信息
-  vec<SourceUseEscapeLocation>* escape_locations; // 所有逃逸位置
-  unsigned int escape_count;       // 逃逸使用次数
-  bool has_escape;                 // 是否存在逃逸
+  vec<SourceUseEscapeLocation> * escape_locations; // 逃逸位置
+  unsigned int escape_count;        // 逃逸次数
+  bool has_escape;                  // 是否存在逃逸
   SourceUseEscapeKind dominant_escape_kind; // 主要逃逸类型
 
-  // 数据流链
-  SourceUseChainNode* use_chain_root; // 使用链根节点
+  SourceUseChainNode * use_chain_root; // 使用链根节点
 
-  // 统计信息
-  unsigned int max_use_depth;      // 最大使用深度
-  bool is_fully_analyzed;          // 是否完全分析（未遇到分析边界）
+  unsigned int max_use_depth;       // 最大使用深度
+  bool is_fully_analyzed;           // 是否完全分析
 
-  // ========== 异构链表字段 ==========
-  void* aux;                       // 用于挂载到原 hash_map 的异构链表
-                                   // 可以将原 FieldWriteSourceInfo 的 aux 摘下
-                                   // 换成本结构，再用本结构的 aux 重新挂回原数据
-
-  // ========== 关联原始数据 ==========
-  void* original_write_info;       // 指向原始 FieldWriteSourceInfo 的指针
-                                   // 用于反向查找对应的 write 操作
+  void * aux;                       // 异构链表字段
+  void * original_write_info;       // 原始写入信息
 };
 
 // ============================================================================
@@ -127,91 +121,80 @@ struct SourceUseAnalysisResult {
 // ============================================================================
 
 struct SourceUseEscapeRules {
-  // 函数调用相关
-  bool external_call_is_escape;    // 外部函数调用是否算逃逸（默认 true）
-  bool virtual_call_is_escape;     // 虚函数调用是否算逃逸（默认 true）
-  bool indirect_call_is_escape;    // 间接调用是否算逃逸（默认 true）
-
-  // 存储相关
-  bool global_store_is_escape;     // 存储到全局变量是否算逃逸（默认 true）
-  bool heap_store_is_escape;       // 存储到堆对象是否算逃逸（默认 true）
-  bool field_store_is_escape;      // 存储到对象字段是否算逃逸（默认 false）
-
-  // 返回值
-  bool return_is_escape;           // 返回是否算逃逸（默认 true）
-
-  // 参数传递
-  bool param_to_external_is_escape; // 传递给外部函数参数是否算逃逸（默认 true）
-  bool param_to_internal_is_escape; // 传递给内部函数参数是否算逃逸（默认 false）
-
-  // 分析深度
-  unsigned int max_analysis_depth; // 最大分析深度（默认 5）
-  bool stop_at_first_escape;       // 发现第一个逃逸后是否停止分析（默认 false）
+  bool external_call_is_escape;
+  bool virtual_call_is_escape;
+  bool indirect_call_is_escape;
+  bool global_store_is_escape;
+  bool heap_store_is_escape;
+  bool field_store_is_escape;
+  bool return_is_escape;
+  bool param_to_external_is_escape;
+  bool param_to_internal_is_escape;
+  unsigned int max_analysis_depth;
+  bool stop_at_first_escape;
 };
 
-// 获取默认逃逸规则
-SourceUseEscapeRules getDefaultEscapeRules();
+// ============================================================================
+// 配置获取
+// ============================================================================
+
+SourceUseEscapeRules getDefaultEscapeRules ();
 
 // ============================================================================
-// 分析接口
+// 核心分析接口
 // ============================================================================
+
+// 分析所有字段的源操作数使用情况
+// 输入：detector - 包含 m_type_field_writes 的检测器
+// 输出：total_analyzed - 总分析数量
+//       total_escaped - 总逃逸数量
+ArrayDetectErrorCode analyzeAllFieldSourceUses (
+  AD_FUNC_ARGS,
+  array_detector::ArrayDetector &detector,
+  unsigned int &total_analyzed,
+  unsigned int &total_escaped
+);
 
 // 分析单个源操作数的使用情况
-SourceUseAnalysisResult* analyzeSourceOperandUse(
+// 输入：source_operand - 源操作数（SSA_NAME）
+//       source_stmt - 源语句
+//       rules - 逃逸规则
+// 输出：分析结果指针（GC 管理）
+SourceUseAnalysisResult * analyzeSourceOperandUse (
   tree source_operand,
-  gimple* source_stmt,
-  const SourceUseEscapeRules& rules
+  gimple * source_stmt,
+  SourceUseEscapeRules const &rules
 );
 
-// 从 FieldWriteSourceInfo 中提取源操作数并分析
-SourceUseAnalysisResult* analyzeFromWriteSourceInfo(
-  void* write_source_info,  // 实际类型是 FieldWriteSourceInfo*
-  const SourceUseEscapeRules& rules
+// 从 FieldWriteCapture 中提取源操作数并分析
+// 输入：write_capture - 字段写入捕获
+//       rules - 逃逸规则
+// 输出：分析结果指针（GC 管理）
+SourceUseAnalysisResult * analyzeFromWriteCapture (
+  FieldWriteCapture * write_capture,
+  SourceUseEscapeRules const &rules
 );
-
-// 释放分析结果
-void freeSourceUseAnalysisResult(SourceUseAnalysisResult* result);
 
 // ============================================================================
 // 辅助函数
 // ============================================================================
 
 // 判断使用是否为逃逸
-bool isEscapeUse(
-  const SourceUseInfo& use_info,
-  const SourceUseEscapeRules& rules
+bool isEscapeUse (
+  SourceUseInfo const &use_info,
+  SourceUseEscapeRules const &rules
 );
 
 // 获取逃逸类型描述字符串
-const char* getEscapeKindString(SourceUseEscapeKind kind);
+char const * getEscapeKindString (SourceUseEscapeKind kind);
 
 // 获取使用类型描述字符串
-const char* getUseKindString(SourceUseKind kind);
+char const * getUseKindString (SourceUseKind kind);
 
 // 打印分析结果（调试用）
-void printSourceUseAnalysisResult(
-  const SourceUseAnalysisResult* result,
-  FILE* output
-);
-
-// ============================================================================
-// 批量分析接口（Pipeline 调用）
-// ============================================================================
-
-// 批量分析统计结果
-struct SourceUseAnalysisSummary {
-  unsigned int total_analyzed;   // 总分析数量
-  unsigned int total_escaped;     // 总逃逸数量
-};
-
-// 批量分析所有字段的源操作数使用情况
-// 输入：detector - 包含 m_type_field_writes 的检测器
-// 输出：summary - 分析统计摘要
-// 返回：ArrayDetectErrorCode
-ArrayDetectErrorCode analyzeAllFieldSourceUses (
-  AD_FUNC_ARGS,
-  array_detector::ArrayDetector &detector,
-  SourceUseAnalysisSummary &summary
+void printSourceUseAnalysisResult (
+  SourceUseAnalysisResult const *result,
+  FILE *output
 );
 
 } // namespace array_detect_ns
