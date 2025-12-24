@@ -524,12 +524,27 @@ ArrayDetectErrorCode extractVirtualCallFunctionName (
         function_name = ggc_strdup (method_name);
         AD_RETURNE (OK);
       } else if (token_code == INTEGER_CST) {
-        // OBJ_TYPE_REF_TOKEN 是虚表索引（整数常量）
-        // 无法直接从索引获取函数名，需要从对象类型和虚表信息推断
-        long long vtable_index = (long long)TREE_INT_CST_LOW (obj_type_ref_token);
-        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_TOKEN is INTEGER_CST (vtable index): %lld",
-                        vtable_index);
-        
+        // OBJ_TYPE_REF_TOKEN 的含义在不同 GCC 版本中可能不同
+        // 在某些版本中是字节偏移，在其他版本中可能是槽索引或其他形式
+        long long token_value = (long long)TREE_INT_CST_LOW (obj_type_ref_token);
+        size_t pointer_size = (size_t)(BITS_PER_WORD / 8);
+
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_TOKEN is INTEGER_CST: %lld", token_value);
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Pointer size: %zu", pointer_size);
+
+        // 尝试多种解释方式
+        // 1. 直接作为槽索引（某些 GCC 版本）
+        long long vtable_index_direct = token_value;
+
+        // 2. 作为字节偏移除以指针大小（Itanium C++ ABI）
+        long long vtable_index_offset = token_value / (long long)pointer_size;
+
+        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Trying multiple interpretations:");
+        AD_DEBUG_PRINT ("  - Direct as slot index: %lld", vtable_index_direct);
+        AD_DEBUG_PRINT ("  - As byte offset / pointer_size: %lld", vtable_index_offset);
+
+        // 默认使用直接索引（最可能正确）
+        long long vtable_index = vtable_index_direct;
         // 尝试从对象类型和虚表信息推断函数名
         // 获取对象类型
         tree obj_type_ref_object = OBJ_TYPE_REF_OBJECT (current_expr);
@@ -547,24 +562,218 @@ ArrayDetectErrorCode extractVirtualCallFunctionName (
               
               // 如果是 RECORD_TYPE，尝试从类型的声明列表中查找虚函数
               if (TREE_CODE (object_type) == RECORD_TYPE) {
-                // 遍历类型的所有声明（包括方法和字段）
-                int method_index = 0;
-                for (tree decl = TYPE_FIELDS (object_type); decl; decl = DECL_CHAIN (decl)) {
-                  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_VIRTUAL_P (decl)) {
-                    if (method_index == vtable_index) {
-                      // 找到匹配的虚函数
-                      if (DECL_NAME (decl)) {
-                        char const * method_name = IDENTIFIER_POINTER (DECL_NAME (decl));
-                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found function name from vtable index: %s", method_name);
-                        function_name = ggc_strdup (method_name);
-                        AD_RETURNE (OK);
+                // 优先使用 BINFO_VIRTUALS（最准确的 vtable 布局）
+                tree binfo = TYPE_BINFO (object_type);
+                if (binfo) {
+                  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_BINFO available, trying BINFO_VIRTUALS first (most accurate)");
+
+                  // BINFO_VIRTUALS 返回一个 TREE_LIST，每个节点对应 vtable 中的一个槽位
+                  tree virtuals = BINFO_VIRTUALS (binfo);
+                  if (virtuals) {
+                    int virtuals_index = 0;
+                    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Scanning BINFO_VIRTUALS for exact vtable layout");
+
+                    for (tree virt = virtuals; virt; virt = TREE_CHAIN (virt), virtuals_index++) {
+                      // TREE_VALUE 包含虚函数的信息
+                      tree fn_decl = TREE_VALUE (virt);
+
+                      // 在某些 GCC 版本中，TREE_VALUE 可能不是直接的 FUNCTION_DECL
+                      // 可能需要进一步解析
+                      if (fn_decl && TREE_CODE (fn_decl) != FUNCTION_DECL) {
+                        // 尝试通过 TREE_PURPOSE 获取（某些版本中虚函数在这里）
+                        tree alt_fn = TREE_PURPOSE (virt);
+                        if (alt_fn && TREE_CODE (alt_fn) == FUNCTION_DECL) {
+                          fn_decl = alt_fn;
+                        }
+                      }
+
+                      if (fn_decl && TREE_CODE (fn_decl) == FUNCTION_DECL) {
+                        const char * fn_name = (DECL_NAME (fn_decl) ? IDENTIFIER_POINTER (DECL_NAME (fn_decl)) : "<anon>");
+                        AD_DEBUG_PRINT ("  BINFO_VIRTUALS[%d]: name=%s", virtuals_index, fn_name);
+
+                        // 检查 vtable 索引是否匹配
+                        if (virtuals_index == vtable_index) {
+                          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] BINFO_VIRTUALS index match: %s at slot %d",
+                                          fn_name, virtuals_index);
+                          function_name = ggc_strdup (fn_name);
+                          AD_RETURNE (OK);
+                        }
                       }
                     }
+
+                    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] BINFO_VIRTUALS scan completed, checked %d slots, no match found", virtuals_index);
+                  } else {
+                    AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] BINFO_VIRTUALS is NULL, fallback to TYPE_FIELDS");
+                  }
+                } else {
+                  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_BINFO is NULL, using TYPE_FIELDS");
+                }
+
+                // 后备方案：使用 TYPE_FIELDS（可能不准确，特别是对于析构函数）
+                if (!function_name) {
+                  int method_index = 0;
+                  int field_scan_index = 0;
+                  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Scanning TYPE_FIELDS for virtual methods (object_type=%p)", (void*)object_type);
+
+                  for (tree decl = TYPE_FIELDS (object_type); decl; decl = DECL_CHAIN (decl)) {
+                  const char * decl_code = get_tree_code_name (TREE_CODE (decl));
+                  const char * decl_name = (DECL_NAME (decl) ? IDENTIFIER_POINTER (DECL_NAME (decl)) : "<anon>");
+                  bool is_virtual = DECL_VIRTUAL_P (decl);
+                  AD_DEBUG_PRINT ("  field_scan[%d]: tree=%s, name=%s, DECL_VIRTUAL_P=%d", field_scan_index, decl_code, decl_name, (int)is_virtual);
+                  field_scan_index++;
+                  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_VIRTUAL_P (decl)) {
+                      // Print candidate function declaration and its type for diagnostics
+                      if (ctx.debug_file) {
+                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Candidate virtual function (method_index=%d): %s",
+                                        method_index, (DECL_NAME (decl) ? IDENTIFIER_POINTER (DECL_NAME (decl)) : "<anon>"));
+                        fprintf (ctx.debug_file, "    Decl tree:\n    ");
+                        print_generic_expr (ctx.debug_file, decl, TDF_DETAILS);
+                        fprintf (ctx.debug_file, "\n");
+                        tree decl_type = TREE_TYPE (decl);
+                        if (decl_type) {
+                          fprintf (ctx.debug_file, "    Decl type:\n    ");
+                          print_generic_expr (ctx.debug_file, decl_type, TDF_DETAILS);
+                          fprintf (ctx.debug_file, "\n");
+                        }
+                      }
+
+                      // Also show call argument information to help match signatures
+                      if (ctx.debug_file) {
+                        unsigned int call_args = gimple_call_num_args (call_stmt);
+                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Call has %u args", call_args);
+                        for (unsigned int ai = 0; ai < call_args; ai++) {
+                          tree carg = gimple_call_arg (call_stmt, ai);
+                          fprintf (ctx.debug_file, "    Arg[%u]: tree code=%s\n    ", ai, carg ? get_tree_code_name (TREE_CODE (carg)) : "<null>");
+                          if (carg) print_generic_expr (ctx.debug_file, carg, TDF_DETAILS);
+                          fprintf (ctx.debug_file, "\n");
+                        }
+                      }
+                      // 优先使用 vtable 索引匹配（最可靠）
+                      if (method_index == vtable_index) {
+                        if (DECL_NAME (decl)) {
+                          char const * method_name = IDENTIFIER_POINTER (DECL_NAME (decl));
+                          AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Found function name from vtable index: %s", method_name);
+                          // Print context: the full call statement and OBJ_TYPE_REF structure
+                          if (ctx.debug_file) {
+                            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Full call stmt for which we resolved name:");
+                            print_gimple_stmt (ctx.debug_file, call_stmt, 0, TDF_DETAILS);
+                            fprintf (ctx.debug_file, "\n");
+                            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF expression:");
+                            print_generic_expr (ctx.debug_file, current_expr, TDF_DETAILS);
+                            fprintf (ctx.debug_file, "\n");
+                            tree method_expr = OBJ_TYPE_REF_EXPR (current_expr);
+                            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_EXPR (method):");
+                            print_generic_expr (ctx.debug_file, method_expr, TDF_DETAILS);
+                            fprintf (ctx.debug_file, "\n");
+                            tree object_expr = OBJ_TYPE_REF_OBJECT (current_expr);
+                            AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] OBJ_TYPE_REF_OBJECT (object):");
+                            print_generic_expr (ctx.debug_file, object_expr, TDF_DETAILS);
+                            fprintf (ctx.debug_file, "\n");
+                          }
+                          function_name = ggc_strdup (method_name);
+                          AD_RETURNE (OK);
+                        }
+                      }
+
+                      // 如果 vtable 索引不匹配，检查参数签名作为辅助（可能索引有偏移）
+                      int decl_param_count = 0;
+                      tree decl_type = TREE_TYPE (decl);
+                      if (decl_type) {
+                        tree decl_args = TYPE_ARG_TYPES (decl_type);
+                        for (tree a = decl_args; a; a = TREE_CHAIN (a)) {
+                          tree v = TREE_VALUE (a);
+                          if (!v) break;
+                          decl_param_count++;
+                        }
+                      }
+                      unsigned int call_args = gimple_call_num_args (call_stmt);
+
+                      if (ctx.debug_file) {
+                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Candidate decl param count: %d, call arg count: %u",
+                                        decl_param_count, call_args);
+                      }
+
                     method_index++;
                   }
                 }
-                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Could not find function at vtable index %lld (checked %d methods)",
+
+                // 如果通过 vtable 索引没有找到，尝试参数匹配作为后备
+                // 重新扫描一次，这次只检查参数匹配
+                if (!function_name) {
+                  AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Vtable index match failed, trying parameter signature match as fallback");
+                  for (tree decl = TYPE_FIELDS (object_type); decl; decl = DECL_CHAIN (decl)) {
+                    if (TREE_CODE (decl) == FUNCTION_DECL && DECL_VIRTUAL_P (decl)) {
+                      int decl_param_count = 0;
+                      tree decl_type = TREE_TYPE (decl);
+                      if (decl_type) {
+                        tree decl_args = TYPE_ARG_TYPES (decl_type);
+                        for (tree a = decl_args; a; a = TREE_CHAIN (a)) {
+                          tree v = TREE_VALUE (a);
+                          if (!v) break;
+                          decl_param_count++;
+                        }
+                      }
+                      unsigned int call_args = gimple_call_num_args (call_stmt);
+
+                      if ((int)call_args == decl_param_count && DECL_NAME (decl)) {
+                        char const * method_name = IDENTIFIER_POINTER (DECL_NAME (decl));
+                        AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Parameter signature match (fallback): %s", method_name);
+                        function_name = ggc_strdup (method_name);
+                        break;
+                      }
+                    }
+                  }
+                }
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Could not find function at vtable index %lld (checked %d virtual methods from TYPE_FIELDS)",
                                 vtable_index, method_index);
+
+                // 备用方案1：尝试使用 TYPE_METHODS（GCC 12 及更早版本）
+                // 注意：TYPE_METHODS 在 GCC 8+ 中已废弃，但在某些配置中仍可用
+#ifdef TYPE_METHODS
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Trying TYPE_METHODS (GCC 12 compatibility)");
+                int methods_scan_index = 0;
+                for (tree method = TYPE_METHODS (object_type); method; method = DECL_CHAIN (method)) {
+                  if (TREE_CODE (method) == FUNCTION_DECL && DECL_VIRTUAL_P (method)) {
+                    const char * method_name_str = (DECL_NAME (method) ? IDENTIFIER_POINTER (DECL_NAME (method)) : "<anon>");
+                    AD_DEBUG_PRINT ("  TYPE_METHODS[%d]: name=%s, method_index=%d", methods_scan_index, method_name_str, method_index);
+
+                    // 检查参数匹配（优先）
+                    int decl_param_count = 0;
+                    tree decl_type = TREE_TYPE (method);
+                    if (decl_type) {
+                      tree decl_args = TYPE_ARG_TYPES (decl_type);
+                      for (tree a = decl_args; a; a = TREE_CHAIN (a)) {
+                        tree v = TREE_VALUE (a);
+                        if (!v) break;
+                        decl_param_count++;
+                      }
+                    }
+                    unsigned int call_args = gimple_call_num_args (call_stmt);
+
+                    if ((int)call_args == decl_param_count) {
+                      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_METHODS signature match: %s", method_name_str);
+                      function_name = ggc_strdup (method_name_str);
+                      AD_RETURNE (OK);
+                    }
+
+                    // 检查 vtable 索引匹配
+                    if (method_index == vtable_index) {
+                      AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_METHODS vtable index match: %s", method_name_str);
+                      function_name = ggc_strdup (method_name_str);
+                      AD_RETURNE (OK);
+                    }
+
+                    method_index++;
+                    methods_scan_index++;
+                  }
+                }
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_METHODS scan completed, found %d methods", methods_scan_index);
+#else
+                AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] TYPE_METHODS not available in this GCC version");
+#endif
+
+                // BINFO_VIRTUALS 已在前面优先尝试过，此处不再重复
+                }
               }
             }
           }

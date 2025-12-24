@@ -1,5 +1,6 @@
 #include "virtual-call-analysis.hh"
 #include "gcc-ext-util.hh"
+#include "info-print.hh"
 
 namespace array_detect_ns {
 
@@ -144,15 +145,22 @@ ArrayDetectErrorCode matchVirtualFunctionCall (
   }
   
   if (!method_decl_result || TREE_CODE (method_decl_result) != FUNCTION_DECL) {
-    log_match_failure (AD_ARGS, call_expr);
-    AD_RETURNE (MATCH_ERROR);
+    AD_DEBUG_PRINT ("[matchVirtualFunctionCall] method_decl unresolved (not FUNCTION_DECL); continuing and leaving method_decl NULL");
+    if (ctx.debug_file && method) {
+      AD_DEBUG_PRINT ("[matchVirtualFunctionCall] Dumping unresolved method expression for debugging:");
+      print_generic_expr (ctx.debug_file, method, TDF_DETAILS);
+      fprintf (ctx.debug_file, "\n");
+    }
+    method_decl = NULL_TREE;
+  } else {
+    method_decl = method_decl_result;
   }
-  method_decl = method_decl_result;
 
   tree object = OBJ_TYPE_REF_OBJECT (call_expr);
   if (!object) {
     log_match_failure (AD_ARGS, call_expr);
-    AD_RETURNE (MATCH_ERROR);
+      AD_DEBUG_PRINT ("[matchCallExpression] OBJ_TYPE_REF_OBJECT returned NULL");
+      AD_RETURNE (MATCH_ERROR);
   }
 
   tree obj_type = TREE_TYPE (object);
@@ -180,7 +188,13 @@ ArrayDetectErrorCode matchVirtualFunctionCall (
 #endif
   if (!vtable_index) {
     log_match_failure (AD_ARGS, call_expr);
-    AD_RETURNE (MATCH_ERROR);
+      AD_DEBUG_PRINT ("[matchCallExpression] vtable_index is NULL for OBJ_TYPE_REF");
+      if (ctx.debug_file) {
+        AD_DEBUG_PRINT ("[matchCallExpression] Full OBJ_TYPE_REF dump:");
+        print_generic_expr (ctx.debug_file, call_expr, TDF_DETAILS);
+        fprintf (ctx.debug_file, "\n");
+      }
+      AD_RETURNE (MATCH_ERROR);
   }
 
   AD_RETURNE (OK);
@@ -291,8 +305,15 @@ ArrayDetectErrorCode analyzeCallExpression (
       source_op.function_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (virtual_info.method_decl)));
       source_op.signature = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (virtual_info.method_decl)));
     } else {
-      source_op.function_name = ggc_strdup ("<virtual>");
-      source_op.signature = ggc_strdup ("<virtual>");
+      // Try to extract function name from OBJ_TYPE_REF/vtable info when method_decl is unresolved
+      char const * extracted_name = NULL;
+      if (extractVirtualCallFunctionName (AD_ARGS, call_stmt, extracted_name) == OK && extracted_name) {
+        source_op.function_name = ggc_strdup (extracted_name);
+        source_op.signature = ggc_strdup (extracted_name);
+      } else {
+        source_op.function_name = ggc_strdup ("<virtual>");
+        source_op.signature = ggc_strdup ("<virtual>");
+      }
     }
     source_op.vtable_ref = virtual_info.object;
   } AD_MATCH_END ()
@@ -459,9 +480,16 @@ ArrayDetectErrorCode matchCallExpression (
     }
     
     if (!method_decl || TREE_CODE (method_decl) != FUNCTION_DECL) {
-      AD_RETURNE (MATCH_ERROR);  // 匹配失败：无效的方法声明
+      AD_DEBUG_PRINT ("[matchCallExpression] method_decl unresolved; continuing as virtual call and leaving method_decl NULL");
+      if (ctx.debug_file && method) {
+        AD_DEBUG_PRINT ("[matchCallExpression] Dumping unresolved method expression for debugging:");
+        print_generic_expr (ctx.debug_file, method, TDF_DETAILS);
+        fprintf (ctx.debug_file, "\n");
+      }
+      result.info.virtual_.method_decl = NULL_TREE;
+    } else {
+      result.info.virtual_.method_decl = method_decl;
     }
-    result.info.virtual_.method_decl = method_decl;
     
     // 提取对象表达式（用于访问虚表，可能是局部变量 SSA_NAME）
     tree object = OBJ_TYPE_REF_OBJECT (fn);
