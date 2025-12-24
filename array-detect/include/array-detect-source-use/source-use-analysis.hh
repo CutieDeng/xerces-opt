@@ -4,6 +4,13 @@
 #include "tree.h"
 #include "gimple.h"
 #include "vec.h"
+#include "state.hh"
+#include "context.hh"
+#include "prelude.hh"
+
+namespace array_detector {
+  class ArrayDetector;
+}
 
 namespace array_detect_ns {
 
@@ -185,6 +192,26 @@ const char* getUseKindString(SourceUseKind kind);
 void printSourceUseAnalysisResult(
   const SourceUseAnalysisResult* result,
   FILE* output
+);
+
+// ============================================================================
+// 批量分析接口（Pipeline 调用）
+// ============================================================================
+
+// 批量分析统计结果
+struct SourceUseAnalysisSummary {
+  unsigned int total_analyzed;   // 总分析数量
+  unsigned int total_escaped;     // 总逃逸数量
+};
+
+// 批量分析所有字段的源操作数使用情况
+// 输入：detector - 包含 m_type_field_writes 的检测器
+// 输出：summary - 分析统计摘要
+// 返回：ArrayDetectErrorCode
+ArrayDetectErrorCode analyzeAllFieldSourceUses (
+  AD_FUNC_ARGS,
+  array_detector::ArrayDetector &detector,
+  SourceUseAnalysisSummary &summary
 );
 
 } // namespace array_detect_ns
