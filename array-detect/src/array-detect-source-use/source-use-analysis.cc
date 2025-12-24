@@ -32,7 +32,7 @@ SourceUseEscapeRules getDefaultEscapeRules() {
   // 存储
   rules.global_store_is_escape = true;
   rules.heap_store_is_escape = true;
-  rules.field_store_is_escape = false;  // 字段存储通常不算逃逸
+  rules.field_store_is_escape = true;  // 字段存储可能导致逃逸（指针共享）
 
   // 返回和参数
   rules.return_is_escape = true;
@@ -100,20 +100,28 @@ ArrayDetectErrorCode classifyUseKind (
 
   switch (code) {
     case GIMPLE_ASSIGN: {
-      // 检查是左值还是右值
+      // 检查SSA名称是作为右值使用
       tree rhs = gimple_assign_rhs1 (use_stmt);
+      tree lhs = gimple_assign_lhs (use_stmt);
 
       if (rhs == ssa_name || (TREE_CODE (rhs) == SSA_NAME && rhs == ssa_name)) {
-        // 作为右值使用
-        enum tree_code rhs_code = gimple_assign_rhs_code (use_stmt);
-        if (rhs_code == NOP_EXPR || rhs_code == CONVERT_EXPR || rhs_code == SSA_NAME) {
-          AD_RETURNO (SU_USE_ASSIGN);
-        } else if (TREE_CODE_CLASS (rhs_code) == tcc_comparison) {
-          AD_RETURNO (SU_USE_COMPARISON);
-        } else if (TREE_CODE_CLASS (rhs_code) == tcc_binary ||
-                   TREE_CODE_CLASS (rhs_code) == tcc_unary) {
-          AD_RETURNO (SU_USE_ARITHMETIC);
+        // SSA名称作为右值使用 - 检查左值类型来确定使用方式
+        enum tree_code lhs_code = TREE_CODE (lhs);
+
+        if (lhs_code == SSA_NAME) {
+          // 赋值给另一个SSA变量
+          enum tree_code rhs_code = gimple_assign_rhs_code (use_stmt);
+          if (rhs_code == NOP_EXPR || rhs_code == CONVERT_EXPR || rhs_code == SSA_NAME) {
+            AD_RETURNO (SU_USE_ASSIGN);
+          } else if (TREE_CODE_CLASS (rhs_code) == tcc_comparison) {
+            AD_RETURNO (SU_USE_COMPARISON);
+          } else if (TREE_CODE_CLASS (rhs_code) == tcc_binary ||
+                     TREE_CODE_CLASS (rhs_code) == tcc_unary) {
+            AD_RETURNO (SU_USE_ARITHMETIC);
+          }
         }
+
+        // 存储到内存位置（字段、指针解引用等）
         AD_RETURNO (SU_USE_STORE);
       }
       AD_RETURNO (SU_USE_OTHER);
@@ -324,6 +332,10 @@ ArrayDetectErrorCode analyzeSSAUseChain (
       use_info.escape_kind = escape_kind;
       use_info.is_escape = (escape_kind != SU_ESCAPE_NONE);
 
+      AD_DEBUG_PRINT ("    Use kind: %s, Escape kind: %s",
+                      getUseKindString (use_kind),
+                      getEscapeKindString (escape_kind));
+
       // 添加到结果
       result->all_uses->safe_push (use_info);
       result->total_use_count++;
@@ -406,58 +418,49 @@ ArrayDetectErrorCode analyzeSourceOperandUse (
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Analyzing source operand use");
 
-  // 分配结果结构
-  result = ggc_alloc <SourceUseAnalysisResult> ();
-  memset (result, 0, sizeof (SourceUseAnalysisResult));
+  // 使用临时变量构建结果
+  SourceUseAnalysisResult * tmp_result = ggc_alloc <SourceUseAnalysisResult> ();
+  memset (tmp_result, 0, sizeof (SourceUseAnalysisResult));
 
-  result->source_operand = source_operand;
-  result->source_stmt = source_stmt;
+  tmp_result->source_operand = source_operand;
+  tmp_result->source_stmt = source_stmt;
 
   // 分配并初始化 vectors
-  result->all_uses = ggc_alloc <vec<SourceUseInfo>> ();
-  result->all_uses->create (0);
-  result->total_use_count = 0;
+  tmp_result->all_uses = ggc_alloc <vec<SourceUseInfo>> ();
+  tmp_result->all_uses->create (0);
+  tmp_result->total_use_count = 0;
 
-  result->escape_locations = ggc_alloc <vec<SourceUseEscapeLocation>> ();
-  result->escape_locations->create (0);
-  result->escape_count = 0;
+  tmp_result->escape_locations = ggc_alloc <vec<SourceUseEscapeLocation>> ();
+  tmp_result->escape_locations->create (0);
+  tmp_result->escape_count = 0;
 
-  result->has_escape = false;
-  result->dominant_escape_kind = SU_ESCAPE_NONE;
-  result->use_chain_root = NULL;
-  result->max_use_depth = 0;
-  result->is_fully_analyzed = true;
-  result->aux = NULL;
-  result->original_write_info = NULL;
+  tmp_result->has_escape = false;
+  tmp_result->dominant_escape_kind = SU_ESCAPE_NONE;
+  tmp_result->use_chain_root = NULL;
+  tmp_result->max_use_depth = 0;
+  tmp_result->is_fully_analyzed = true;
+  tmp_result->aux = NULL;
+  tmp_result->original_write_info = NULL;
 
   // 开始分析
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
     AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting use chain analysis");
-    AD_TRY (analyzeSSAUseChain (AD_ARGS, source_operand, result, rules, 0));
+    AD_TRY (analyzeSSAUseChain (AD_ARGS, source_operand, tmp_result, rules, 0));
   } else {
     AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping use chain analysis");
   }
 
-  // 确定主要逃逸类型（选择出现次数最多的）
-  if (result->has_escape && result->escape_locations) {
-    int escape_counts[SU_ESCAPE_UNKNOWN + 1] = {0};
-    for (unsigned i = 0; i < result->escape_locations->length (); i++) {
-      SourceUseEscapeLocation &loc = (*result->escape_locations)[i];
-      escape_counts[loc.kind]++;
-    }
-
-    int max_count = 0;
-    for (int i = 0; i <= SU_ESCAPE_UNKNOWN; i++) {
-      if (escape_counts[i] > max_count) {
-        max_count = escape_counts[i];
-        result->dominant_escape_kind = (SourceUseEscapeKind) i;
-      }
-    }
-    AD_DEBUG_PRINT ("Dominant escape kind: %s",
-                    getEscapeKindString (result->dominant_escape_kind));
+  // 注意：不在这里计算dominant_escape_kind
+  // 逃逸综合分析将在下一个模块完成，这里只收集所有详尽的逃逸信息
+  if (tmp_result->has_escape) {
+    AD_DEBUG_PRINT ("Escape analysis complete: %u total uses, %u escapes, %u escape locations",
+                    tmp_result->total_use_count,
+                    tmp_result->escape_count,
+                    tmp_result->escape_locations ? tmp_result->escape_locations->length () : 0);
   }
 
-  AD_RETURNE (OK);
+  // 通过返回值宏统一返回
+  AD_RETURNO (tmp_result);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -474,8 +477,7 @@ ArrayDetectErrorCode analyzeFromWriteCapture (
 
   if (!write_capture) {
     AD_DEBUG_PRINT ("Write capture is NULL");
-    result = NULL;
-    AD_RETURNE (OK);
+    AD_RETURNO (NULL);
   }
 
   // 使用 FieldWriteCapture
@@ -485,31 +487,35 @@ ArrayDetectErrorCode analyzeFromWriteCapture (
   tree source_operand = write_info->rhs;    // 右值表达式
   gimple * source_stmt = write_info->stmt;   // GIMPLE 语句
 
-  // 分析
-  AD_TRY (analyzeSourceOperandUse (AD_ARGS, source_operand, source_stmt, rules, result));
+  // 使用临时变量接收分析结果
+  SourceUseAnalysisResult * tmp_result = NULL;
+  AD_TRY (analyzeSourceOperandUse (AD_ARGS, source_operand, source_stmt, rules, tmp_result));
 
-  if (result) {
+  if (tmp_result) {
     // 关联原始数据
-    result->original_write_info = write_capture;
+    tmp_result->original_write_info = write_capture;
 
     // ========== 异构链表更新 ==========
     // 1. 从原 hash_map 的 aux 摘下旧数据
     void * old_aux = write_info->aux;
 
     // 2. 将新结果的 aux 指向旧数据
-    result->aux = old_aux;
+    tmp_result->aux = old_aux;
 
     // 3. 更新原数据的 aux 指向新结果
-    write_info->aux = result;
+    write_info->aux = tmp_result;
 
     // 这样就实现了异构伪 list 的更新：
     // hash_map -> write_info -> (aux) -> source_use_result -> (aux) -> old_data
 
-    AD_DEBUG_PRINT ("Write capture analysis complete: %u uses, %u escapes",
-                    result->total_use_count, result->escape_count);
+    AD_DEBUG_PRINT ("Write capture analysis complete: %u uses, %u escapes, %u escape locations",
+                    tmp_result->total_use_count,
+                    tmp_result->escape_count,
+                    tmp_result->escape_locations ? tmp_result->escape_locations->length () : 0);
   }
 
-  AD_RETURNE (OK);
+  // 通过返回值宏统一返回
+  AD_RETURNO (tmp_result);
 } AD_FUNCTION_END
 
 void freeSourceUseAnalysisResult(SourceUseAnalysisResult * result) {
@@ -543,13 +549,11 @@ void printSourceUseAnalysisResult(
   fprintf(output, "Total uses: %u\n", result->total_use_count);
   fprintf(output, "Escape count: %u\n", result->escape_count);
   fprintf(output, "Has escape: %s\n", result->has_escape ? "YES" : "NO");
-
-  if (result->has_escape) {
-    fprintf(output, "Dominant escape kind: %s\n",
-            getEscapeKindString(result->dominant_escape_kind));
+  if (result->escape_locations) {
+    fprintf(output, "Escape locations count: %u\n", result->escape_locations->length());
   }
 
-  fprintf(output, "\n--- All Uses ---\n");
+  fprintf(output, "\n--- All Uses (Detailed) ---\n");
   if (result->all_uses) {
     for (unsigned i = 0; i < result->all_uses->length(); i++) {
       const SourceUseInfo& use = (*result->all_uses)[i];
@@ -566,14 +570,23 @@ void printSourceUseAnalysisResult(
     }
   }
 
-  fprintf(output, "\n--- Escape Locations ---\n");
+  fprintf(output, "\n--- Escape Locations (Detailed) ---\n");
   if (result->escape_locations) {
     for (unsigned i = 0; i < result->escape_locations->length(); i++) {
       const SourceUseEscapeLocation& loc = (*result->escape_locations)[i];
-      fprintf(output, "[%u] %s -> %s\n",
-              i, getEscapeKindString(loc.kind),
+      fprintf(output, "[%u] Escape Kind: %s\n",
+              i, getEscapeKindString(loc.kind));
+      fprintf(output, "    Target: %s\n",
               loc.escape_target ? loc.escape_target : "<unknown>");
+      fprintf(output, "    BB Index: %u\n", loc.bb_index);
+      if (loc.source_location != UNKNOWN_LOCATION) {
+        expanded_location xloc = expand_location(loc.source_location);
+        fprintf(output, "    Location: %s:%d:%d\n",
+                xloc.file, xloc.line, xloc.column);
+      }
     }
+  } else {
+    fprintf(output, "  (No escape locations recorded)\n");
   }
 
   fprintf (output, "\nFully analyzed: %s\n",
@@ -624,10 +637,21 @@ ArrayDetectErrorCode analyzeAllFieldSourceUses (
         }
 
         if (ctx.debug_file && use_result->has_escape) {
-          AD_DEBUG_PRINT ("  Field write source escapes via %s (%u uses, %u escapes)",
-                          getEscapeKindString (use_result->dominant_escape_kind),
+          AD_DEBUG_PRINT ("  Field write source has escapes: %u uses, %u escapes, %u locations",
                           use_result->total_use_count,
-                          use_result->escape_count);
+                          use_result->escape_count,
+                          use_result->escape_locations ? use_result->escape_locations->length () : 0);
+
+          // 输出所有逃逸位置的详细信息
+          if (use_result->escape_locations) {
+            for (unsigned j = 0; j < use_result->escape_locations->length (); j++) {
+              const SourceUseEscapeLocation &loc = (*use_result->escape_locations)[j];
+              AD_DEBUG_PRINT ("    [%u] %s -> %s",
+                              j,
+                              getEscapeKindString (loc.kind),
+                              loc.escape_target ? loc.escape_target : "<unknown>");
+            }
+          }
         }
       }
     }
