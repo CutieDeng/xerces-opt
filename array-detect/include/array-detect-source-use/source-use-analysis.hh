@@ -179,11 +179,14 @@ SourceUseAnalysisResult * analyzeFromWriteCapture (
 // 辅助函数
 // ============================================================================
 
+// NOTE: isEscapeUse is not used and does not follow standard API - commented out
+/*
 // 判断使用是否为逃逸
 bool isEscapeUse (
   SourceUseInfo const &use_info,
   SourceUseEscapeRules const &rules
 );
+*/
 
 // 获取逃逸类型描述字符串
 char const * getEscapeKindString (SourceUseEscapeKind kind);

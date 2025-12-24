@@ -88,108 +88,137 @@ const char * getUseKindString(SourceUseKind kind) {
 // ============================================================================
 
 // 分析单个 SSA 使用
-static SourceUseKind classifyUseKind(gimple * use_stmt, tree ssa_name) {
+ArrayDetectErrorCode classifyUseKind (
+  AD_FUNC_ARGS,
+  gimple * use_stmt,
+  tree ssa_name,
+  SourceUseKind &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Classifying use kind for SSA name in stmt");
+
   enum gimple_code code = gimple_code (use_stmt);
 
   switch (code) {
     case GIMPLE_ASSIGN: {
       // 检查是左值还是右值
-      tree lhs = gimple_assign_lhs (use_stmt);
       tree rhs = gimple_assign_rhs1 (use_stmt);
 
       if (rhs == ssa_name || (TREE_CODE (rhs) == SSA_NAME && rhs == ssa_name)) {
         // 作为右值使用
         enum tree_code rhs_code = gimple_assign_rhs_code (use_stmt);
         if (rhs_code == NOP_EXPR || rhs_code == CONVERT_EXPR || rhs_code == SSA_NAME) {
-          return SU_USE_ASSIGN;
+          AD_RETURNO (SU_USE_ASSIGN);
         } else if (TREE_CODE_CLASS (rhs_code) == tcc_comparison) {
-          return SU_USE_COMPARISON;
+          AD_RETURNO (SU_USE_COMPARISON);
         } else if (TREE_CODE_CLASS (rhs_code) == tcc_binary ||
                    TREE_CODE_CLASS (rhs_code) == tcc_unary) {
-          return SU_USE_ARITHMETIC;
+          AD_RETURNO (SU_USE_ARITHMETIC);
         }
-        return SU_USE_STORE;
+        AD_RETURNO (SU_USE_STORE);
       }
-      return SU_USE_OTHER;
+      AD_RETURNO (SU_USE_OTHER);
     }
 
     case GIMPLE_CALL:
       // 检查是否作为参数
       for (unsigned i = 0; i < gimple_call_num_args (use_stmt); i++) {
         if (gimple_call_arg (use_stmt, i) == ssa_name) {
-          return SU_USE_CALL_ARG;
+          AD_RETURNO (SU_USE_CALL_ARG);
         }
       }
-      return SU_USE_OTHER;
+      AD_RETURNO (SU_USE_OTHER);
 
     case GIMPLE_RETURN:
       if (gimple_return_retval (as_a<greturn*>(use_stmt)) == ssa_name) {
-        return SU_USE_RETURN;
+        AD_RETURNO (SU_USE_RETURN);
       }
-      return SU_USE_OTHER;
+      AD_RETURNO (SU_USE_OTHER);
 
     case GIMPLE_PHI:
-      return SU_USE_PHI;
+      AD_RETURNO (SU_USE_PHI);
 
     case GIMPLE_COND:
-      return SU_USE_CONDITIONAL;
+      AD_RETURNO (SU_USE_CONDITIONAL);
 
     default:
-      return SU_USE_OTHER;
+      AD_RETURNO (SU_USE_OTHER);
   }
 
-  return SU_USE_OTHER;
-}
+  AD_RETURNO (SU_USE_OTHER);
+} AD_FUNCTION_END
 
 // 判断函数是否为外部函数
-static bool isFunctionExternal(tree function_decl) {
+ArrayDetectErrorCode isFunctionExternal (
+  AD_FUNC_ARGS,
+  tree function_decl,
+  bool &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Checking if function is external");
+
   if (!function_decl || TREE_CODE (function_decl) != FUNCTION_DECL) {
-    return true;
+    AD_RETURNO (true);
   }
 
   // 检查是否有函数体
-  struct cgraph_node* node = cgraph_node::get (function_decl);
+  struct cgraph_node * node = cgraph_node::get (function_decl);
   if (!node || !node->definition) {
-    return true;  // 外部函数或声明
+    AD_DEBUG_PRINT ("Function is external or declaration only");
+    AD_RETURNO (true);  // 外部函数或声明
   }
 
-  return false;
-}
+  AD_DEBUG_PRINT ("Function is internal");
+  AD_RETURNO (false);
+} AD_FUNCTION_END
 
 // 分析使用是否逃逸
-static SourceUseEscapeKind analyzeEscapeKind(
-  const SourceUseInfo& use_info,
-  const SourceUseEscapeRules& rules
-) {
+ArrayDetectErrorCode analyzeEscapeKind (
+  AD_FUNC_ARGS,
+  const SourceUseInfo &use_info,
+  const SourceUseEscapeRules &rules,
+  SourceUseEscapeKind &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Analyzing escape kind for use");
+
   gimple * stmt = use_info.use_stmt;
 
   switch (use_info.kind) {
     case SU_USE_RETURN:
-      return rules.return_is_escape ? SU_ESCAPE_RETURN : SU_ESCAPE_NONE;
+      AD_DEBUG_PRINT ("Use is RETURN, escape=%d", rules.return_is_escape);
+      AD_RETURNO (rules.return_is_escape ? SU_ESCAPE_RETURN : SU_ESCAPE_NONE);
 
     case SU_USE_CALL_ARG: {
       // 检查被调用的函数
       if (!is_gimple_call (stmt)) break;
 
       tree fn = gimple_call_fn (stmt);
-      if (!fn) return SU_ESCAPE_UNKNOWN;
+      if (!fn) {
+        AD_DEBUG_PRINT ("Unknown function call");
+        AD_RETURNO (SU_ESCAPE_UNKNOWN);
+      }
 
       // 虚函数调用
       if (TREE_CODE (fn) == OBJ_TYPE_REF) {
-        return rules.virtual_call_is_escape ? SU_ESCAPE_VIRTUAL_CALL : SU_ESCAPE_NONE;
+        AD_DEBUG_PRINT ("Virtual call detected, escape=%d", rules.virtual_call_is_escape);
+        AD_RETURNO (rules.virtual_call_is_escape ? SU_ESCAPE_VIRTUAL_CALL : SU_ESCAPE_NONE);
       }
 
       // 间接调用
       if (TREE_CODE (fn) != ADDR_EXPR) {
-        return rules.indirect_call_is_escape ? SU_ESCAPE_INDIRECT_CALL : SU_ESCAPE_NONE;
+        AD_DEBUG_PRINT ("Indirect call detected, escape=%d", rules.indirect_call_is_escape);
+        AD_RETURNO (rules.indirect_call_is_escape ? SU_ESCAPE_INDIRECT_CALL : SU_ESCAPE_NONE);
       }
 
       // 直接调用
       tree fn_decl = TREE_OPERAND (fn, 0);
-      if (isFunctionExternal(fn_decl)) {
-        return rules.param_to_external_is_escape ? SU_ESCAPE_EXTERNAL_CALL : SU_ESCAPE_NONE;
+      bool is_external = false;
+      AD_TRY (isFunctionExternal (AD_ARGS, fn_decl, is_external));
+
+      if (is_external) {
+        AD_DEBUG_PRINT ("External function call, escape=%d", rules.param_to_external_is_escape);
+        AD_RETURNO (rules.param_to_external_is_escape ? SU_ESCAPE_EXTERNAL_CALL : SU_ESCAPE_NONE);
       } else {
-        return rules.param_to_internal_is_escape ? SU_ESCAPE_PARAMETER : SU_ESCAPE_NONE;
+        AD_DEBUG_PRINT ("Internal function call, escape=%d", rules.param_to_internal_is_escape);
+        AD_RETURNO (rules.param_to_internal_is_escape ? SU_ESCAPE_PARAMETER : SU_ESCAPE_NONE);
       }
     }
 
@@ -202,15 +231,18 @@ static SourceUseEscapeKind analyzeEscapeKind(
 
       // 全局变量
       if (TREE_CODE (lhs) == VAR_DECL && is_global_var (lhs)) {
-        return rules.global_store_is_escape ? SU_ESCAPE_GLOBAL_STORE : SU_ESCAPE_NONE;
+        AD_DEBUG_PRINT ("Global store detected, escape=%d", rules.global_store_is_escape);
+        AD_RETURNO (rules.global_store_is_escape ? SU_ESCAPE_GLOBAL_STORE : SU_ESCAPE_NONE);
       }
 
       // 间接存储（可能是堆或字段）
       if (TREE_CODE (lhs) == MEM_REF || TREE_CODE (lhs) == COMPONENT_REF) {
         if (TREE_CODE (lhs) == COMPONENT_REF) {
-          return rules.field_store_is_escape ? SU_ESCAPE_FIELD_STORE : SU_ESCAPE_NONE;
+          AD_DEBUG_PRINT ("Field store detected, escape=%d", rules.field_store_is_escape);
+          AD_RETURNO (rules.field_store_is_escape ? SU_ESCAPE_FIELD_STORE : SU_ESCAPE_NONE);
         } else {
-          return rules.heap_store_is_escape ? SU_ESCAPE_HEAP_STORE : SU_ESCAPE_NONE;
+          AD_DEBUG_PRINT ("Heap store detected, escape=%d", rules.heap_store_is_escape);
+          AD_RETURNO (rules.heap_store_is_escape ? SU_ESCAPE_HEAP_STORE : SU_ESCAPE_NONE);
         }
       }
       break;
@@ -220,147 +252,174 @@ static SourceUseEscapeKind analyzeEscapeKind(
       break;
   }
 
-  return SU_ESCAPE_NONE;
-}
+  AD_RETURNO (SU_ESCAPE_NONE);
+} AD_FUNCTION_END
 
+// NOTE: isEscapeUse is not used and does not follow standard API
+// Commented out - should be moved to submodule or removed
+/*
 bool isEscapeUse(
   const SourceUseInfo& use_info,
   const SourceUseEscapeRules& rules
 ) {
   return analyzeEscapeKind(use_info, rules) != SU_ESCAPE_NONE;
 }
+*/
 
 // ============================================================================
 // 使用分析主函数
 // ============================================================================
 
-// 递归分析 SSA 使用链
-static void analyzeSSAUseChain(
+// 递归分析 SSA 使用链（手动遍历immediate uses）
+ArrayDetectErrorCode analyzeSSAUseChain (
+  AD_FUNC_ARGS,
   tree ssa_name,
   SourceUseAnalysisResult * result,
-  const SourceUseEscapeRules& rules,
+  const SourceUseEscapeRules &rules,
   unsigned int depth
-) {
+) AD_FUNCTION_BEGIN {
   if (depth >= rules.max_analysis_depth) {
+    AD_DEBUG_PRINT ("Max analysis depth reached: %u", depth);
     result->is_fully_analyzed = false;
-    return;
+    AD_RETURNE (OK);
   }
 
   if (!ssa_name || TREE_CODE (ssa_name) != SSA_NAME) {
-    return;
+    AD_DEBUG_PRINT ("Not an SSA_NAME, skipping");
+    AD_RETURNE (OK);
   }
 
-  // 遍历所有使用
-  // 注意：SSA迭代器API兼容性问题，暂时禁用此功能
-  // TODO: 修复SSA迭代器API后重新启用
-  (void)result;
-  (void)rules;
-  (void)depth;
-  return;
+  AD_DEBUG_PRINT ("Analyzing SSA use chain at depth %u", depth);
 
-  /* SSA迭代器代码，待修复后启用
-  imm_use_iterator iter;
-  gimple * use_stmt;
+  // 手动遍历 immediate use list（避免使用有问题的迭代器宏）
+  // SSA names 的 immediate uses 存储在一个循环链表中
+  ssa_use_operand_t * head = &(SSA_NAME_IMM_USE_NODE (ssa_name));
+  ssa_use_operand_t * ptr = head->next;
 
-  FOR_EACH_IMM_USE_STMT (use_stmt, iter, ssa_name) {
-    if (!use_stmt) continue;
+  unsigned int use_count = 0;
 
-    // 创建使用信息
-    SourceUseInfo use_info;
-    use_info.kind = classifyUseKind(use_stmt, ssa_name);
-    use_info.use_stmt = use_stmt;
-    use_info.use_operand = ssa_name;
-    use_info.source_location = gimple_location (use_stmt);
-    use_info.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
+  // 遍历循环链表，直到回到 head
+  while (ptr != head) {
+    gimple * use_stmt = USE_STMT (ptr);
 
-    // 分析逃逸
-    use_info.escape_kind = analyzeEscapeKind(use_info, rules);
-    use_info.is_escape = (use_info.escape_kind != SU_ESCAPE_NONE);
+    if (use_stmt) {
+      use_count++;
+      AD_DEBUG_PRINT ("  Processing use #%u", use_count);
 
-    // 添加到结果
-    result->all_uses->safe_push(use_info);
-    result->total_use_count++;
+      // 创建使用信息
+      SourceUseInfo use_info;
+      SourceUseKind use_kind = SU_USE_OTHER;
+      AD_TRY (classifyUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
 
-    // 如果是逃逸，记录逃逸位置
-    if (use_info.is_escape) {
-      result->has_escape = true;
-      result->escape_count++;
+      use_info.kind = use_kind;
+      use_info.use_stmt = use_stmt;
+      use_info.use_operand = ssa_name;
+      use_info.source_location = gimple_location (use_stmt);
+      use_info.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
 
-      SourceUseEscapeLocation escape_loc;
-      escape_loc.kind = use_info.escape_kind;
-      escape_loc.stmt = use_stmt;
-      escape_loc.use_operand = ssa_name;
-      escape_loc.source_location = use_info.source_location;
-      escape_loc.bb_index = use_info.bb_index;
+      // 分析逃逸
+      SourceUseEscapeKind escape_kind = SU_ESCAPE_NONE;
+      AD_TRY (analyzeEscapeKind (AD_ARGS, use_info, rules, escape_kind));
 
-      // 提取逃逸目标信息
-      if (is_gimple_call (use_stmt)) {
-        tree fn = gimple_call_fndecl (use_stmt);
-        if (fn && DECL_NAME (fn)) {
-          escape_loc.escape_target = IDENTIFIER_POINTER (DECL_NAME (fn));
-          escape_loc.target_info.function_decl = fn;
-        } else {
-          escape_loc.escape_target = "<indirect call>";
-          escape_loc.target_info.function_decl = NULL;
-        }
-      } else if (is_gimple_assign (use_stmt)) {
-        tree lhs = gimple_assign_lhs (use_stmt);
-        if (TREE_CODE (lhs) == COMPONENT_REF) {
-          tree field = TREE_OPERAND (lhs, 1);
-          if (DECL_NAME (field)) {
-            escape_loc.escape_target = IDENTIFIER_POINTER (DECL_NAME (field));
-            escape_loc.target_info.field_decl = field;
+      use_info.escape_kind = escape_kind;
+      use_info.is_escape = (escape_kind != SU_ESCAPE_NONE);
+
+      // 添加到结果
+      result->all_uses->safe_push (use_info);
+      result->total_use_count++;
+
+      // 如果是逃逸，记录逃逸位置
+      if (use_info.is_escape) {
+        AD_DEBUG_PRINT ("    ESCAPE detected: %s", getEscapeKindString (escape_kind));
+        result->has_escape = true;
+        result->escape_count++;
+
+        SourceUseEscapeLocation escape_loc;
+        escape_loc.kind = escape_kind;
+        escape_loc.stmt = use_stmt;
+        escape_loc.use_operand = ssa_name;
+        escape_loc.source_location = use_info.source_location;
+        escape_loc.bb_index = use_info.bb_index;
+
+        // 提取逃逸目标信息
+        if (is_gimple_call (use_stmt)) {
+          tree fn = gimple_call_fndecl (use_stmt);
+          if (fn && DECL_NAME (fn)) {
+            escape_loc.escape_target = IDENTIFIER_POINTER (DECL_NAME (fn));
+            escape_loc.target_info.function_decl = fn;
           } else {
-            escape_loc.escape_target = "<anonymous field>";
-            escape_loc.target_info.field_decl = field;
+            escape_loc.escape_target = "<indirect call>";
+            escape_loc.target_info.function_decl = NULL;
+          }
+        } else if (is_gimple_assign (use_stmt)) {
+          tree lhs = gimple_assign_lhs (use_stmt);
+          if (TREE_CODE (lhs) == COMPONENT_REF) {
+            tree field = TREE_OPERAND (lhs, 1);
+            if (DECL_NAME (field)) {
+              escape_loc.escape_target = IDENTIFIER_POINTER (DECL_NAME (field));
+              escape_loc.target_info.field_decl = field;
+            } else {
+              escape_loc.escape_target = "<anonymous field>";
+              escape_loc.target_info.field_decl = field;
+            }
+          } else {
+            escape_loc.escape_target = "<memory>";
+            escape_loc.target_info.global_var = NULL;
           }
         } else {
-          escape_loc.escape_target = "<memory>";
-          escape_loc.target_info.global_var = NULL;
+          escape_loc.escape_target = "<unknown>";
+          escape_loc.target_info.function_decl = NULL;
         }
-      } else {
-        escape_loc.escape_target = "<unknown>";
-        escape_loc.target_info.function_decl = NULL;
+
+        result->escape_locations->safe_push (escape_loc);
+
+        if (rules.stop_at_first_escape) {
+          AD_DEBUG_PRINT ("Stopping at first escape (as configured)");
+          AD_RETURNE (OK);
+        }
       }
 
-      result->escape_locations->safe_push(escape_loc);
-
-      if (rules.stop_at_first_escape) {
-        return;
+      // 如果是赋值，继续追踪新的 SSA
+      if (use_kind == SU_USE_ASSIGN && is_gimple_assign (use_stmt)) {
+        tree lhs = gimple_assign_lhs (use_stmt);
+        if (lhs && TREE_CODE (lhs) == SSA_NAME) {
+          AD_DEBUG_PRINT ("  Following SSA assignment chain");
+          AD_TRY (analyzeSSAUseChain (AD_ARGS, lhs, result, rules, depth + 1));
+        }
       }
     }
 
-    // 如果是赋值，继续追踪新的 SSA
-    if (use_info.kind == SU_USE_ASSIGN && is_gimple_assign (use_stmt)) {
-      tree lhs = gimple_assign_lhs (use_stmt);
-      if (lhs && TREE_CODE (lhs) == SSA_NAME) {
-        analyzeSSAUseChain(lhs, result, rules, depth + 1);
-      }
-    }
+    // 移动到下一个 use
+    ptr = ptr->next;
   }
-  */
-  // SSA迭代器代码结束
-}
 
-SourceUseAnalysisResult * analyzeSourceOperandUse(
+  AD_DEBUG_PRINT ("SSA use chain analysis complete: %u uses found", use_count);
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+ArrayDetectErrorCode analyzeSourceOperandUse (
+  AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
-  const SourceUseEscapeRules& rules
-) {
+  const SourceUseEscapeRules &rules,
+  SourceUseAnalysisResult * &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Analyzing source operand use");
+
   // 分配结果结构
-  SourceUseAnalysisResult * result = ggc_alloc <SourceUseAnalysisResult>();
-  memset (result, 0, sizeof(SourceUseAnalysisResult));
+  result = ggc_alloc <SourceUseAnalysisResult> ();
+  memset (result, 0, sizeof (SourceUseAnalysisResult));
 
   result->source_operand = source_operand;
   result->source_stmt = source_stmt;
 
   // 分配并初始化 vectors
-  result->all_uses = ggc_alloc <vec<SourceUseInfo>>();
-  result->all_uses->create(0);
+  result->all_uses = ggc_alloc <vec<SourceUseInfo>> ();
+  result->all_uses->create (0);
   result->total_use_count = 0;
 
-  result->escape_locations = ggc_alloc <vec<SourceUseEscapeLocation>>();
-  result->escape_locations->create(0);
+  result->escape_locations = ggc_alloc <vec<SourceUseEscapeLocation>> ();
+  result->escape_locations->create (0);
   result->escape_count = 0;
 
   result->has_escape = false;
@@ -373,14 +432,17 @@ SourceUseAnalysisResult * analyzeSourceOperandUse(
 
   // 开始分析
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
-    analyzeSSAUseChain(source_operand, result, rules, 0);
+    AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting use chain analysis");
+    AD_TRY (analyzeSSAUseChain (AD_ARGS, source_operand, result, rules, 0));
+  } else {
+    AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping use chain analysis");
   }
 
   // 确定主要逃逸类型（选择出现次数最多的）
   if (result->has_escape && result->escape_locations) {
     int escape_counts[SU_ESCAPE_UNKNOWN + 1] = {0};
-    for (unsigned i = 0; i < result->escape_locations->length(); i++) {
-      SourceUseEscapeLocation& loc = (*result->escape_locations)[i];
+    for (unsigned i = 0; i < result->escape_locations->length (); i++) {
+      SourceUseEscapeLocation &loc = (*result->escape_locations)[i];
       escape_counts[loc.kind]++;
     }
 
@@ -388,24 +450,32 @@ SourceUseAnalysisResult * analyzeSourceOperandUse(
     for (int i = 0; i <= SU_ESCAPE_UNKNOWN; i++) {
       if (escape_counts[i] > max_count) {
         max_count = escape_counts[i];
-        result->dominant_escape_kind = (SourceUseEscapeKind)i;
+        result->dominant_escape_kind = (SourceUseEscapeKind) i;
       }
     }
+    AD_DEBUG_PRINT ("Dominant escape kind: %s",
+                    getEscapeKindString (result->dominant_escape_kind));
   }
 
-  return result;
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 // ============================================================================
 // 与 write-operation 集成
 // ============================================================================
 
-SourceUseAnalysisResult * analyzeFromWriteCapture(
+ArrayDetectErrorCode analyzeFromWriteCapture (
+  AD_FUNC_ARGS,
   FieldWriteCapture * write_capture,
-  const SourceUseEscapeRules& rules
-) {
+  const SourceUseEscapeRules &rules,
+  SourceUseAnalysisResult * &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("Analyzing from write capture");
+
   if (!write_capture) {
-    return NULL;
+    AD_DEBUG_PRINT ("Write capture is NULL");
+    result = NULL;
+    AD_RETURNE (OK);
   }
 
   // 使用 FieldWriteCapture
@@ -416,11 +486,7 @@ SourceUseAnalysisResult * analyzeFromWriteCapture(
   gimple * source_stmt = write_info->stmt;   // GIMPLE 语句
 
   // 分析
-  SourceUseAnalysisResult * result = analyzeSourceOperandUse(
-    source_operand,
-    source_stmt,
-    rules
-  );
+  AD_TRY (analyzeSourceOperandUse (AD_ARGS, source_operand, source_stmt, rules, result));
 
   if (result) {
     // 关联原始数据
@@ -438,10 +504,13 @@ SourceUseAnalysisResult * analyzeFromWriteCapture(
 
     // 这样就实现了异构伪 list 的更新：
     // hash_map -> write_info -> (aux) -> source_use_result -> (aux) -> old_data
+
+    AD_DEBUG_PRINT ("Write capture analysis complete: %u uses, %u escapes",
+                    result->total_use_count, result->escape_count);
   }
 
-  return result;
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 void freeSourceUseAnalysisResult(SourceUseAnalysisResult * result) {
   if (!result) return;
@@ -522,8 +591,7 @@ ArrayDetectErrorCode analyzeAllFieldSourceUses (
   unsigned int &total_analyzed,
   unsigned int &total_escaped
 ) AD_FUNCTION_BEGIN {
-  (void) ctx;
-  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("Analyzing all field source uses");
 
   total_analyzed = 0;
   total_escaped = 0;
@@ -546,7 +614,8 @@ ArrayDetectErrorCode analyzeAllFieldSourceUses (
       FieldWriteCapture * capture = (*write_ops->write_ops)[i];
       if (!capture) continue;
 
-      SourceUseAnalysisResult * use_result = analyzeFromWriteCapture (capture, escape_rules);
+      SourceUseAnalysisResult * use_result = NULL;
+      AD_TRY (analyzeFromWriteCapture (AD_ARGS, capture, escape_rules, use_result));
 
       if (use_result) {
         total_analyzed++;
