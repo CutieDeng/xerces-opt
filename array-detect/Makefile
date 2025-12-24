@@ -405,6 +405,8 @@ obj/array-detect-pipeline/pipeline.o: \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-write-trace/field-source-variant.hh \
   include/array-detect-source-use/source-use-analysis.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-utils/info-print.hh \
 
 obj/array-detect-write-trace/write-operation-trace-driver.o: \
@@ -449,20 +451,22 @@ obj/array-detect-write-trace/write-operation-trace.o: \
 
 obj/array-detect-source-use/source-use-analysis.o: \
   src/array-detect-source-use/source-use-analysis.cc \
-  include/array-detect-source-use/source-use-analysis.hh \
-  include/array-detect-write-trace/write-operation-trace.hh \
   include/array-detect-utils/prelude.hh \
-  include/array-detect-context/context.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-source-use/source-use-analysis.hh \
+  include/array-detect-gcc/gcc-common.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
+  include/array-detect-result/analysis-data.hh \
   include/array-detect-core/array-detector.hh \
   include/array-detect-utils/info.hh \
-  include/array-detect-gcc/gcc-common.hh \
-  include/array-detect-result/analysis-data.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-write-trace/write-operation-trace.hh \
   include/array-detect-write-trace/field-source-variant.hh \
   include/array-detect-utils/info-print.hh \
 
@@ -489,9 +493,12 @@ prepare:
 	mkdir -p obj/array-detect-source-use
 	mkdir -p out
 
+test-simple-ptr-field: out/plugin-array-detect.dylib
+	cd ../test/test-simple-ptr-field; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
+
 test-simple-virtual-call: out/plugin-array-detect.dylib
 	cd ../test/test-simple-virtual-call; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
 
-test-simple-ptr-field: out/plugin-array-detect.dylib
-	cd ../test/test-simple-ptr-field; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
+test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
+	cd ../test/test-simple-ptr-copy-escape; racket build.rkt < "/Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/test-script/test-simple-virtual-call.rktd"
 

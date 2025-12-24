@@ -136,7 +136,7 @@
   (printf "~n~n")
 )
 
-(define (write-test)
+(define (write-test-xercese)
   (printf "test: ~a~n" output-so-path)
   (printf "\tcd ../test/test-xercese; ")
   (printf "racket build-xercese.rkt < ~s~n" (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
@@ -204,20 +204,18 @@
   (printf "~n")
 )
 
-(define (write-test-virtual-call)
-  (printf "test-simple-virtual-call: ~a~n" output-so-path)
-  (printf "\tcd ../test/test-simple-virtual-call; ")
+(define a-tests '("test-simple-ptr-field" "test-simple-virtual-call" "test-simple-ptr-copy-escape"))
+
+(define (write-test name)
+  (printf "~a: ~a~n" name output-so-path)
+  (printf "\tcd ../test/~a; " name)
   (printf "racket build.rkt < ~s~n" (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
   (printf "~n")
 )
 
-(define (write-test-ptr-field)
-  (printf "test-simple-ptr-field: ~a~n" output-so-path)
-  (printf "\tcd ../test/test-simple-ptr-field; ")
-  (printf "racket build.rkt < ~s~n" (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
-  (printf "~n")
+(define (write-tests)
+  (for ([a a-tests]) (write-test a))
 )
-
 
 (define (write-makefile)
   (call-with-atomic-output-file "Makefile" (lambda (o _p) (parameterize ([current-output-port o])
@@ -225,10 +223,9 @@
     (write-compiles)
     (write-deps2)
     (write-clean)
-    (write-test)
+    (write-test-xercese)
     (write-prepare)
-    (write-test-virtual-call)
-    (write-test-ptr-field)
+    (write-tests)
   ))))
 
 (module+ main (write-makefile))
