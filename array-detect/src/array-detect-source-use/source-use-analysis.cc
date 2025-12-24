@@ -48,17 +48,17 @@ SourceUseEscapeRules getDefaultEscapeRules() {
 
 const char* getEscapeKindString(SourceUseEscapeKind kind) {
   switch (kind) {
-    case ESCAPE_NONE:          return "NONE";
-    case ESCAPE_RETURN:        return "RETURN";
-    case ESCAPE_PARAMETER:     return "PARAMETER";
-    case ESCAPE_GLOBAL_STORE:  return "GLOBAL_STORE";
-    case ESCAPE_HEAP_STORE:    return "HEAP_STORE";
-    case ESCAPE_FIELD_STORE:   return "FIELD_STORE";
-    case ESCAPE_INDIRECT_CALL: return "INDIRECT_CALL";
-    case ESCAPE_VIRTUAL_CALL:  return "VIRTUAL_CALL";
-    case ESCAPE_EXTERNAL_CALL: return "EXTERNAL_CALL";
-    case ESCAPE_UNKNOWN:       return "UNKNOWN";
-    default:                   return "<invalid>";
+    case SOURCE_ESCAPE_NONE:          return "NONE";
+    case SOURCE_ESCAPE_RETURN:        return "RETURN";
+    case SOURCE_ESCAPE_PARAMETER:     return "PARAMETER";
+    case SOURCE_ESCAPE_GLOBAL_STORE:  return "GLOBAL_STORE";
+    case SOURCE_ESCAPE_HEAP_STORE:    return "HEAP_STORE";
+    case SOURCE_ESCAPE_FIELD_STORE:   return "FIELD_STORE";
+    case SOURCE_ESCAPE_INDIRECT_CALL: return "INDIRECT_CALL";
+    case SOURCE_ESCAPE_VIRTUAL_CALL:  return "VIRTUAL_CALL";
+    case SOURCE_ESCAPE_EXTERNAL_CALL: return "EXTERNAL_CALL";
+    case SOURCE_ESCAPE_UNKNOWN:       return "UNKNOWN";
+    default:                          return "<invalid>";
   }
 }
 
@@ -85,9 +85,9 @@ const char* getUseKindString(SourceUseKind kind) {
 
 // 分析单个 SSA 使用
 static SourceUseKind classifyUseKind(gimple* use_stmt, tree ssa_name) {
-  gimple_code code = gimple_code(use_stmt);
+  enum gimple_code stmt_code = gimple_code(use_stmt);
 
-  switch (code) {
+  switch (stmt_code) {
     case GIMPLE_ASSIGN: {
       // 检查是左值还是右值
       tree lhs = gimple_assign_lhs(use_stmt);
@@ -161,31 +161,31 @@ static SourceUseEscapeKind analyzeEscapeKind(
 
   switch (use_info.kind) {
     case USE_RETURN:
-      return rules.return_is_escape ? ESCAPE_RETURN : ESCAPE_NONE;
+      return rules.return_is_escape ? SOURCE_ESCAPE_RETURN : SOURCE_ESCAPE_NONE;
 
     case USE_CALL_ARG: {
       // 检查被调用的函数
       if (!is_gimple_call(stmt)) break;
 
       tree fn = gimple_call_fn(stmt);
-      if (!fn) return ESCAPE_UNKNOWN;
+      if (!fn) return SOURCE_ESCAPE_UNKNOWN;
 
       // 虚函数调用
       if (TREE_CODE(fn) == OBJ_TYPE_REF) {
-        return rules.virtual_call_is_escape ? ESCAPE_VIRTUAL_CALL : ESCAPE_NONE;
+        return rules.virtual_call_is_escape ? SOURCE_ESCAPE_VIRTUAL_CALL : SOURCE_ESCAPE_NONE;
       }
 
       // 间接调用
       if (TREE_CODE(fn) != ADDR_EXPR) {
-        return rules.indirect_call_is_escape ? ESCAPE_INDIRECT_CALL : ESCAPE_NONE;
+        return rules.indirect_call_is_escape ? SOURCE_ESCAPE_INDIRECT_CALL : SOURCE_ESCAPE_NONE;
       }
 
       // 直接调用
       tree fn_decl = TREE_OPERAND(fn, 0);
       if (isFunctionExternal(fn_decl)) {
-        return rules.param_to_external_is_escape ? ESCAPE_EXTERNAL_CALL : ESCAPE_NONE;
+        return rules.param_to_external_is_escape ? SOURCE_ESCAPE_EXTERNAL_CALL : SOURCE_ESCAPE_NONE;
       } else {
-        return rules.param_to_internal_is_escape ? ESCAPE_PARAMETER : ESCAPE_NONE;
+        return rules.param_to_internal_is_escape ? SOURCE_ESCAPE_PARAMETER : SOURCE_ESCAPE_NONE;
       }
     }
 
@@ -198,15 +198,15 @@ static SourceUseEscapeKind analyzeEscapeKind(
 
       // 全局变量
       if (TREE_CODE(lhs) == VAR_DECL && is_global_var(lhs)) {
-        return rules.global_store_is_escape ? ESCAPE_GLOBAL_STORE : ESCAPE_NONE;
+        return rules.global_store_is_escape ? SOURCE_ESCAPE_GLOBAL_STORE : SOURCE_ESCAPE_NONE;
       }
 
       // 间接存储（可能是堆或字段）
       if (TREE_CODE(lhs) == MEM_REF || TREE_CODE(lhs) == COMPONENT_REF) {
         if (TREE_CODE(lhs) == COMPONENT_REF) {
-          return rules.field_store_is_escape ? ESCAPE_FIELD_STORE : ESCAPE_NONE;
+          return rules.field_store_is_escape ? SOURCE_ESCAPE_FIELD_STORE : SOURCE_ESCAPE_NONE;
         } else {
-          return rules.heap_store_is_escape ? ESCAPE_HEAP_STORE : ESCAPE_NONE;
+          return rules.heap_store_is_escape ? SOURCE_ESCAPE_HEAP_STORE : SOURCE_ESCAPE_NONE;
         }
       }
       break;
@@ -216,14 +216,14 @@ static SourceUseEscapeKind analyzeEscapeKind(
       break;
   }
 
-  return ESCAPE_NONE;
+  return SOURCE_ESCAPE_NONE;
 }
 
 bool isEscapeUse(
   const SourceUseInfo& use_info,
   const SourceUseEscapeRules& rules
 ) {
-  return analyzeEscapeKind(use_info, rules) != ESCAPE_NONE;
+  return analyzeEscapeKind(use_info, rules) != SOURCE_ESCAPE_NONE;
 }
 
 // ============================================================================
@@ -263,10 +263,10 @@ static void analyzeSSAUseChain(
 
     // 分析逃逸
     use_info.escape_kind = analyzeEscapeKind(use_info, rules);
-    use_info.is_escape = (use_info.escape_kind != ESCAPE_NONE);
+    use_info.is_escape = (use_info.escape_kind != SOURCE_ESCAPE_NONE);
 
     // 添加到结果
-    vec_safe_push(result->all_uses, use_info);
+    result->all_uses->safe_push(use_info);
     result->total_use_count++;
 
     // 如果是逃逸，记录逃逸位置
@@ -311,7 +311,7 @@ static void analyzeSSAUseChain(
         escape_loc.target_info.function_decl = NULL;
       }
 
-      vec_safe_push(result->escape_locations, escape_loc);
+      result->escape_locations->safe_push(escape_loc);
 
       if (rules.stop_at_first_escape) {
         return;
@@ -333,18 +333,25 @@ SourceUseAnalysisResult* analyzeSourceOperandUse(
   gimple* source_stmt,
   const SourceUseEscapeRules& rules
 ) {
-  // 分配结果结构
+  // 分配结果结构（使用 ggc_alloc_atomic 并手动清零）
   SourceUseAnalysisResult* result =
-    (SourceUseAnalysisResult*)ggc_alloc_cleared_atomic(sizeof(SourceUseAnalysisResult));
+    (SourceUseAnalysisResult*)ggc_alloc_atomic(sizeof(SourceUseAnalysisResult));
+  if (result) {
+    memset(result, 0, sizeof(SourceUseAnalysisResult));
+  }
 
   result->source_operand = source_operand;
   result->source_stmt = source_stmt;
-  result->all_uses = NULL;
+
+  // 初始化 vec
+  result->all_uses = ggc_alloc<vec<SourceUseInfo>>();
+  result->all_uses->create(0);
   result->total_use_count = 0;
-  result->escape_locations = NULL;
+  result->escape_locations = ggc_alloc<vec<SourceUseEscapeLocation>>();
+  result->escape_locations->create(0);
   result->escape_count = 0;
   result->has_escape = false;
-  result->dominant_escape_kind = ESCAPE_NONE;
+  result->dominant_escape_kind = SOURCE_ESCAPE_NONE;
   result->use_chain_root = NULL;
   result->max_use_depth = 0;
   result->is_fully_analyzed = true;
@@ -358,14 +365,14 @@ SourceUseAnalysisResult* analyzeSourceOperandUse(
 
   // 确定主要逃逸类型（选择出现次数最多的）
   if (result->has_escape && result->escape_locations) {
-    int escape_counts[ESCAPE_UNKNOWN + 1] = {0};
+    int escape_counts[SOURCE_ESCAPE_UNKNOWN + 1] = {0};
     for (unsigned i = 0; i < result->escape_locations->length(); i++) {
       SourceUseEscapeLocation& loc = (*result->escape_locations)[i];
       escape_counts[loc.kind]++;
     }
 
     int max_count = 0;
-    for (int i = 0; i <= ESCAPE_UNKNOWN; i++) {
+    for (int i = 0; i <= SOURCE_ESCAPE_UNKNOWN; i++) {
       if (escape_counts[i] > max_count) {
         max_count = escape_counts[i];
         result->dominant_escape_kind = (SourceUseEscapeKind)i;

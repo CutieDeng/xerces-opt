@@ -5,6 +5,9 @@
 #include "array-detector.hh"
 #include "info-print.hh"
 
+using array_detector::TypeFieldKey;
+using array_detector::TypeFieldWriteOps;
+
 namespace array_detect_ns {
 
 // ============================================================================
@@ -39,30 +42,34 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   unsigned int total_escaped = 0;
 
   // 遍历所有 write-operation 结果，分析源操作数使用
-  for (auto it = detector.m_type_field_writes.begin();
-       it != detector.m_type_field_writes.end();
+  for (auto it = detector.m_type_field_writes->begin();
+       it != detector.m_type_field_writes->end();
        ++it) {
-    FieldWriteSourceInfo* write_info = it->second;
-    if (!write_info) continue;
+    TypeFieldWriteOps* write_ops = (*it).second;
+    if (!write_ops || !write_ops->write_ops) continue;
 
-    // 执行源操作数使用分析
-    SourceUseAnalysisResult* use_result =
-      analyzeFromWriteSourceInfo(write_info, escape_rules);
+    // 遍历该 type-field 对的所有写入操作
+    for (unsigned i = 0; i < write_ops->write_ops->length(); i++) {
+      FieldWriteCapture* capture = (*write_ops->write_ops)[i];
+      if (!capture) continue;
 
-    if (use_result) {
-      total_analyzed++;
-      if (use_result->has_escape) {
-        total_escaped++;
-      }
+      // 执行源操作数使用分析
+      SourceUseAnalysisResult* use_result =
+        analyzeFromWriteSourceInfo(capture, escape_rules);
 
-      // 调试输出（可选）
-      if (ctx.debug_file && use_result->has_escape) {
-        AD_DEBUG_PRINT ("  Field %s::%s source escapes via %s (%u uses, %u escapes)",
-                        it->first.type_name,
-                        it->first.field_name,
-                        getEscapeKindString(use_result->dominant_escape_kind),
-                        use_result->total_use_count,
-                        use_result->escape_count);
+      if (use_result) {
+        total_analyzed++;
+        if (use_result->has_escape) {
+          total_escaped++;
+        }
+
+        // 调试输出（可选）
+        if (ctx.debug_file && use_result->has_escape) {
+          AD_DEBUG_PRINT ("  Field write source escapes via %s (%u uses, %u escapes)",
+                          getEscapeKindString(use_result->dominant_escape_kind),
+                          use_result->total_use_count,
+                          use_result->escape_count);
+        }
       }
     }
   }

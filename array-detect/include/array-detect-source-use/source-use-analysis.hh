@@ -12,16 +12,16 @@ namespace array_detect_ns {
 // ============================================================================
 
 enum SourceUseEscapeKind {
-  ESCAPE_NONE = 0,           // 无逃逸
-  ESCAPE_RETURN,             // 通过返回值逃逸
-  ESCAPE_PARAMETER,          // 通过参数传递逃逸（传递给其他函数）
-  ESCAPE_GLOBAL_STORE,       // 存储到全局变量
-  ESCAPE_HEAP_STORE,         // 存储到堆对象
-  ESCAPE_FIELD_STORE,        // 存储到对象字段
-  ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸（函数指针）
-  ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
-  ESCAPE_EXTERNAL_CALL,      // 传递给外部函数（非内联）
-  ESCAPE_UNKNOWN             // 未知逃逸路径
+  SOURCE_ESCAPE_NONE = 0,           // 无逃逸
+  SOURCE_ESCAPE_RETURN,             // 通过返回值逃逸
+  SOURCE_ESCAPE_PARAMETER,          // 通过参数传递逃逸（传递给其他函数）
+  SOURCE_ESCAPE_GLOBAL_STORE,       // 存储到全局变量
+  SOURCE_ESCAPE_HEAP_STORE,         // 存储到堆对象
+  SOURCE_ESCAPE_FIELD_STORE,        // 存储到对象字段
+  SOURCE_ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸（函数指针）
+  SOURCE_ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
+  SOURCE_ESCAPE_EXTERNAL_CALL,      // 传递给外部函数（非内联）
+  SOURCE_ESCAPE_UNKNOWN             // 未知逃逸路径
 };
 
 // 逃逸使用位置信息
