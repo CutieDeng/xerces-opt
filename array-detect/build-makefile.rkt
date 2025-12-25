@@ -139,18 +139,20 @@
 ;; Library Dependencies - Platform-Specific
 ;; ============================================================================
 
-;; 通用函数：从库路径生成编译器参数
-(define (lib-path-to-args lib-path)
-  `("-I" ,(path->string (build-path lib-path "include"))
-    "-L" ,(path->string (build-path lib-path "lib"))))
+;; 通用函数：从 include 和 lib 路径生成编译器参数
+;; 参数可以是路径字符串或 #f（表示跳过）
+(define (make-lib-args include-path lib-path)
+  (append
+    (if include-path `("-I" ,include-path) '())
+    (if lib-path `("-L" ,lib-path) '())))
 
 ;; GMP library
 (define (gmp/args)
   (with-handlers ([exn? (lambda (_) '())])
     (cond
-      ;; 1. 使用自定义路径（如果设置了）
-      [gmp-custom-path
-       (lib-path-to-args gmp-custom-path)]
+      ;; 1. 使用自定义路径（如果至少设置了一个）
+      [(or gmp-custom-include-path gmp-custom-lib-path)
+       (make-lib-args gmp-custom-include-path gmp-custom-lib-path)]
       ;; 2. 使用 pkg-config 自动检测
       [else
        (append
@@ -164,9 +166,9 @@
 (define (mpc/args)
   (with-handlers ([exn? (lambda (_) '())])
     (cond
-      ;; 1. 使用自定义路径（如果设置了）
-      [mpc-custom-path
-       (lib-path-to-args mpc-custom-path)]
+      ;; 1. 使用自定义路径（如果至少设置了一个）
+      [(or mpc-custom-include-path mpc-custom-lib-path)
+       (make-lib-args mpc-custom-include-path mpc-custom-lib-path)]
       ;; 2. macOS: 使用 Homebrew 自动检测
       [is-macos?
        (let ([mpc-directory
@@ -187,9 +189,9 @@
 (define (mpfr/args)
   (with-handlers ([exn? (lambda (_) '())])
     (cond
-      ;; 1. 使用自定义路径（如果设置了）
-      [mpfr-custom-path
-       (lib-path-to-args mpfr-custom-path)]
+      ;; 1. 使用自定义路径（如果至少设置了一个）
+      [(or mpfr-custom-include-path mpfr-custom-lib-path)
+       (make-lib-args mpfr-custom-include-path mpfr-custom-lib-path)]
       ;; 2. macOS: 使用 Homebrew 自动检测
       [is-macos?
        (let ([mpfr-directory
