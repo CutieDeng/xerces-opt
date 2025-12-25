@@ -16,10 +16,10 @@ namespace array_detector {
 namespace array_detect_ns {
 
 // ============================================================================
-// 源操作数使用分析
+// 源逃逸收集模块 (Source Escape Collection)
 // ============================================================================
-// 分析字段写入操作中源操作数的使用流和逃逸情况
-// 追踪 SSA 使用链，检测逃逸路径
+// 收集字段写入操作中源操作数的逃逸信息
+// 追踪 SSA 使用链，收集所有逃逸位置的详尽信息供后续综合分析
 // ============================================================================
 
 // ============================================================================
@@ -141,38 +141,42 @@ struct SourceUseEscapeRules {
 SourceUseEscapeRules getDefaultEscapeRules ();
 
 // ============================================================================
-// 核心分析接口
+// 核心收集接口
 // ============================================================================
 
-// 分析所有字段的源操作数使用情况
+// 收集所有字段的逃逸信息
 // 输入：detector - 包含 m_type_field_writes 的检测器
-// 输出：total_analyzed - 总分析数量
+// 输出：total_analyzed - 总收集数量
 //       total_escaped - 总逃逸数量
-ArrayDetectErrorCode analyzeAllFieldSourceUses (
+ArrayDetectErrorCode collectAllFieldEscapes (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
   unsigned int &total_analyzed,
   unsigned int &total_escaped
 );
 
-// 分析单个源操作数的使用情况
+// 收集单个源操作数的逃逸信息
 // 输入：source_operand - 源操作数（SSA_NAME）
 //       source_stmt - 源语句
 //       rules - 逃逸规则
-// 输出：分析结果指针（GC 管理）
-SourceUseAnalysisResult * analyzeSourceOperandUse (
+// 输出：result - 收集结果指针（GC 管理）
+ArrayDetectErrorCode collectSourceOperandEscapes (
+  AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
-  SourceUseEscapeRules const &rules
+  SourceUseEscapeRules const &rules,
+  SourceUseAnalysisResult * &result
 );
 
-// 从 FieldWriteCapture 中提取源操作数并分析
+// 从字段写入中收集逃逸信息
 // 输入：write_capture - 字段写入捕获
 //       rules - 逃逸规则
-// 输出：分析结果指针（GC 管理）
-SourceUseAnalysisResult * analyzeFromWriteCapture (
+// 输出：result - 收集结果指针（GC 管理）
+ArrayDetectErrorCode collectFieldWriteEscapes (
+  AD_FUNC_ARGS,
   FieldWriteCapture * write_capture,
-  SourceUseEscapeRules const &rules
+  SourceUseEscapeRules const &rules,
+  SourceUseAnalysisResult * &result
 );
 
 // ============================================================================

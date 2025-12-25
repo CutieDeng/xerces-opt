@@ -1,6 +1,6 @@
 #include "prelude.hh"
 #include "state.hh"
-#include "source-use-analysis.hh"
+#include "source-escape-collection.hh"
 #include "array-detector.hh"
 #include "write-operation-trace.hh"
 #include "info-print.hh"
@@ -16,6 +16,16 @@
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+
+// ============================================================================
+// 源逃逸收集模块 (Source Escape Collection)
+// ============================================================================
+// 收集源操作数的所有逃逸信息，包括：
+// - SSA 使用链跟踪
+// - 逃逸类型检测
+// - 逃逸位置详细记录
+// 所有详尽信息供后续逃逸综合器模块使用
+// ============================================================================
 
 // ============================================================================
 // 默认配置
@@ -87,14 +97,14 @@ const char * getUseKindString(SourceUseKind kind) {
 // 核心分析逻辑
 // ============================================================================
 
-// 分析单个 SSA 使用
-ArrayDetectErrorCode classifyUseKind (
+// 分类 SSA 使用类型
+ArrayDetectErrorCode classifySSAUseKind (
   AD_FUNC_ARGS,
   gimple * use_stmt,
   tree ssa_name,
   SourceUseKind &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Classifying use kind for SSA name in stmt");
+  AD_DEBUG_PRINT ("Classifying SSA use kind");
 
   enum gimple_code code = gimple_code (use_stmt);
 
@@ -178,14 +188,14 @@ ArrayDetectErrorCode isFunctionExternal (
   AD_RETURNO (false);
 } AD_FUNCTION_END
 
-// 分析使用是否逃逸
-ArrayDetectErrorCode analyzeEscapeKind (
+// 检测逃逸类型
+ArrayDetectErrorCode detectEscapeKind (
   AD_FUNC_ARGS,
   const SourceUseInfo &use_info,
   const SourceUseEscapeRules &rules,
   SourceUseEscapeKind &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing escape kind for use");
+  AD_DEBUG_PRINT ("Detecting escape kind");
 
   gimple * stmt = use_info.use_stmt;
 
@@ -278,8 +288,8 @@ bool isEscapeUse(
 // 使用分析主函数
 // ============================================================================
 
-// 递归分析 SSA 使用链（手动遍历immediate uses）
-ArrayDetectErrorCode analyzeSSAUseChain (
+// 递归跟踪 SSA 使用链逃逸（手动遍历immediate uses）
+ArrayDetectErrorCode traceSSAUseChainEscapes (
   AD_FUNC_ARGS,
   tree ssa_name,
   SourceUseAnalysisResult * result,
@@ -287,7 +297,7 @@ ArrayDetectErrorCode analyzeSSAUseChain (
   unsigned int depth
 ) AD_FUNCTION_BEGIN {
   if (depth >= rules.max_analysis_depth) {
-    AD_DEBUG_PRINT ("Max analysis depth reached: %u", depth);
+    AD_DEBUG_PRINT ("Max trace depth reached: %u", depth);
     result->is_fully_analyzed = false;
     AD_RETURNE (OK);
   }
@@ -297,7 +307,7 @@ ArrayDetectErrorCode analyzeSSAUseChain (
     AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT ("Analyzing SSA use chain at depth %u", depth);
+  AD_DEBUG_PRINT ("Tracing SSA use chain escapes at depth %u", depth);
 
   // 手动遍历 immediate use list（避免使用有问题的迭代器宏）
   // SSA names 的 immediate uses 存储在一个循环链表中
@@ -317,7 +327,7 @@ ArrayDetectErrorCode analyzeSSAUseChain (
       // 创建使用信息
       SourceUseInfo use_info;
       SourceUseKind use_kind = SU_USE_OTHER;
-      AD_TRY (classifyUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
+      AD_TRY (classifySSAUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
 
       use_info.kind = use_kind;
       use_info.use_stmt = use_stmt;
@@ -325,9 +335,9 @@ ArrayDetectErrorCode analyzeSSAUseChain (
       use_info.source_location = gimple_location (use_stmt);
       use_info.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
 
-      // 分析逃逸
+      // 检测逃逸
       SourceUseEscapeKind escape_kind = SU_ESCAPE_NONE;
-      AD_TRY (analyzeEscapeKind (AD_ARGS, use_info, rules, escape_kind));
+      AD_TRY (detectEscapeKind (AD_ARGS, use_info, rules, escape_kind));
 
       use_info.escape_kind = escape_kind;
       use_info.is_escape = (escape_kind != SU_ESCAPE_NONE);
@@ -396,7 +406,7 @@ ArrayDetectErrorCode analyzeSSAUseChain (
         tree lhs = gimple_assign_lhs (use_stmt);
         if (lhs && TREE_CODE (lhs) == SSA_NAME) {
           AD_DEBUG_PRINT ("  Following SSA assignment chain");
-          AD_TRY (analyzeSSAUseChain (AD_ARGS, lhs, result, rules, depth + 1));
+          AD_TRY (traceSSAUseChainEscapes (AD_ARGS, lhs, result, rules, depth + 1));
         }
       }
     }
@@ -409,14 +419,14 @@ ArrayDetectErrorCode analyzeSSAUseChain (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-ArrayDetectErrorCode analyzeSourceOperandUse (
+ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
   const SourceUseEscapeRules &rules,
   SourceUseAnalysisResult * &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing source operand use");
+  AD_DEBUG_PRINT ("Collecting source operand escapes");
 
   // 使用临时变量构建结果
   SourceUseAnalysisResult * tmp_result = ggc_alloc <SourceUseAnalysisResult> ();
@@ -442,12 +452,12 @@ ArrayDetectErrorCode analyzeSourceOperandUse (
   tmp_result->aux = NULL;
   tmp_result->original_write_info = NULL;
 
-  // 开始分析
+  // 开始跟踪收集
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
-    AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting use chain analysis");
-    AD_TRY (analyzeSSAUseChain (AD_ARGS, source_operand, tmp_result, rules, 0));
+    AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting escape trace");
+    AD_TRY (traceSSAUseChainEscapes (AD_ARGS, source_operand, tmp_result, rules, 0));
   } else {
-    AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping use chain analysis");
+    AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping escape trace");
   }
 
   // 注意：不在这里计算dominant_escape_kind
@@ -467,13 +477,13 @@ ArrayDetectErrorCode analyzeSourceOperandUse (
 // 与 write-operation 集成
 // ============================================================================
 
-ArrayDetectErrorCode analyzeFromWriteCapture (
+ArrayDetectErrorCode collectFieldWriteEscapes (
   AD_FUNC_ARGS,
   FieldWriteCapture * write_capture,
   const SourceUseEscapeRules &rules,
   SourceUseAnalysisResult * &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing from write capture");
+  AD_DEBUG_PRINT ("Collecting field write escapes");
 
   if (!write_capture) {
     AD_DEBUG_PRINT ("Write capture is NULL");
@@ -487,9 +497,9 @@ ArrayDetectErrorCode analyzeFromWriteCapture (
   tree source_operand = write_info->rhs;    // 右值表达式
   gimple * source_stmt = write_info->stmt;   // GIMPLE 语句
 
-  // 使用临时变量接收分析结果
+  // 使用临时变量接收收集结果
   SourceUseAnalysisResult * tmp_result = NULL;
-  AD_TRY (analyzeSourceOperandUse (AD_ARGS, source_operand, source_stmt, rules, tmp_result));
+  AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, rules, tmp_result));
 
   if (tmp_result) {
     // 关联原始数据
@@ -598,13 +608,13 @@ void printSourceUseAnalysisResult(
 // Pipeline 接口实现
 // ============================================================================
 
-ArrayDetectErrorCode analyzeAllFieldSourceUses (
+ArrayDetectErrorCode collectAllFieldEscapes (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   unsigned int &total_analyzed,
   unsigned int &total_escaped
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing all field source uses");
+  AD_DEBUG_PRINT ("Collecting all field escapes");
 
   total_analyzed = 0;
   total_escaped = 0;
@@ -628,7 +638,7 @@ ArrayDetectErrorCode analyzeAllFieldSourceUses (
       if (!capture) continue;
 
       SourceUseAnalysisResult * use_result = NULL;
-      AD_TRY (analyzeFromWriteCapture (AD_ARGS, capture, escape_rules, use_result));
+      AD_TRY (collectFieldWriteEscapes (AD_ARGS, capture, escape_rules, use_result));
 
       if (use_result) {
         total_analyzed++;
