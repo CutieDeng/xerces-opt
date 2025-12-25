@@ -288,6 +288,134 @@ ArrayDetectErrorCode extractSourceFromPhi (
   END_LET ()
 } AD_FUNCTION_END
 
+// 从字段访问提取来源信息
+ArrayDetectErrorCode extractSourceFromFieldAccess (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  tree access_expr,
+  gimple * access_stmt_nullable,
+  gimple * fallback_stmt,
+  location_t location,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo * &result
+) AD_FUNCTION_BEGIN {
+  (void)detector;
+  (void)function;
+  (void)bb;
+
+  // 分配来源信息结构
+  FieldSourceInfo *info = ggc_alloc<FieldSourceInfo> ();
+  if (!info) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memset (info, 0, sizeof (FieldSourceInfo));
+
+  info->source_type = SOURCE_FIELD_ACCESS;
+  LET_SOURCE_FIELD_ACCESS (field_access, *info)
+    // 初始化字段访问来源信息
+    field_access.access_stmt = access_stmt_nullable ? access_stmt_nullable : fallback_stmt;
+    field_access.access_expr = access_expr;
+    field_access.location = location;
+
+    // 提取字段信息和基对象
+    tree field_decl = NULL_TREE;
+    tree base_object = NULL_TREE;
+    tree object_type = NULL_TREE;
+
+    enum tree_code code = TREE_CODE (access_expr);
+
+    if (code == COMPONENT_REF) {
+      // COMPONENT_REF: 直接的结构体字段访问（如 obj.field）
+      field_decl = TREE_OPERAND (access_expr, 1);  // 字段声明
+      base_object = TREE_OPERAND (access_expr, 0);  // 基对象
+
+      // 获取对象类型
+      if (base_object) {
+        object_type = TREE_TYPE (base_object);
+        // 如果是指针类型，需要解引用
+        if (object_type && TREE_CODE (object_type) == POINTER_TYPE) {
+          object_type = TREE_TYPE (object_type);
+        }
+      }
+    } else if (code == MEM_REF) {
+      // MEM_REF: 通过指针访问（如 ptr->field）
+      base_object = TREE_OPERAND (access_expr, 0);  // 基对象（通常是指针）
+
+      // 获取类型信息
+      tree mem_type = TREE_TYPE (access_expr);
+      if (mem_type) {
+        // 尝试从类型中提取字段信息
+        // MEM_REF 可能没有直接的 field_decl，需要通过偏移量推断
+        // 这里我们获取访问的类型，后续可以根据偏移量匹配字段
+
+        // 获取基对象的类型
+        if (base_object) {
+          tree base_type = TREE_TYPE (base_object);
+          if (base_type && TREE_CODE (base_type) == POINTER_TYPE) {
+            object_type = TREE_TYPE (base_type);
+          }
+        }
+
+        // 尝试从 MEM_REF 的偏移量中推断字段
+        // 注意：这是一个简化的实现，完整的字段推断需要更复杂的分析
+        tree offset = TREE_OPERAND (access_expr, 1);
+        if (object_type && TREE_CODE (object_type) == RECORD_TYPE && offset) {
+          // 遍历类型的字段，尝试匹配偏移量
+          for (tree field = TYPE_FIELDS (object_type); field; field = DECL_CHAIN (field)) {
+            if (TREE_CODE (field) == FIELD_DECL) {
+              tree field_offset = DECL_FIELD_OFFSET (field);
+              tree field_bit_offset = DECL_FIELD_BIT_OFFSET (field);
+
+              // 简化匹配：如果偏移量为0且这是第一个字段，或者需要更精确的匹配
+              // 这里我们简单地取第一个匹配的字段作为示例
+              if (field_decl == NULL_TREE) {
+                // TODO: 实现精确的偏移量匹配
+                // 目前简单地将字段设为未知，或者可以尝试匹配
+                (void)field_offset;
+                (void)field_bit_offset;
+                // field_decl = field;  // 暂时不设置，因为偏移量匹配不精确
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 设置字段信息
+    field_access.field_decl = field_decl;
+    if (field_decl && DECL_NAME (field_decl)) {
+      field_access.field_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (field_decl)));
+    } else {
+      field_access.field_name = ggc_strdup ("<unknown-field>");
+    }
+
+    // 设置对象类型信息
+    field_access.object_type = object_type;
+    if (object_type && TYPE_NAME (object_type)) {
+      tree type_name_tree = TYPE_NAME (object_type);
+      if (TREE_CODE (type_name_tree) == TYPE_DECL && DECL_NAME (type_name_tree)) {
+        field_access.type_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (type_name_tree)));
+      } else if (TREE_CODE (type_name_tree) == IDENTIFIER_NODE) {
+        field_access.type_name = ggc_strdup (IDENTIFIER_POINTER (type_name_tree));
+      } else {
+        field_access.type_name = ggc_strdup ("<unnamed-type>");
+      }
+    } else {
+      field_access.type_name = ggc_strdup ("<unknown-type>");
+    }
+
+    // 设置基对象
+    field_access.base_object = base_object;
+
+    AD_DEBUG_PRINT ("[extractSourceFromFieldAccess] Extracted field access: type=%s, field=%s, tree_code=%s",
+                    field_access.type_name, field_access.field_name, get_tree_code_name (code));
+
+    AD_RETURNO (info);
+  END_LET ()
+} AD_FUNCTION_END
+
 // 从计算表达式提取来源信息
 ArrayDetectErrorCode extractSourceFromComputation (
   ArrayDetector &detector,

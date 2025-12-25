@@ -180,9 +180,17 @@ ArrayDetectErrorCode extractSourceFromRhs (
     AD_TRY (extractSourceFromConstant (detector, AD_ARGS, final_value, function, bb, result));
     AD_RETURNE (OK);
   } else {
-    // 计算表达式
-    AD_TRY (extractSourceFromComputation (detector, AD_ARGS, final_value, final_stmt_nullable, stmt, location, function, bb, result));
-    AD_RETURNE (OK);
+    // 检查是否是字段访问（COMPONENT_REF 或 MEM_REF）
+    enum tree_code final_code = TREE_CODE (final_value);
+    if (final_code == COMPONENT_REF || final_code == MEM_REF) {
+      // 字段访问（如 b.ptr 或 ptr->field）
+      AD_TRY (extractSourceFromFieldAccess (detector, AD_ARGS, final_value, final_stmt_nullable, stmt, location, function, bb, result));
+      AD_RETURNE (OK);
+    } else {
+      // 其他计算表达式
+      AD_TRY (extractSourceFromComputation (detector, AD_ARGS, final_value, final_stmt_nullable, stmt, location, function, bb, result));
+      AD_RETURNE (OK);
+    }
   }
 } AD_FUNCTION_END
 

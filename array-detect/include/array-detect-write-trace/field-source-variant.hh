@@ -20,6 +20,7 @@ enum FieldSourceType {
   SOURCE_FUNCTION_CALL,  // 函数调用（包括虚函数、直接调用、间接调用）
   SOURCE_VARIABLE,       // 变量（SSA_NAME）
   SOURCE_CONSTANT,       // 常量
+  SOURCE_FIELD_ACCESS,   // 字段访问（对另一对象的字段读取，如 b.ptr）
   SOURCE_COMPUTATION,    // 计算表达式
   SOURCE_PHI             // PHI 节点（分支合并点，多个来源）
 };
@@ -46,6 +47,18 @@ struct ConstantSource {
   char const *constant_str;    // 常量字符串表示（ggc_strdup 分配，用于调试）
 };
 
+// 字段访问来源信息（对另一对象的字段读取，如 b.ptr）
+struct FieldAccessSource {
+  gimple *access_stmt;         // 访问语句（GIMPLE_ASSIGN，GCC 内部管理）
+  tree access_expr;            // 字段访问表达式（MEM_REF/COMPONENT_REF，GCC 内部管理）
+  tree field_decl;             // 字段声明（FIELD_DECL，GCC 内部管理）
+  char const *field_name;      // 字段名（ggc_strdup 分配）
+  tree object_type;            // 对象类型（RECORD_TYPE，GCC 内部管理）
+  char const *type_name;       // 类型名（ggc_strdup 分配）
+  tree base_object;            // 基对象（可能是 SSA_NAME/VAR_DECL 等，GCC 内部管理）
+  location_t location;         // 访问位置（GCC 内部管理）
+};
+
 // 计算表达式来源信息
 struct ComputationSource {
   gimple *compute_stmt;        // 计算语句（GIMPLE_ASSIGN，GCC 内部管理）
@@ -70,7 +83,8 @@ struct FieldSourceInfo {
     FunctionCallSource function_call;  // 函数调用来源
     VariableSource variable;           // 变量来源
     ConstantSource constant;           // 常量来源
-    ComputationSource computation;    // 计算来源
+    FieldAccessSource field_access;    // 字段访问来源
+    ComputationSource computation;     // 计算来源
     PhiSource phi;                     // PHI 节点来源
   } data;
 };
@@ -83,6 +97,7 @@ struct FieldSourceInfo {
 #define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == ::array_detector::SOURCE_FUNCTION_CALL)
 #define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == ::array_detector::SOURCE_VARIABLE)
 #define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == ::array_detector::SOURCE_CONSTANT)
+#define FIELD_SOURCE_IS_FIELD_ACCESS(src) ((src).source_type == ::array_detector::SOURCE_FIELD_ACCESS)
 #define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == ::array_detector::SOURCE_COMPUTATION)
 #define FIELD_SOURCE_IS_PHI(src) ((src).source_type == ::array_detector::SOURCE_PHI)
 #define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == ::array_detector::SOURCE_UNKNOWN)
@@ -98,6 +113,10 @@ struct FieldSourceInfo {
 // 安全访问常量来源
 #define FIELD_SOURCE_GET_CONSTANT(src) \
   (FIELD_SOURCE_IS_CONSTANT (src) ? &((src).data.constant) : nullptr)
+
+// 安全访问字段访问来源
+#define FIELD_SOURCE_GET_FIELD_ACCESS(src) \
+  (FIELD_SOURCE_IS_FIELD_ACCESS (src) ? &((src).data.field_access) : nullptr)
 
 // 安全访问计算来源
 #define FIELD_SOURCE_GET_COMPUTATION(src) \
@@ -143,6 +162,13 @@ struct FieldSourceInfo {
 #define LET_SOURCE_CONSTANT(VAR, SRC) \
   if (FIELD_SOURCE_IS_CONSTANT (SRC)) { \
     ::array_detector::ConstantSource& VAR = (SRC).data.constant;
+
+// 字段访问来源模式匹配
+// VAR: 变量名（引用类型）
+// SRC: FieldSourceInfo 对象（值或引用）
+#define LET_SOURCE_FIELD_ACCESS(VAR, SRC) \
+  if (FIELD_SOURCE_IS_FIELD_ACCESS (SRC)) { \
+    ::array_detector::FieldAccessSource& VAR = (SRC).data.field_access;
 
 // 计算来源模式匹配
 // VAR: 变量名（引用类型）

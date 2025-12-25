@@ -440,6 +440,36 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
     AD_DEBUG_PRINT ("  Source type: CONSTANT");
     AD_DEBUG_PRINT ("  Constant value: %s", constant.constant_str ? constant.constant_str : "<unknown>");
   } END_LET ()
+  else LET_SOURCE_FIELD_ACCESS (field_access, *source_info) {
+    AD_DEBUG_PRINT ("  Source type: FIELD_ACCESS");
+    AD_DEBUG_PRINT ("  Object type: %s", field_access.type_name ? field_access.type_name : "<unknown>");
+    AD_DEBUG_PRINT ("  Field name: %s", field_access.field_name ? field_access.field_name : "<unknown>");
+
+    // 打印基对象的信息
+    if (field_access.base_object) {
+      enum tree_code base_code = TREE_CODE (field_access.base_object);
+      if (base_code == SSA_NAME) {
+        tree var_decl = SSA_NAME_VAR (field_access.base_object);
+        if (var_decl && DECL_NAME (var_decl)) {
+          char const * var_name = IDENTIFIER_POINTER (DECL_NAME (var_decl));
+          AD_DEBUG_PRINT ("  Base object: %s (SSA_NAME)", var_name);
+        } else {
+          AD_DEBUG_PRINT ("  Base object: <unnamed-ssa> (SSA_NAME)");
+        }
+      } else if (base_code == VAR_DECL) {
+        if (DECL_NAME (field_access.base_object)) {
+          char const * var_name = IDENTIFIER_POINTER (DECL_NAME (field_access.base_object));
+          AD_DEBUG_PRINT ("  Base object: %s (VAR_DECL)", var_name);
+        } else {
+          AD_DEBUG_PRINT ("  Base object: <unnamed-var> (VAR_DECL)");
+        }
+      } else {
+        AD_DEBUG_PRINT ("  Base object: <%s>", get_tree_code_name (base_code));
+      }
+    } else {
+      AD_DEBUG_PRINT ("  Base object: <null>");
+    }
+  } END_LET ()
   else LET_SOURCE_COMPUTATION (comp, *source_info) {
     AD_DEBUG_PRINT ("  Source type: COMPUTATION");
     AD_DEBUG_PRINT ("  Description: %s", comp.description ? comp.description : "<unknown>");

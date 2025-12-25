@@ -92,6 +92,26 @@ ArrayDetectErrorCode extractSourceFromConstant (
   FieldSourceInfo * &result
 );
 
+// 从字段访问提取来源信息
+// 输入：access_expr - 字段访问表达式（MEM_REF/COMPONENT_REF）
+//       access_stmt - 访问语句（GIMPLE_ASSIGN，可能为 NULL，如果为 NULL 则使用 fallback_stmt）
+//       fallback_stmt - 备用语句（当 access_stmt 为 NULL 时使用）
+//       location - 源码位置
+//       function - 所在函数（用于上下文信息）
+//       bb - 所在基本块（用于上下文信息）
+// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
+ArrayDetectErrorCode extractSourceFromFieldAccess (
+  ArrayDetector &detector,
+  AD_FUNC_ARGS,
+  tree access_expr,
+  gimple * access_stmt_nullable,
+  gimple * fallback_stmt,
+  location_t location,
+  tree function,
+  basic_block bb,
+  FieldSourceInfo * &result
+);
+
 // 从 PHI 节点提取来源信息
 // 输入：phi_stmt - GIMPLE_PHI 语句
 //       ssa_name - PHI 的结果 SSA_NAME
