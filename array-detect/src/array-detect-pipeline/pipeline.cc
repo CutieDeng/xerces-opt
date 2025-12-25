@@ -2,6 +2,7 @@
 #include "field-write-collector.hh"
 #include "write-operation-trace.hh"
 #include "source-escape-collection.hh"
+#include "escape-synthesizer.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -35,8 +36,15 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_DEBUG_PRINT ("Escape collection complete: %u writes collected, %u with escapes",
                   total_analyzed, total_escaped);
 
-  // 第四步：输出结果
-  AD_DEBUG_PRINT ("Step 4: Printing results");
+  // 第四步：逃逸综合分析
+  AD_DEBUG_PRINT ("Step 4: Synthesizing escape information");
+  vec<EscapeSynthesisResult*> * synthesis_results = NULL;
+  unsigned int total_synthesized = 0;
+  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, synthesis_results, total_synthesized));
+  AD_DEBUG_PRINT ("Escape synthesis complete: %u results synthesized", total_synthesized);
+
+  // 第五步：输出结果
+  AD_DEBUG_PRINT ("Step 5: Printing results");
   AD_TRY (printResults (AD_ARGS, detector));
 
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");
