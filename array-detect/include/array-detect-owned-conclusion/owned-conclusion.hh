@@ -107,12 +107,14 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
 // 打印字段 owned 结论
 void printFieldOwnedConclusion (
   AD_FUNC_ARGS,
+  FILE* out,
   FieldOwnedConclusion* conclusion
 );
 
 // 打印所有字段 owned 结论
 void printAllFieldOwnedConclusions (
   AD_FUNC_ARGS,
+  FILE* out,
   vec<FieldOwnedConclusion*, va_gc>* conclusions
 );
 

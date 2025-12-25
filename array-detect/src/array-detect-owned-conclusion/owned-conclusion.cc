@@ -412,20 +412,21 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
 
 void printFieldOwnedConclusion (
   AD_FUNC_ARGS,
+  FILE* out,
   FieldOwnedConclusion* conclusion
 ) {
   (void)ctx;
   (void)gcc_ctx;
 
-  if (!conclusion) {
+  if (!conclusion || !out) {
     return;
   }
 
-  fprintf (stderr, "\n");
-  fprintf (stderr, "=== Field Owned Conclusion ===\n");
-  fprintf (stderr, "Type: %s\n", conclusion->type_name);
-  fprintf (stderr, "Field: %s\n", conclusion->field_name);
-  fprintf (stderr, "\n");
+  fprintf (out, "\n");
+  fprintf (out, "=== Field Owned Conclusion ===\n");
+  fprintf (out, "Type: %s\n", conclusion->type_name);
+  fprintf (out, "Field: %s\n", conclusion->field_name);
+  fprintf (out, "\n");
 
   const char* verdict_str = "UNDETERMINED";
   switch (conclusion->verdict) {
@@ -434,73 +435,73 @@ void printFieldOwnedConclusion (
     case OWNED_UNDETERMINED: verdict_str = "UNDETERMINED"; break;
   }
 
-  fprintf (stderr, "Verdict: %s\n", verdict_str);
-  fprintf (stderr, "Description: %s\n", conclusion->conclusion_description);
-  fprintf (stderr, "\n");
+  fprintf (out, "Verdict: %s\n", verdict_str);
+  fprintf (out, "Description: %s\n", conclusion->conclusion_description);
+  fprintf (out, "\n");
 
-  fprintf (stderr, "Statistics:\n");
-  fprintf (stderr, "  Total writes: %u\n", conclusion->total_writes);
-  fprintf (stderr, "  Supporting writes: %u\n", conclusion->supporting_writes_count);
-  fprintf (stderr, "  Rejecting writes: %u\n", conclusion->rejecting_writes_count);
-  fprintf (stderr, "\n");
+  fprintf (out, "Statistics:\n");
+  fprintf (out, "  Total writes: %u\n", conclusion->total_writes);
+  fprintf (out, "  Supporting writes: %u\n", conclusion->supporting_writes_count);
+  fprintf (out, "  Rejecting writes: %u\n", conclusion->rejecting_writes_count);
+  fprintf (out, "\n");
 
   // 打印支持证据
   if (conclusion->supporting_evidences && conclusion->supporting_evidences->length () > 0) {
-    fprintf (stderr, "Supporting Evidence:\n");
+    fprintf (out, "Supporting Evidence:\n");
     for (unsigned int i = 0; i < conclusion->supporting_evidences->length (); i++) {
       OwnedSupportingEvidence* evidence = (*conclusion->supporting_evidences)[i];
       if (!evidence) continue;
 
-      fprintf (stderr, "  [%u] %s:%d:%d\n",
+      fprintf (out, "  [%u] %s:%d:%d\n",
                i,
                LOCATION_FILE (evidence->location),
                LOCATION_LINE (evidence->location),
                LOCATION_COLUMN (evidence->location));
-      fprintf (stderr, "      Source: %s\n", evidence->source_description);
-      fprintf (stderr, "      Uses: %u, Escapes: %u, Categories: 0x%x\n",
+      fprintf (out, "      Source: %s\n", evidence->source_description);
+      fprintf (out, "      Uses: %u, Escapes: %u, Categories: 0x%x\n",
                evidence->total_uses,
                evidence->total_escapes,
                evidence->category_bitmap);
       if (evidence->has_transfer_analysis) {
-        fprintf (stderr, "      Ownership transfer: %s\n", evidence->transfer_verdict_str);
+        fprintf (out, "      Ownership transfer: %s\n", evidence->transfer_verdict_str);
       }
     }
-    fprintf (stderr, "\n");
+    fprintf (out, "\n");
   }
 
   // 打印拒绝证据
   if (conclusion->rejecting_evidences && conclusion->rejecting_evidences->length () > 0) {
-    fprintf (stderr, "Rejecting Evidence:\n");
+    fprintf (out, "Rejecting Evidence:\n");
     for (unsigned int i = 0; i < conclusion->rejecting_evidences->length (); i++) {
       OwnedRejectingEvidence* evidence = (*conclusion->rejecting_evidences)[i];
       if (!evidence) continue;
 
-      fprintf (stderr, "  [%u] %s:%d:%d\n",
+      fprintf (out, "  [%u] %s:%d:%d\n",
                i,
                LOCATION_FILE (evidence->location),
                LOCATION_LINE (evidence->location),
                LOCATION_COLUMN (evidence->location));
-      fprintf (stderr, "      Reason: %s\n", evidence->rejection_reason);
+      fprintf (out, "      Reason: %s\n", evidence->rejection_reason);
 
       if (evidence->has_invalid_source) {
-        fprintf (stderr, "      Source type: %s\n", evidence->source_description);
+        fprintf (out, "      Source type: %s\n", evidence->source_description);
       }
 
       if (evidence->has_rejecting_escape) {
-        fprintf (stderr, "      Escape categories: 0x%x (%s)\n",
+        fprintf (out, "      Escape categories: 0x%x (%s)\n",
                  evidence->category_bitmap,
                  getEscapeCategoryDescription (evidence->category_bitmap));
-        fprintf (stderr, "      Total escapes: %u\n", evidence->total_escapes);
+        fprintf (out, "      Total escapes: %u\n", evidence->total_escapes);
       }
 
       if (evidence->has_transfer_issue) {
-        fprintf (stderr, "      Ownership transfer: %s\n", evidence->transfer_verdict_str);
+        fprintf (out, "      Ownership transfer: %s\n", evidence->transfer_verdict_str);
       }
     }
-    fprintf (stderr, "\n");
+    fprintf (out, "\n");
   }
 
-  fprintf (stderr, "==============================\n");
+  fprintf (out, "==============================\n");
 }
 
 // ============================================================================
@@ -509,20 +510,25 @@ void printFieldOwnedConclusion (
 
 void printAllFieldOwnedConclusions (
   AD_FUNC_ARGS,
+  FILE* out,
   vec<FieldOwnedConclusion*, va_gc>* conclusions
 ) {
   (void)ctx;
   (void)gcc_ctx;
 
-  if (!conclusions || conclusions->length () == 0) {
-    fprintf (stderr, "\nNo field owned conclusions to print.\n");
+  if (!out) {
     return;
   }
 
-  fprintf (stderr, "\n");
-  fprintf (stderr, "================================================================================\n");
-  fprintf (stderr, "                    FIELD OWNED CONCLUSION ANALYSIS RESULTS\n");
-  fprintf (stderr, "================================================================================\n");
+  if (!conclusions || conclusions->length () == 0) {
+    fprintf (out, "\nNo field owned conclusions to print.\n");
+    return;
+  }
+
+  fprintf (out, "\n");
+  fprintf (out, "================================================================================\n");
+  fprintf (out, "                    FIELD OWNED CONCLUSION ANALYSIS RESULTS\n");
+  fprintf (out, "================================================================================\n");
 
   unsigned int yes_count = 0;
   unsigned int no_count = 0;
@@ -538,18 +544,18 @@ void printAllFieldOwnedConclusions (
       case OWNED_UNDETERMINED: undetermined_count++; break;
     }
 
-    printFieldOwnedConclusion (AD_ARGS, conclusion);
+    printFieldOwnedConclusion (AD_ARGS, out, conclusion);
   }
 
-  fprintf (stderr, "\n");
-  fprintf (stderr, "================================================================================\n");
-  fprintf (stderr, "Summary:\n");
-  fprintf (stderr, "  Total fields analyzed: %u\n", conclusions->length ());
-  fprintf (stderr, "  YES (may be owned): %u\n", yes_count);
-  fprintf (stderr, "  NO (cannot be owned): %u\n", no_count);
-  fprintf (stderr, "  UNDETERMINED: %u\n", undetermined_count);
-  fprintf (stderr, "================================================================================\n");
-  fprintf (stderr, "\n");
+  fprintf (out, "\n");
+  fprintf (out, "================================================================================\n");
+  fprintf (out, "Summary:\n");
+  fprintf (out, "  Total fields analyzed: %u\n", conclusions->length ());
+  fprintf (out, "  YES (may be owned): %u\n", yes_count);
+  fprintf (out, "  NO (cannot be owned): %u\n", no_count);
+  fprintf (out, "  UNDETERMINED: %u\n", undetermined_count);
+  fprintf (out, "================================================================================\n");
+  fprintf (out, "\n");
 }
 
 } // namespace array_detect_ns
