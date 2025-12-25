@@ -27,34 +27,6 @@ using namespace ::array_detector;
 // 所有详尽信息供后续逃逸综合器模块使用
 // ============================================================================
 
-// ============================================================================
-// 默认配置
-// ============================================================================
-
-SourceUseEscapeRules getDefaultEscapeRules() {
-  SourceUseEscapeRules rules;
-
-  // 函数调用
-  rules.external_call_is_escape = true;
-  rules.virtual_call_is_escape = true;
-  rules.indirect_call_is_escape = true;
-
-  // 存储
-  rules.global_store_is_escape = true;
-  rules.heap_store_is_escape = true;
-  rules.field_store_is_escape = true;  // 字段存储可能导致逃逸（指针共享）
-
-  // 返回和参数
-  rules.return_is_escape = true;
-  rules.param_to_external_is_escape = true;
-  rules.param_to_internal_is_escape = false;
-
-  // 分析控制
-  rules.max_analysis_depth = 5;
-  rules.stop_at_first_escape = false;
-
-  return rules;
-}
 
 // ============================================================================
 // 辅助函数实现
@@ -188,11 +160,10 @@ ArrayDetectErrorCode isFunctionExternal (
   AD_RETURNO (false);
 } AD_FUNCTION_END
 
-// 检测逃逸类型
+// 检测逃逸类型（全量逃逸检测，所有可能的逃逸均被捕获）
 ArrayDetectErrorCode detectEscapeKind (
   AD_FUNC_ARGS,
   const SourceUseInfo &use_info,
-  const SourceUseEscapeRules &rules,
   SourceUseEscapeKind &result
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Detecting escape kind");
@@ -201,8 +172,8 @@ ArrayDetectErrorCode detectEscapeKind (
 
   switch (use_info.kind) {
     case SU_USE_RETURN:
-      AD_DEBUG_PRINT ("Use is RETURN, escape=%d", rules.return_is_escape);
-      AD_RETURNO (rules.return_is_escape ? SU_ESCAPE_RETURN : SU_ESCAPE_NONE);
+      AD_DEBUG_PRINT ("Use is RETURN -> ESCAPE");
+      AD_RETURNO (SU_ESCAPE_RETURN);
 
     case SU_USE_CALL_ARG: {
       // 检查被调用的函数
@@ -210,33 +181,33 @@ ArrayDetectErrorCode detectEscapeKind (
 
       tree fn = gimple_call_fn (stmt);
       if (!fn) {
-        AD_DEBUG_PRINT ("Unknown function call");
+        AD_DEBUG_PRINT ("Unknown function call -> ESCAPE_UNKNOWN");
         AD_RETURNO (SU_ESCAPE_UNKNOWN);
       }
 
       // 虚函数调用
       if (TREE_CODE (fn) == OBJ_TYPE_REF) {
-        AD_DEBUG_PRINT ("Virtual call detected, escape=%d", rules.virtual_call_is_escape);
-        AD_RETURNO (rules.virtual_call_is_escape ? SU_ESCAPE_VIRTUAL_CALL : SU_ESCAPE_NONE);
+        AD_DEBUG_PRINT ("Virtual call detected -> ESCAPE");
+        AD_RETURNO (SU_ESCAPE_VIRTUAL_CALL);
       }
 
       // 间接调用
       if (TREE_CODE (fn) != ADDR_EXPR) {
-        AD_DEBUG_PRINT ("Indirect call detected, escape=%d", rules.indirect_call_is_escape);
-        AD_RETURNO (rules.indirect_call_is_escape ? SU_ESCAPE_INDIRECT_CALL : SU_ESCAPE_NONE);
+        AD_DEBUG_PRINT ("Indirect call detected -> ESCAPE");
+        AD_RETURNO (SU_ESCAPE_INDIRECT_CALL);
       }
 
-      // 直接调用
+      // 直接调用 - 全量分析：无论内部还是外部函数均视为逃逸
       tree fn_decl = TREE_OPERAND (fn, 0);
       bool is_external = false;
       AD_TRY (isFunctionExternal (AD_ARGS, fn_decl, is_external));
 
       if (is_external) {
-        AD_DEBUG_PRINT ("External function call, escape=%d", rules.param_to_external_is_escape);
-        AD_RETURNO (rules.param_to_external_is_escape ? SU_ESCAPE_EXTERNAL_CALL : SU_ESCAPE_NONE);
+        AD_DEBUG_PRINT ("External function call -> ESCAPE");
+        AD_RETURNO (SU_ESCAPE_EXTERNAL_CALL);
       } else {
-        AD_DEBUG_PRINT ("Internal function call, escape=%d", rules.param_to_internal_is_escape);
-        AD_RETURNO (rules.param_to_internal_is_escape ? SU_ESCAPE_PARAMETER : SU_ESCAPE_NONE);
+        AD_DEBUG_PRINT ("Internal function call -> ESCAPE (full analysis mode)");
+        AD_RETURNO (SU_ESCAPE_PARAMETER);
       }
     }
 
@@ -249,18 +220,18 @@ ArrayDetectErrorCode detectEscapeKind (
 
       // 全局变量
       if (TREE_CODE (lhs) == VAR_DECL && is_global_var (lhs)) {
-        AD_DEBUG_PRINT ("Global store detected, escape=%d", rules.global_store_is_escape);
-        AD_RETURNO (rules.global_store_is_escape ? SU_ESCAPE_GLOBAL_STORE : SU_ESCAPE_NONE);
+        AD_DEBUG_PRINT ("Global store detected -> ESCAPE");
+        AD_RETURNO (SU_ESCAPE_GLOBAL_STORE);
       }
 
       // 间接存储（可能是堆或字段）
       if (TREE_CODE (lhs) == MEM_REF || TREE_CODE (lhs) == COMPONENT_REF) {
         if (TREE_CODE (lhs) == COMPONENT_REF) {
-          AD_DEBUG_PRINT ("Field store detected, escape=%d", rules.field_store_is_escape);
-          AD_RETURNO (rules.field_store_is_escape ? SU_ESCAPE_FIELD_STORE : SU_ESCAPE_NONE);
+          AD_DEBUG_PRINT ("Field store detected -> ESCAPE");
+          AD_RETURNO (SU_ESCAPE_FIELD_STORE);
         } else {
-          AD_DEBUG_PRINT ("Heap store detected, escape=%d", rules.heap_store_is_escape);
-          AD_RETURNO (rules.heap_store_is_escape ? SU_ESCAPE_HEAP_STORE : SU_ESCAPE_NONE);
+          AD_DEBUG_PRINT ("Heap store detected -> ESCAPE");
+          AD_RETURNO (SU_ESCAPE_HEAP_STORE);
         }
       }
       break;
@@ -293,10 +264,9 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
   AD_FUNC_ARGS,
   tree ssa_name,
   SourceUseAnalysisResult * result,
-  const SourceUseEscapeRules &rules,
   unsigned int depth
 ) AD_FUNCTION_BEGIN {
-  if (depth >= rules.max_analysis_depth) {
+  if (depth >= MAX_ESCAPE_ANALYSIS_DEPTH) {
     AD_DEBUG_PRINT ("Max trace depth reached: %u", depth);
     result->is_fully_analyzed = false;
     AD_RETURNE (OK);
@@ -337,7 +307,7 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
 
       // 检测逃逸
       SourceUseEscapeKind escape_kind = SU_ESCAPE_NONE;
-      AD_TRY (detectEscapeKind (AD_ARGS, use_info, rules, escape_kind));
+      AD_TRY (detectEscapeKind (AD_ARGS, use_info, escape_kind));
 
       use_info.escape_kind = escape_kind;
       use_info.is_escape = (escape_kind != SU_ESCAPE_NONE);
@@ -394,11 +364,7 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
         }
 
         result->escape_locations->safe_push (escape_loc);
-
-        if (rules.stop_at_first_escape) {
-          AD_DEBUG_PRINT ("Stopping at first escape (as configured)");
-          AD_RETURNE (OK);
-        }
+        // 全量分析模式：继续收集所有逃逸位置，不提前停止
       }
 
       // 如果是赋值，继续追踪新的 SSA
@@ -406,7 +372,7 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
         tree lhs = gimple_assign_lhs (use_stmt);
         if (lhs && TREE_CODE (lhs) == SSA_NAME) {
           AD_DEBUG_PRINT ("  Following SSA assignment chain");
-          AD_TRY (traceSSAUseChainEscapes (AD_ARGS, lhs, result, rules, depth + 1));
+          AD_TRY (traceSSAUseChainEscapes (AD_ARGS, lhs, result, depth + 1));
         }
       }
     }
@@ -423,7 +389,6 @@ ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
-  const SourceUseEscapeRules &rules,
   SourceUseAnalysisResult * &result
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Collecting source operand escapes");
@@ -455,7 +420,7 @@ ArrayDetectErrorCode collectSourceOperandEscapes (
   // 开始跟踪收集
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
     AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting escape trace");
-    AD_TRY (traceSSAUseChainEscapes (AD_ARGS, source_operand, tmp_result, rules, 0));
+    AD_TRY (traceSSAUseChainEscapes (AD_ARGS, source_operand, tmp_result, 0));
   } else {
     AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping escape trace");
   }
@@ -480,7 +445,6 @@ ArrayDetectErrorCode collectSourceOperandEscapes (
 ArrayDetectErrorCode collectFieldWriteEscapes (
   AD_FUNC_ARGS,
   FieldWriteCapture * write_capture,
-  const SourceUseEscapeRules &rules,
   SourceUseAnalysisResult * &result
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Collecting field write escapes");
@@ -499,7 +463,7 @@ ArrayDetectErrorCode collectFieldWriteEscapes (
 
   // 使用临时变量接收收集结果
   SourceUseAnalysisResult * tmp_result = NULL;
-  AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, rules, tmp_result));
+  AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, tmp_result));
 
   if (tmp_result) {
     // 关联原始数据
@@ -614,7 +578,7 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   unsigned int &total_analyzed,
   unsigned int &total_escaped
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Collecting all field escapes");
+  AD_DEBUG_PRINT ("Collecting all field escapes (full analysis mode)");
 
   total_analyzed = 0;
   total_escaped = 0;
@@ -622,8 +586,6 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   if (!detector.m_type_field_writes) {
     AD_RETURNE (OK);
   }
-
-  SourceUseEscapeRules escape_rules = getDefaultEscapeRules ();
 
   typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
@@ -638,7 +600,7 @@ ArrayDetectErrorCode collectAllFieldEscapes (
       if (!capture) continue;
 
       SourceUseAnalysisResult * use_result = NULL;
-      AD_TRY (collectFieldWriteEscapes (AD_ARGS, capture, escape_rules, use_result));
+      AD_TRY (collectFieldWriteEscapes (AD_ARGS, capture, use_result));
 
       if (use_result) {
         total_analyzed++;
@@ -646,23 +608,8 @@ ArrayDetectErrorCode collectAllFieldEscapes (
           total_escaped++;
         }
 
-        if (ctx.debug_file && use_result->has_escape) {
-          AD_DEBUG_PRINT ("  Field write source has escapes: %u uses, %u escapes, %u locations",
-                          use_result->total_use_count,
-                          use_result->escape_count,
-                          use_result->escape_locations ? use_result->escape_locations->length () : 0);
-
-          // 输出所有逃逸位置的详细信息
-          if (use_result->escape_locations) {
-            for (unsigned j = 0; j < use_result->escape_locations->length (); j++) {
-              const SourceUseEscapeLocation &loc = (*use_result->escape_locations)[j];
-              AD_DEBUG_PRINT ("    [%u] %s -> %s",
-                              j,
-                              getEscapeKindString (loc.kind),
-                              loc.escape_target ? loc.escape_target : "<unknown>");
-            }
-          }
-        }
+        // 输出所有收集到的 escape 信息到 stderr
+        printSourceUseAnalysisResult (use_result, stderr);
       }
     }
   }

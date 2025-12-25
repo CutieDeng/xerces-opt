@@ -117,28 +117,11 @@ struct SourceUseAnalysisResult {
 };
 
 // ============================================================================
-// 逃逸规则配置
+// 分析配置常量
 // ============================================================================
 
-struct SourceUseEscapeRules {
-  bool external_call_is_escape;
-  bool virtual_call_is_escape;
-  bool indirect_call_is_escape;
-  bool global_store_is_escape;
-  bool heap_store_is_escape;
-  bool field_store_is_escape;
-  bool return_is_escape;
-  bool param_to_external_is_escape;
-  bool param_to_internal_is_escape;
-  unsigned int max_analysis_depth;
-  bool stop_at_first_escape;
-};
-
-// ============================================================================
-// 配置获取
-// ============================================================================
-
-SourceUseEscapeRules getDefaultEscapeRules ();
+// 最大分析深度（SSA 使用链追踪）
+constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 
 // ============================================================================
 // 核心收集接口
@@ -158,24 +141,22 @@ ArrayDetectErrorCode collectAllFieldEscapes (
 // 收集单个源操作数的逃逸信息
 // 输入：source_operand - 源操作数（SSA_NAME）
 //       source_stmt - 源语句
-//       rules - 逃逸规则
 // 输出：result - 收集结果指针（GC 管理）
+// 注：采用全量逃逸检测策略，所有可能的逃逸情况均被检测
 ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
-  SourceUseEscapeRules const &rules,
   SourceUseAnalysisResult * &result
 );
 
 // 从字段写入中收集逃逸信息
 // 输入：write_capture - 字段写入捕获
-//       rules - 逃逸规则
 // 输出：result - 收集结果指针（GC 管理）
+// 注：采用全量逃逸检测策略，所有可能的逃逸情况均被检测
 ArrayDetectErrorCode collectFieldWriteEscapes (
   AD_FUNC_ARGS,
   FieldWriteCapture * write_capture,
-  SourceUseEscapeRules const &rules,
   SourceUseAnalysisResult * &result
 );
 
