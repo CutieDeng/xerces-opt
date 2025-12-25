@@ -3,6 +3,7 @@
 #include "write-operation-trace.hh"
 #include "source-escape-collection.hh"
 #include "escape-synthesizer.hh"
+#include "ownership-transfer-analysis.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -43,8 +44,16 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, synthesis_results, total_synthesized));
   AD_DEBUG_PRINT ("Escape synthesis complete: %u results synthesized", total_synthesized);
 
-  // 第五步：输出结果
-  AD_DEBUG_PRINT ("Step 5: Printing results");
+  // 第五步：所有权转移分析
+  AD_DEBUG_PRINT ("Step 5: Analyzing ownership transfers");
+  unsigned int transfer_analyzed = 0;
+  unsigned int certain_transfers = 0;
+  AD_TRY (analyzeAllOwnershipTransfers (AD_ARGS, detector, transfer_analyzed, certain_transfers));
+  AD_DEBUG_PRINT ("Ownership transfer analysis complete: %u analyzed, %u certain transfers",
+                  transfer_analyzed, certain_transfers);
+
+  // 第六步：输出结果
+  AD_DEBUG_PRINT ("Step 6: Printing results");
   AD_TRY (printResults (AD_ARGS, detector));
 
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");
