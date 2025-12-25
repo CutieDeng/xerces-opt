@@ -2,6 +2,8 @@
 #lang racket
 
 (require file/glob)
+(require "lib-config.rkt")
+(require "exe-config.rkt")
 
 ;; ============================================================================
 ;; Platform Detection
@@ -19,10 +21,23 @@
 ;; Compiler and Directory Setup
 ;; ============================================================================
 
-(define cxx
-  (or (find-executable-path "g++-15")
-      (find-executable-path "g++")
-      (raise-user-error "Cannot find g++ compiler")))
+;; 编译器路径检测：优先使用自定义配置，否则自动检测
+(define (detect-compiler)
+  (cond
+    ;; 1. 使用自定义路径（如果设置了）
+    [gcc-custom-path
+     (let ([custom-cxx (if (absolute-path? gcc-custom-path)
+                          gcc-custom-path
+                          (find-executable-path gcc-custom-path))])
+       (or custom-cxx
+           (raise-user-error "Custom GCC path '~a' not found" gcc-custom-path)))]
+    ;; 2. 自动检测
+    [else
+     (or (find-executable-path "g++-15")
+         (find-executable-path "g++")
+         (raise-user-error "Cannot find g++ compiler"))]))
+
+(define cxx (detect-compiler))
 
 (define object-dir "obj")
 (module+ main (make-directory* object-dir))
@@ -124,48 +139,72 @@
 ;; Library Dependencies - Platform-Specific
 ;; ============================================================================
 
-;; GMP library (uses pkg-config on all platforms)
+;; 通用函数：从库路径生成编译器参数
+(define (lib-path-to-args lib-path)
+  `("-I" ,(path->string (build-path lib-path "include"))
+    "-L" ,(path->string (build-path lib-path "lib"))))
+
+;; GMP library
 (define (gmp/args)
   (with-handlers ([exn? (lambda (_) '())])
-    (append
-      (string-split (string-trim (with-output-to-string
-        (lambda () (system "pkg-config --libs gmp")))))
-      (string-split (string-trim (with-output-to-string
-        (lambda () (system "pkg-config --cflags gmp"))))))))
+    (cond
+      ;; 1. 使用自定义路径（如果设置了）
+      [gmp-custom-path
+       (lib-path-to-args gmp-custom-path)]
+      ;; 2. 使用 pkg-config 自动检测
+      [else
+       (append
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --libs gmp")))))
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --cflags gmp"))))))])))
+
 
 ;; MPC library
 (define (mpc/args)
   (with-handlers ([exn? (lambda (_) '())])
-    (if is-macos?
-        ;; macOS: use Homebrew
-        (let ([mpc-directory
-               (string-trim (with-output-to-string
-                 (lambda () (system "brew --prefix libmpc"))))])
-          `("-I" ,(path->string (build-path mpc-directory "include"))
-            "-L" ,(path->string (build-path mpc-directory "lib"))))
-        ;; Linux: use pkg-config
-        (append
-          (string-split (string-trim (with-output-to-string
-            (lambda () (system "pkg-config --libs mpc")))))
-          (string-split (string-trim (with-output-to-string
-            (lambda () (system "pkg-config --cflags mpc")))))))))
+    (cond
+      ;; 1. 使用自定义路径（如果设置了）
+      [mpc-custom-path
+       (lib-path-to-args mpc-custom-path)]
+      ;; 2. macOS: 使用 Homebrew 自动检测
+      [is-macos?
+       (let ([mpc-directory
+              (string-trim (with-output-to-string
+                (lambda () (system "brew --prefix libmpc"))))])
+         `("-I" ,(path->string (build-path mpc-directory "include"))
+           "-L" ,(path->string (build-path mpc-directory "lib"))))]
+      ;; 3. Linux: 使用 pkg-config 自动检测
+      [else
+       (append
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --libs mpc")))))
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --cflags mpc"))))))])))
+
 
 ;; MPFR library
 (define (mpfr/args)
   (with-handlers ([exn? (lambda (_) '())])
-    (if is-macos?
-        ;; macOS: use Homebrew
-        (let ([mpfr-directory
-               (string-trim (with-output-to-string
-                 (lambda () (system "brew --prefix mpfr"))))])
-          `("-I" ,(path->string (build-path mpfr-directory "include"))
-            "-L" ,(path->string (build-path mpfr-directory "lib"))))
-        ;; Linux: use pkg-config
-        (append
-          (string-split (string-trim (with-output-to-string
-            (lambda () (system "pkg-config --libs mpfr")))))
-          (string-split (string-trim (with-output-to-string
-            (lambda () (system "pkg-config --cflags mpfr")))))))))
+    (cond
+      ;; 1. 使用自定义路径（如果设置了）
+      [mpfr-custom-path
+       (lib-path-to-args mpfr-custom-path)]
+      ;; 2. macOS: 使用 Homebrew 自动检测
+      [is-macos?
+       (let ([mpfr-directory
+              (string-trim (with-output-to-string
+                (lambda () (system "brew --prefix mpfr"))))])
+         `("-I" ,(path->string (build-path mpfr-directory "include"))
+           "-L" ,(path->string (build-path mpfr-directory "lib"))))]
+      ;; 3. Linux: 使用 pkg-config 自动检测
+      [else
+       (append
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --libs mpfr")))))
+         (string-split (string-trim (with-output-to-string
+           (lambda () (system "pkg-config --cflags mpfr"))))))])))
+
 
 ;; Combine all arguments
 (define args^ (append base-args (gmp/args) (mpc/args) (mpfr/args)))
