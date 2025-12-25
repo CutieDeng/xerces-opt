@@ -61,7 +61,7 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
 
   // 第七步：输出最终结果
   AD_DEBUG_PRINT ("Step 7: Printing final results");
-  printAllFieldOwnedConclusions (AD_ARGS, stderr, owned_conclusions);
+  printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
   AD_TRY (printResults (AD_ARGS, detector));
 
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");

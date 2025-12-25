@@ -490,7 +490,7 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
         record->ownership_transfer = transfer_result;
 
         // 打印结果（调试信息）
-        printOwnershipTransferResult (AD_ARGS, transfer_result);
+        printOwnershipTransferResult (AD_ARGS, ctx.debug_file, transfer_result);
 
         if (transfer_result->verdict == TRANSFER_CERTAIN) {
           total_certain_transfers++;
@@ -511,56 +511,57 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
 
 void printOwnershipTransferResult (
   AD_FUNC_ARGS,
+  FILE* out,
   OwnershipTransferAnalysisResult* result
 ) {
   (void)ctx;
   (void)gcc_ctx;
 
-  if (!result) {
+  if (!result || !out) {
     return;
   }
 
-  fprintf (stderr, "\n=== Ownership Transfer Analysis Result ===\n");
+  fprintf (out, "\n=== Ownership Transfer Analysis Result ===\n");
 
   if (result->verdict == TRANSFER_NOT_APPLICABLE) {
-    fprintf (stderr, "Verdict: NOT_APPLICABLE\n");
-    fprintf (stderr, "Description: %s\n", result->verdict_description ? result->verdict_description : "N/A");
-    fprintf (stderr, "==========================================\n");
+    fprintf (out, "Verdict: NOT_APPLICABLE\n");
+    fprintf (out, "Description: %s\n", result->verdict_description ? result->verdict_description : "N/A");
+    fprintf (out, "==========================================\n");
     return;
   }
 
   // 源字段信息
-  fprintf (stderr, "Source field: %s\n", result->source_field_name ? result->source_field_name : "<unknown>");
+  fprintf (out, "Source field: %s\n", result->source_field_name ? result->source_field_name : "<unknown>");
 
   // 转移位置
   if (result->transfer_location != UNKNOWN_LOCATION) {
     expanded_location xloc = expand_location (result->transfer_location);
-    fprintf (stderr, "Transfer location: %s:%d:%d\n", xloc.file, xloc.line, xloc.column);
+    fprintf (out, "Transfer location: %s:%d:%d\n", xloc.file, xloc.line, xloc.column);
   }
 
   // 销毁点
-  fprintf (stderr, "Invalidation points: %u\n",
+  fprintf (out, "Invalidation points: %u\n",
            result->invalidation_points ? result->invalidation_points->length () : 0);
   if (result->invalidation_points) {
     for (unsigned int i = 0; i < result->invalidation_points->length (); i++) {
       InvalidationPoint* point = (*result->invalidation_points)[i];
       if (point) {
-        fprintf (stderr, "  [%u] %s (bb=%d)\n", i,
+        fprintf (out, "  [%u] %s (bb=%d)\n", i,
                  point->description ? point->description : "unknown",
                  point->bb ? point->bb->index : -1);
         if (point->location != UNKNOWN_LOCATION) {
           expanded_location xloc = expand_location (point->location);
-          fprintf (stderr, "      Location: %s:%d:%d\n", xloc.file, xloc.line, xloc.column);
+          fprintf (out, "      Location: %s:%d:%d\n", xloc.file, xloc.line, xloc.column);
         }
       }
     }
   }
 
   // 路径统计
-  fprintf (stderr, "Path statistics:\n");
-  fprintf (stderr, "  Paths with invalidation: %u\n", result->paths_with_invalidation);
-  fprintf (stderr, "  Paths without invalidation: %u\n", result->paths_without_invalidation);
-  fprintf (stderr, "  Total exit paths: %u\n", result->total_exit_paths);
+  fprintf (out, "Path statistics:\n");
+  fprintf (out, "  Paths with invalidation: %u\n", result->paths_with_invalidation);
+  fprintf (out, "  Paths without invalidation: %u\n", result->paths_without_invalidation);
+  fprintf (out, "  Total exit paths: %u\n", result->total_exit_paths);
 
   // 结论
   char const* verdict_str = "UNKNOWN";
@@ -578,10 +579,10 @@ void printOwnershipTransferResult (
       verdict_str = "NOT_APPLICABLE";
       break;
   }
-  fprintf (stderr, "Verdict: %s\n", verdict_str);
-  fprintf (stderr, "Description: %s\n", result->verdict_description ? result->verdict_description : "N/A");
+  fprintf (out, "Verdict: %s\n", verdict_str);
+  fprintf (out, "Description: %s\n", result->verdict_description ? result->verdict_description : "N/A");
 
-  fprintf (stderr, "==========================================\n");
+  fprintf (out, "==========================================\n");
 }
 
 } // namespace array_detect_ns

@@ -71,9 +71,11 @@
 
 #define AD_DEBUG_PRINT2(file, fmt_msg, ...) \
   do { \
-    fprintf (file, "[%s +%d] %s: ", __FILE__, __LINE__, __func__); \
-    fprintf (file, fmt_msg, ##__VA_ARGS__); \
-    fprintf (file, "\n"); \
+    if (file) { \
+      fprintf (file, "[%s +%d] %s: ", __FILE__, __LINE__, __func__); \
+      fprintf (file, fmt_msg, ##__VA_ARGS__); \
+      fprintf (file, "\n"); \
+    } \
   } while (0)
 
 #define AD_DEBUG_PRINT(fmt_msg, ...) \

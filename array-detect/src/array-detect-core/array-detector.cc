@@ -188,9 +188,9 @@ ArrayDetectErrorCode addField (ArrayDetector &self, AD_FUNC_ARGS, FieldInfo * fi
   // 添加字段信息
   self.m_fields->safe_push (field_info);
   // 调试信息：输出字段添加情况
-  fprintf (stderr, "[ArrayDetector] Added field: %s::%s (total: %u)\n", 
-          field_info->containing_type, field_info->field_name, 
-          (unsigned)self.m_fields->length ());
+  AD_DEBUG_PRINT ("[ArrayDetector] Added field: %s::%s (total: %u)",
+                  field_info->containing_type, field_info->field_name,
+                  (unsigned)self.m_fields->length ());
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

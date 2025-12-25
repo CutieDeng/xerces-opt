@@ -24,7 +24,8 @@ namespace array_detect_ns {
 // Run entry: sets up runtime/context then hands off to the analyzer.
 ArrayDetectErrorCode runArrayDetect (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   initGccContext (AD_ARGS);
-  AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
+  // AD_ETRY2 (initContextWithStderr (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
+  AD_ETRY2 (initContextAdaptive (AD_ARGS), cleanup, false, true, "Failed to init context: %s");
   AD_TRY (runArrayDetectorAnalysis (AD_ARGS));
   AD_RETURNE (OK);
   cleanup:

@@ -5,6 +5,9 @@
 #include "array-detect-context-gcc.hh"
 #include "array-detect-context-gcc-interface.hh"
 
+#include <cstdlib>  // for getenv
+#include <cstring>  // for strcmp
+
 namespace array_detect_ns {
 
 namespace {
@@ -60,6 +63,45 @@ ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   if (false) {
     fail0:
     fclose (ctx.debug_file);
+    AD_RETURN ();
+  }
+} AD_FUNCTION_END
+
+ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  char const *debug_file_env = getenv ("AD_DEBUG_FILE");
+
+  if (debug_file_env == nullptr) {
+    // 环境变量未设置，禁用调试输出
+    ctx.debug_file = nullptr;
+    ctx.debug_file_dtor = nothingWithFile;
+    ctx.match_debug_tracer = false;
+    AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
+    AD_RETURNE_RAW (OK);
+  } else if (strcmp (debug_file_env, "stderr") == 0) {
+    // 使用标准错误输出
+    ctx.debug_file = stderr;
+    ctx.debug_file_dtor = nothingWithFile;
+    ctx.match_debug_tracer = false;
+    AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
+    AD_RETURNE_RAW (OK);
+  } else {
+    // 打开指定文件
+    AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s (from AD_DEBUG_FILE env)\n", debug_file_env);
+    ctx.debug_file = fopen (debug_file_env, "w");
+    ctx.debug_file_dtor = closeWrap;
+    ctx.match_debug_tracer = false;
+    if (ctx.debug_file == nullptr) {
+      AD_RETURNE_RAW (RESOURCE_ERROR);
+    }
+    AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
+    AD_RETURNE_RAW (OK);
+  }
+
+  if (false) {
+    fail0:
+    if (ctx.debug_file && ctx.debug_file != stderr) {
+      fclose (ctx.debug_file);
+    }
     AD_RETURN ();
   }
 } AD_FUNCTION_END

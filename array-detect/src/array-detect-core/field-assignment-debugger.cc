@@ -70,9 +70,11 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions (ArrayDetector &detector
         if (gimple_code (stmt) == GIMPLE_ASSIGN) {
           AD_DEBUG_PRINT ("  Found assignment statement, analyzing...");
           // 打印具体的赋值语句代码和位置信息
-          AD_TRY (gcc_ext_util::get_source_location_string (AD_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
-          fprintf (ctx.debug_file, "  Assignment statement at %s:\n", ctx.source_location_buffer);
-          print_gimple_stmt (ctx.debug_file, stmt, 4, TDF_DETAILS);
+          if (ctx.debug_file) {
+            AD_TRY (gcc_ext_util::get_source_location_string (AD_ARGS, gimple_location (stmt), ctx.source_location_buffer, ctx.source_location_buffer_size));
+            fprintf (ctx.debug_file, "  Assignment statement at %s:\n", ctx.source_location_buffer);
+            print_gimple_stmt (ctx.debug_file, stmt, 4, TDF_DETAILS);
+          }
           gcc_ext_util::analyze_gimple_assignment (AD_ARGS, stmt, detector, func_name, decl);
         }
         // 检查是否是GIMPLE_CALL语句（可能是通过调用赋值）

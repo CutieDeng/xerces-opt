@@ -13,6 +13,11 @@ ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS);
 ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_file_path);
 // 使用标准错误输出初始化上下文
 ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS);
+// 自适应初始化上下文：根据 AD_DEBUG_FILE 环境变量设置调试输出
+// - 如果环境变量为 "stderr"，使用标准错误输出
+// - 如果环境变量为其他值，打开相应文件
+// - 如果环境变量未设置，禁用调试输出（设为 NULL）
+ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS);
 // 清理上下文资源
 void deinitContext (AD_FUNC_ARGS);
 

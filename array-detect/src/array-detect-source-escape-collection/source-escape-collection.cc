@@ -631,8 +631,8 @@ ArrayDetectErrorCode collectAllFieldEscapes (
         // 不再使用 aux 链表，直接填充到 record->escape_analysis
         record->escape_analysis = use_result;
 
-        // 输出所有收集到的 escape 信息到 stderr
-        printSourceUseAnalysisResult (use_result, stderr);
+        // 输出所有收集到的 escape 信息
+        printSourceUseAnalysisResult (use_result, ctx.debug_file);
       }
     }
   }

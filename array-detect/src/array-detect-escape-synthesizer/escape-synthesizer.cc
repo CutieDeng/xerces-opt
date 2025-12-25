@@ -497,7 +497,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     AD_DEBUG_PRINT ("  Printing detailed escape synthesis results for (type=%s, field=%s)",
                     type_name ? type_name : "<unknown>",
                     field_name ? field_name : "<unknown>");
-    printFieldEscapeSynthesisResults (AD_ARGS, key.type, key.field_decl, field_synth_results, stderr);
+    printFieldEscapeSynthesisResults (AD_ARGS, key.type, key.field_decl, field_synth_results, ctx.debug_file);
 
     // === 进行二级综合：所有权分析 ===
     AD_DEBUG_PRINT ("  Performing ownership analysis for (type=%s, field=%s)",
@@ -509,7 +509,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     if (ownership_result) {
       AD_DEBUG_PRINT ("  Ownership analysis complete: verdict=%s",
                       getOwnershipVerdictString (ownership_result->verdict));
-      printOwnershipAnalysisResult (ownership_result, stderr);
+      printOwnershipAnalysisResult (ownership_result, ctx.debug_file);
     }
   }
 
@@ -700,7 +700,7 @@ void printOwnershipAnalysisResult (
   OwnershipAnalysisResult const * result,
   FILE * output
 ) {
-  if (!result) return;
+  if (!result || !output) return;
 
   fprintf (output, "\n");
   fprintf (output, "=== Ownership Analysis Result ===\n");
@@ -758,7 +758,7 @@ void printFieldEscapeSynthesisResults (
   vec<EscapeSynthesisResult*> * write_results,
   FILE * output
 ) {
-  if (!write_results) return;
+  if (!write_results || !output) return;
 
   // 获取类型名和字段名
   char const * type_name = NULL;

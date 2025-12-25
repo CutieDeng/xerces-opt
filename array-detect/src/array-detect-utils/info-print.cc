@@ -185,7 +185,8 @@ ArrayDetectErrorCode printGimpleCallDetails (
   if (!output_file) {
     output_file = ctx.debug_file;
     if (!output_file) {
-      output_file = stderr;
+      // 如果没有调试输出文件，直接返回
+      AD_RETURNE (OK);
     }
   }
   

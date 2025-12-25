@@ -144,6 +144,7 @@ ArrayDetectErrorCode analyzePathsToExit (
 // 打印所有权转移分析结果
 void printOwnershipTransferResult (
   AD_FUNC_ARGS,
+  FILE* out,
   OwnershipTransferAnalysisResult* result
 );
 
