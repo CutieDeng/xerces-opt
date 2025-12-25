@@ -65,25 +65,40 @@ static const char* getSourceTypeDescription (FieldSourceType source_type) {
 // ============================================================================
 // 辅助函数：检查逃逸综合结果是否拒绝 owned
 // ============================================================================
+//
+// Owned 语义要求：指针的唯一所有者，不与其他代码共享
+//
+// 拒绝 owned 的逃逸类别（指针逃逸到函数外部或被共享）：
+// - ESC_SYNTH_RETURN_ESCAPE: 返回给调用者（共享给调用者）
+// - ESC_SYNTH_GLOBAL_ESCAPE: 存储到全局变量（全局共享）
+// - ESC_SYNTH_PARAMETER_ESCAPE: 存储到参数（共享给调用者）
+// - ESC_SYNTH_FIELD_ESCAPE: 存储到多个字段（内部共享）
+// - ESC_SYNTH_HEAP_ESCAPE: 存储到堆内存（逃逸到其他位置）
+// - ESC_SYNTH_UNKNOWN_CALL: 传给未知函数（可能被保存）
+// - ESC_SYNTH_VIRTUAL_CALL: 传给虚函数（可能被保存）
+// - ESC_SYNTH_INDIRECT_CALL: 传给间接调用（可能被保存）
+//
+// 支持或中立的逃逸类别：
+// - ESC_SYNTH_NO_ESCAPE: 无逃逸（支持 owned）
+// - ESC_SYNTH_ARITHMETIC_POTENTIAL: 算术运算（可能只是地址计算）
+// - ESC_SYNTH_SAFE_DEBUG: 调试型逃逸（如 printf，通常不保存指针）
 
 static bool isEscapeSynthesisRejecting (EscapeSynthesisResult* synthesis) {
   if (!synthesis) {
     return false;
   }
 
-  // 检查是否有拒绝性逃逸类别
   unsigned int categories = synthesis->category_bitmap;
 
-  // 以下逃逸类别拒绝 owned：
-  // - ESC_SYNTH_RETURN_ESCAPE: 返回给调用者（可能导致共享）
-  // - ESC_SYNTH_GLOBAL_ESCAPE: 存储到全局变量（共享）
-  // - ESC_SYNTH_PARAMETER_ESCAPE: 存储到参数字段（共享）
-  // - ESC_SYNTH_FIELD_ESCAPE: 多字段逃逸（可能共享）
-
+  // 检查所有拒绝性逃逸类别
   if (categories & ESC_SYNTH_RETURN_ESCAPE) return true;
   if (categories & ESC_SYNTH_GLOBAL_ESCAPE) return true;
   if (categories & ESC_SYNTH_PARAMETER_ESCAPE) return true;
   if (categories & ESC_SYNTH_FIELD_ESCAPE) return true;
+  if (categories & ESC_SYNTH_HEAP_ESCAPE) return true;
+  if (categories & ESC_SYNTH_UNKNOWN_CALL) return true;
+  if (categories & ESC_SYNTH_VIRTUAL_CALL) return true;
+  if (categories & ESC_SYNTH_INDIRECT_CALL) return true;
 
   return false;
 }
