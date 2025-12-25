@@ -36,6 +36,9 @@ ArrayDetectErrorCode isInvalidationStatement (
   tree lhs = gimple_assign_lhs (stmt);
   tree rhs = gimple_assign_rhs1 (stmt);
 
+  AD_DEBUG_PRINT ("  [isInvalidationStatement] Checking stmt, lhs=%p, rhs=%p, source_field=%p, source_object=%p",
+                  (void*)lhs, (void*)rhs, (void*)source_field, (void*)source_object);
+
   // 检查是否为 clobber
   if (TREE_CODE (rhs) == CONSTRUCTOR && TREE_CLOBBER_P (rhs)) {
     // 检查是否是对源对象的 clobber
@@ -66,16 +69,62 @@ ArrayDetectErrorCode isInvalidationStatement (
     bool is_field_access = false;
     AD_TRY (gcc_ext_util::is_field_access (AD_ARGS, lhs, &field_decl, &object, is_field_access));
 
+    AD_DEBUG_PRINT ("  [isInvalidationStatement] lhs is field access: is_field_access=%d, field_decl=%p (source=%p), object=%p (source=%p)",
+                    is_field_access, (void*)field_decl, (void*)source_field, (void*)object, (void*)source_object);
+
     if (is_field_access && field_decl == source_field) {
-      // 检查是否赋值为 NULL
-      if (integer_zerop (rhs)) {
-        kind = INVALIDATION_NULL_ASSIGN;
-        AD_RETURNE (OK);
+      // 关键修复：需要检查对象是否相同
+      // 在 SSA 形式中，对象可能是 SSA_NAME，需要比较基础变量
+      bool same_object = false;
+
+      if (object == source_object) {
+        same_object = true;
+        AD_DEBUG_PRINT ("  [isInvalidationStatement] Direct pointer match!");
+      } else if (object && source_object) {
+        // 调试：输出 tree code 和 SSA 信息
+        const char* obj_code_name = get_tree_code_name (TREE_CODE (object));
+        const char* src_code_name = get_tree_code_name (TREE_CODE (source_object));
+        AD_DEBUG_PRINT ("  [isInvalidationStatement] Tree codes: object=%s, source=%s",
+                        obj_code_name, src_code_name);
+
+        if (TREE_CODE (object) == SSA_NAME && TREE_CODE (source_object) == SSA_NAME) {
+          AD_DEBUG_PRINT ("  [isInvalidationStatement] SSA versions: object=%d, source=%d",
+                          SSA_NAME_VERSION (object), SSA_NAME_VERSION (source_object));
+
+          // 比较 SSA_NAME_VAR
+          tree obj_var = SSA_NAME_VAR (object);
+          tree src_var = SSA_NAME_VAR (source_object);
+          AD_DEBUG_PRINT ("  [isInvalidationStatement] SSA_NAME_VAR: obj_var=%p, src_var=%p",
+                          (void*)obj_var, (void*)src_var);
+
+          if (obj_var && src_var && obj_var == src_var) {
+            same_object = true;
+            AD_DEBUG_PRINT ("  [isInvalidationStatement] Matched via SSA_NAME_VAR!");
+          }
+        }
+
+        // 尝试使用 operand_equal_p
+        if (!same_object && operand_equal_p (object, source_object, 0)) {
+          same_object = true;
+          AD_DEBUG_PRINT ("  [isInvalidationStatement] Matched via operand_equal_p!");
+        }
       }
 
-      // 其他赋值（覆盖）
-      kind = INVALIDATION_OTHER_ASSIGN;
-      AD_RETURNE (OK);
+      if (same_object) {
+        AD_DEBUG_PRINT ("  [isInvalidationStatement] MATCHED: Same object and field - this IS an invalidation");
+
+        // 检查是否赋值为 NULL
+        if (integer_zerop (rhs)) {
+          kind = INVALIDATION_NULL_ASSIGN;
+          AD_RETURNE (OK);
+        }
+
+        // 其他赋值（覆盖）
+        kind = INVALIDATION_OTHER_ASSIGN;
+        AD_RETURNE (OK);
+      } else {
+        AD_DEBUG_PRINT ("  [isInvalidationStatement] SKIPPED: Different object (lhs.field vs source_object.field)");
+      }
     }
   }
 
