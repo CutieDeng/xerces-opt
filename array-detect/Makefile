@@ -560,7 +560,7 @@ clean:
 	rm -rv out/*
 
 test: out/plugin-array-detect.dylib
-	@(cd ../test/test-xercese && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build-xercese.rkt)
+	@(cd ../test/test-xercese && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build-xercese.rkt)
 
 prepare:
 	mkdir -p obj/array-detect-core
@@ -580,11 +580,11 @@ prepare:
 	mkdir -p out
 
 test-simple-ptr-field: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-field && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-field && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-virtual-call: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-virtual-call && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-virtual-call && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-copy-escape && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 

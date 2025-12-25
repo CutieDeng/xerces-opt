@@ -246,7 +246,7 @@
   (printf "test: ~a~n" output-so-path)
   (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
   (define input `((cxx . ,(path->string cxx)) (cflags ,plugin-arg)))
-  (printf "\t@(cd ../test/test-xercese && echo ~s | racket build-xercese.rkt)~n"
+  (printf "\t@(cd ../test/test-xercese && mkdir -p out && echo ~s | racket build-xercese.rkt)~n"
           (~s input))
   (printf "~n"))
 
@@ -312,7 +312,7 @@
   (printf "~a: ~a~n" name output-so-path)
   (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
   (define input `((cxx . ,(path->string cxx)) (cflags ,plugin-arg)))
-  (printf "\t@(cd ../test/~a && echo ~s | racket build.rkt)~n"
+  (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
           name (~s input))
   (printf "~n"))
 
