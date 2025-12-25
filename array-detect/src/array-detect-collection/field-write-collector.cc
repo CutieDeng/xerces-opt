@@ -90,11 +90,17 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
   
   tfwo->type = type;
   tfwo->field_decl = field_decl;
-  tfwo->write_ops = ggc_alloc<vec<FieldWriteCapture*>>();
-  if (!tfwo->write_ops) {
+
+  // 初始化新的分析记录列表
+  tfwo->write_analysis_records = ggc_alloc<vec<FieldWriteAnalysisRecord*>>();
+  if (!tfwo->write_analysis_records) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  tfwo->write_ops->create (0);
+  tfwo->write_analysis_records->create (0);
+
+  // 初始化字段级别分析结果
+  tfwo->ownership_analysis = NULL;
+  tfwo->reserved = NULL;
   
   // 插入到 hash_map 中
   map->put (key, tfwo);
@@ -196,15 +202,30 @@ ArrayDetectErrorCode collectTypesAndFields (ArrayDetector &detector, AD_FUNC_ARG
       // 源码位置
       capture->location = gimple_location (stmt);
       
-      // 通用用途功能指针：初始化为 NULL
+      // 通用用途功能指针：废弃 aux，保留以兼容，但不再使用
       capture->aux = NULL;
-      
+
+      // === 新设计：创建统一的分析记录 ===
+      FieldWriteAnalysisRecord * analysis_record = ggc_alloc<FieldWriteAnalysisRecord>();
+      if (!analysis_record) {
+        AD_RETURNE (MEMORY_ERROR);
+      }
+      memset (analysis_record, 0, sizeof (FieldWriteAnalysisRecord));
+
+      // 填充基本写入信息
+      analysis_record->write_capture = capture;
+      // 其他分析结果初始化为 NULL，由后续模块填充
+      analysis_record->source_info = NULL;
+      analysis_record->escape_analysis = NULL;
+      analysis_record->escape_synthesis = NULL;
+      analysis_record->reserved = NULL;
+
       // 查找或创建 type -> field 的写入操作列表
       TypeFieldWriteOps * tfwo = NULL;
       AD_TRY (findOrCreateTypeFieldWriteOps (AD_ARGS, &detector.m_type_field_writes, containing_type, field_decl, &tfwo));
-      
-      // 添加到列表
-      tfwo->write_ops->safe_push (capture);
+
+      // 添加分析记录到列表
+      tfwo->write_analysis_records->safe_push (analysis_record);
       write_op_count++;
       
       // 打印字段写入捕获调试信息（类型名、字段名、字段类型名）

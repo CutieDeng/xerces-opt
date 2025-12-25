@@ -440,7 +440,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     array_detector::TypeFieldKey const &key = (*iter).first;
     array_detector::TypeFieldWriteOps * write_ops = (*iter).second;
 
-    if (!write_ops || !write_ops->write_ops) continue;
+    if (!write_ops || !write_ops->write_analysis_records) continue;
 
     // 获取类型名和字段名（用于调试输出）
     char const * type_name = NULL;
@@ -453,20 +453,19 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     AD_DEBUG_PRINT ("  Processing (type=%s, field=%s): %u write operations",
                     type_name ? type_name : "<unknown>",
                     field_name ? field_name : "<unknown>",
-                    write_ops->write_ops->length ());
+                    write_ops->write_analysis_records->length ());
 
     // 为该 (type, field) 分配临时结果向量
     vec<EscapeSynthesisResult*> * field_synth_results = ggc_alloc<vec<EscapeSynthesisResult*>> ();
     field_synth_results->create (0);
 
     // 遍历该 (type, field) 的所有写入操作
-    for (unsigned i = 0; i < write_ops->write_ops->length (); i++) {
-      FieldWriteCapture * capture = (*write_ops->write_ops)[i];
-      if (!capture) continue;
+    for (unsigned i = 0; i < write_ops->write_analysis_records->length (); i++) {
+      array_detector::FieldWriteAnalysisRecord * record = (*write_ops->write_analysis_records)[i];
+      if (!record || !record->write_capture) continue;
 
-      // 从 capture->aux 读取逃逸分析结果
-      // 注意：aux 现在存储的是 SourceUseAnalysisResult*
-      SourceUseAnalysisResult * raw_result = (SourceUseAnalysisResult *) capture->aux;
+      // 从 record->escape_analysis 读取逃逸分析结果
+      SourceUseAnalysisResult * raw_result = record->escape_analysis;
       if (!raw_result) {
         AD_DEBUG_PRINT ("    Write #%u: No escape analysis result", i);
         continue;
@@ -477,8 +476,9 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       AD_TRY (synthesizeEscapeInfo (AD_ARGS, raw_result, synth_result));
 
       if (synth_result) {
-        // 记录原始写入信息（FieldWriteCapture）
-        synth_result->original_write_info = capture;
+        // === 新设计：直接填充到分析记录中 ===
+        // 不再使用 original_write_info，直接填充到 record->escape_synthesis
+        record->escape_synthesis = synth_result;
 
         // 添加到该字段的临时结果列表
         field_synth_results->safe_push (synth_result);

@@ -197,59 +197,59 @@ ArrayDetectErrorCode extractSourceFromRhs (
 // 追踪字段赋值：分析字段赋值来源
 ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Tracing field assignments");
-  
+
   // 直接遍历 hash_map，使用迭代器
   typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
   size_t processed_count = 0;
   size_t source_extracted_count = 0;
-  
+
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     // iter->first 是键（TypeFieldKey），iter->second 是值（TypeFieldWriteOps*）
-    // 注意：虽然插入时不会插入 NULL 值，但 GCC 的 hash_map 可能允许 NULL 值，
-    // 且 findOrCreateTypeFieldWriteOps 中已考虑了"键存在但值为 NULL"的情况。
-    // 因此这里需要防御性检查，避免访问空指针。
     TypeFieldWriteOps *tfwo_nullable = (*iter).second;
-    if (!tfwo_nullable || !tfwo_nullable->write_ops) {
+    if (!tfwo_nullable || !tfwo_nullable->write_analysis_records) {
       continue;
     }
-    
-    // 遍历该 type -> field 的所有写入操作
-    for (unsigned int j = 0; j < tfwo_nullable->write_ops->length (); ++j) {
-      FieldWriteCapture *capture_nullable = (*tfwo_nullable->write_ops)[j];
-      if (!capture_nullable) {
+
+    // === 新设计：遍历写入操作分析记录 ===
+    // 从 write_ops 改为 write_analysis_records
+    for (unsigned int j = 0; j < tfwo_nullable->write_analysis_records->length (); ++j) {
+      FieldWriteAnalysisRecord *record = (*tfwo_nullable->write_analysis_records)[j];
+      if (!record || !record->write_capture) {
         continue;
       }
-      FieldWriteCapture &capture = *capture_nullable;
-      
+
+      FieldWriteCapture &capture = *record->write_capture;
+
       // 提取来源信息
       processed_count++;
-      
+
       tree rhs = capture.rhs;
       gimple * stmt = capture.stmt;
       location_t location = capture.location;
       tree function = capture.function_decl;
       basic_block bb = capture.bb;
-      
+
       FieldSourceInfo *source_info;
       AD_TRY (extractSourceFromRhs (
         detector, AD_ARGS, rhs, stmt, location, function, bb, source_info));
-      
-      // 将来源信息存储到 FieldWriteCapture 的 aux 字段中
-      capture.aux = source_info;
+
+      // === 新设计：直接填充到分析记录中 ===
+      // 不再使用 aux 链表，直接填充到 record->source_info
+      record->source_info = source_info;
       source_extracted_count++;
-      
+
       TypeFieldKey key = (*iter).first;
-      
+
       // 调用调试模块的函数输出详细信息
       AD_TRY (printFieldWriteSourceInfo (AD_ARGS, key.type, key.field_decl, capture, source_info));
     }
   }
-  
+
   AD_DEBUG_PRINT ("Tracing complete: %zu write operations processed, %zu sources extracted",
                 processed_count, source_extracted_count);
-  
+
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

@@ -15,11 +15,12 @@
 // 前向声明
 namespace array_detector {
   struct TypeFieldKey;
-  struct TypeFieldWriteOps;
+  struct TypeFieldAnalysisData;
+  // TypeFieldWriteOps 是 TypeFieldAnalysisData 的别名，在 array-detector.hh 中定义
 }
 
 // 注意：这个文件在 array-detector.hh 末尾被包含
-// 此时 TypeFieldKey 已经完整定义，default_hash_traits<TypeFieldKey> 也已经特化
+// 此时 TypeFieldKey 和 TypeFieldAnalysisData 已经完整定义，default_hash_traits<TypeFieldKey> 也已经特化
 // 所以可以直接使用
 
 namespace array_detector {
@@ -27,6 +28,6 @@ namespace array_detector {
 // TypeFieldKey 的 hash_map trait 类型
 // 使用 simple_hashmap_traits 包装 default_hash_traits<TypeFieldKey>
 // 这样 hash_map 可以使用我们定义的 hash 和 equal 函数
-typedef simple_hashmap_traits<default_hash_traits<TypeFieldKey>, TypeFieldWriteOps*> TypeFieldHashMapTraits;
+typedef simple_hashmap_traits<default_hash_traits<TypeFieldKey>, TypeFieldAnalysisData*> TypeFieldHashMapTraits;
 
 } // namespace array_detector

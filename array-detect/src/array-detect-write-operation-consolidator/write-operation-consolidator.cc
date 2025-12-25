@@ -226,10 +226,10 @@ ArrayDetectErrorCode consolidateWriteOperations (
     TypeFieldKey key = (*iter).first;
     TypeFieldWriteOps *tfwo = (*iter).second;
     
-    if (!tfwo || !tfwo->write_ops) {
+    if (!tfwo || !tfwo->write_analysis_records) {
       continue;
     }
-    
+
     // 为当前 (type, field) 创建内层 hash_map
     hash_map<WriteOperationFingerprint, WriteOperationDetail*> *inner_map =
       ggc_alloc<hash_map<WriteOperationFingerprint, WriteOperationDetail*>> ();
@@ -237,16 +237,18 @@ ArrayDetectErrorCode consolidateWriteOperations (
       AD_RETURNE (MEMORY_ERROR);
     }
     new (inner_map) hash_map<WriteOperationFingerprint, WriteOperationDetail*> ();
-    
+
     // 遍历该 (type, field) 的所有 write operations
-    for (unsigned int i = 0; i < tfwo->write_ops->length (); ++i) {
-      FieldWriteCapture *capture = (*tfwo->write_ops)[i];
-      if (!capture) {
+    for (unsigned int i = 0; i < tfwo->write_analysis_records->length (); ++i) {
+      FieldWriteAnalysisRecord *record = (*tfwo->write_analysis_records)[i];
+      if (!record || !record->write_capture) {
         continue;
       }
-      
+
+      FieldWriteCapture *capture = record->write_capture;
+
       // 获取 source 信息
-      FieldSourceInfo *source_info = (FieldSourceInfo*)capture->aux;
+      FieldSourceInfo *source_info = record->source_info;
       if (!source_info) {
         continue;
       }
