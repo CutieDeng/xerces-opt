@@ -260,11 +260,13 @@ bool isEscapeUse(
 // ============================================================================
 
 // 递归跟踪 SSA 使用链逃逸（手动遍历immediate uses）
+// exclude_stmt: 要排除的语句（即当前正在分析的写入操作本身，不应视为逃逸）
 ArrayDetectErrorCode traceSSAUseChainEscapes (
   AD_FUNC_ARGS,
   tree ssa_name,
   SourceUseAnalysisResult * result,
-  unsigned int depth
+  unsigned int depth,
+  gimple * exclude_stmt
 ) AD_FUNCTION_BEGIN {
   if (depth >= MAX_ESCAPE_ANALYSIS_DEPTH) {
     AD_DEBUG_PRINT ("Max trace depth reached: %u", depth);
@@ -291,6 +293,14 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
     gimple * use_stmt = USE_STMT (ptr);
 
     if (use_stmt) {
+      // === 关键修改：排除当前正在分析的写入语句 ===
+      // 如果该使用就是我们正在分析的写入操作本身，跳过它
+      if (exclude_stmt && use_stmt == exclude_stmt) {
+        AD_DEBUG_PRINT ("  Skipping use (excluded write stmt itself)");
+        ptr = ptr->next;
+        continue;
+      }
+
       use_count++;
       AD_DEBUG_PRINT ("  Processing use #%u", use_count);
 
@@ -372,7 +382,7 @@ ArrayDetectErrorCode traceSSAUseChainEscapes (
         tree lhs = gimple_assign_lhs (use_stmt);
         if (lhs && TREE_CODE (lhs) == SSA_NAME) {
           AD_DEBUG_PRINT ("  Following SSA assignment chain");
-          AD_TRY (traceSSAUseChainEscapes (AD_ARGS, lhs, result, depth + 1));
+          AD_TRY (traceSSAUseChainEscapes (AD_ARGS, lhs, result, depth + 1, exclude_stmt));
         }
       }
     }
@@ -389,6 +399,7 @@ ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
+  gimple * exclude_stmt,
   SourceUseAnalysisResult * &result
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Collecting source operand escapes");
@@ -417,10 +428,10 @@ ArrayDetectErrorCode collectSourceOperandEscapes (
   tmp_result->aux = NULL;
   tmp_result->original_write_info = NULL;
 
-  // 开始跟踪收集
+  // 开始跟踪收集（排除指定的语句）
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
     AD_DEBUG_PRINT ("Source operand is SSA_NAME, starting escape trace");
-    AD_TRY (traceSSAUseChainEscapes (AD_ARGS, source_operand, tmp_result, 0));
+    AD_TRY (traceSSAUseChainEscapes (AD_ARGS, source_operand, tmp_result, 0, exclude_stmt));
   } else {
     AD_DEBUG_PRINT ("Source operand is not SSA_NAME, skipping escape trace");
   }
@@ -461,9 +472,15 @@ ArrayDetectErrorCode collectFieldWriteEscapes (
   tree source_operand = write_info->rhs;    // 右值表达式
   gimple * source_stmt = write_info->stmt;   // GIMPLE 语句
 
+  // === 关键修改：排除当前写入语句本身 ===
+  // 当前写入语句是 write_info->stmt（例如 a.ptr = b.ptr）
+  // 我们分析的是源操作数 b.ptr 的逃逸
+  // 但 b.ptr 被用在 a.ptr = b.ptr 这个语句中，这不应该被视为逃逸
+  gimple * exclude_stmt = write_info->stmt;
+
   // 使用临时变量接收收集结果
   SourceUseAnalysisResult * tmp_result = NULL;
-  AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, tmp_result));
+  AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, exclude_stmt, tmp_result));
 
   if (tmp_result) {
     // 关联原始数据

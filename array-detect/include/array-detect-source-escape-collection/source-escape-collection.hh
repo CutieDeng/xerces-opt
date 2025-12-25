@@ -141,12 +141,14 @@ ArrayDetectErrorCode collectAllFieldEscapes (
 // 收集单个源操作数的逃逸信息
 // 输入：source_operand - 源操作数（SSA_NAME）
 //       source_stmt - 源语句
+//       exclude_stmt - 要排除的语句（当前正在分析的写入操作本身，不视为逃逸）
 // 输出：result - 收集结果指针（GC 管理）
 // 注：采用全量逃逸检测策略，所有可能的逃逸情况均被检测
 ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
+  gimple * exclude_stmt,
   SourceUseAnalysisResult * &result
 );
 
