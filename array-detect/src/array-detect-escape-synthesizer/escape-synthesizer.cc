@@ -1,6 +1,7 @@
 #include "escape-synthesizer.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
+#include "gcc-ext-util.hh"
 
 namespace array_detect_ns {
 
@@ -241,10 +242,8 @@ ArrayDetectErrorCode classifyEscapeLocation (
       {
         // 检查是否为安全调试函数
         char const * func_name = escape_loc.escape_target;
-        bool is_safe_debug = false;
 
         if (func_name && isKnownSafeDebugFunction (AD_ARGS, func_name)) {
-          is_safe_debug = true;
           ESC_SYNTH_ADD (*result, ESC_SYNTH_SAFE_DEBUG);
           if (!result->safe_debug) {
             result->safe_debug = ggc_alloc<SafeDebugEscape> ();
@@ -421,12 +420,72 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Synthesizing all field escapes");
 
-  // TODO: 遍历 detector 中存储的逃逸收集结果
-  // 当前实现假设逃逸收集结果存储在 FieldWriteCapture 的 aux 字段中
-  // 需要与实际的存储方式配合
-
-  synthesis_results = NULL;
   total_synthesized = 0;
+
+  if (!detector.m_type_field_writes) {
+    synthesis_results = NULL;
+    AD_RETURNE (OK);
+  }
+
+  // 分配结果向量
+  synthesis_results = ggc_alloc<vec<EscapeSynthesisResult*>> ();
+  synthesis_results->create (0);
+
+  // 遍历所有 (type, field) 的写入操作
+  typedef hash_map<array_detector::TypeFieldKey, array_detector::TypeFieldWriteOps*, array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
+
+  for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+       iter != detector.m_type_field_writes->end ();
+       ++iter) {
+    array_detector::TypeFieldKey const &key = (*iter).first;
+    array_detector::TypeFieldWriteOps * write_ops = (*iter).second;
+
+    if (!write_ops || !write_ops->write_ops) continue;
+
+    // 获取类型名和字段名（用于调试输出）
+    char const * type_name = NULL;
+    AD_TRY (gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, key.type, type_name));
+    char const * field_name = NULL;
+    if (key.field_decl && DECL_NAME (key.field_decl)) {
+      field_name = IDENTIFIER_POINTER (DECL_NAME (key.field_decl));
+    }
+
+    AD_DEBUG_PRINT ("  Processing (type=%s, field=%s): %u write operations",
+                    type_name ? type_name : "<unknown>",
+                    field_name ? field_name : "<unknown>",
+                    write_ops->write_ops->length ());
+
+    // 遍历该 (type, field) 的所有写入操作
+    for (unsigned i = 0; i < write_ops->write_ops->length (); i++) {
+      FieldWriteCapture * capture = (*write_ops->write_ops)[i];
+      if (!capture) continue;
+
+      // 从 capture->aux 读取逃逸分析结果
+      // 注意：aux 现在存储的是 SourceUseAnalysisResult*
+      SourceUseAnalysisResult * raw_result = (SourceUseAnalysisResult *) capture->aux;
+      if (!raw_result) {
+        AD_DEBUG_PRINT ("    Write #%u: No escape analysis result", i);
+        continue;
+      }
+
+      // 综合该写入操作的逃逸信息
+      EscapeSynthesisResult * synth_result = NULL;
+      AD_TRY (synthesizeEscapeInfo (AD_ARGS, raw_result, synth_result));
+
+      if (synth_result) {
+        // 记录原始写入信息（FieldWriteCapture）
+        synth_result->original_write_info = capture;
+
+        // 添加到结果列表
+        synthesis_results->safe_push (synth_result);
+        total_synthesized++;
+
+        AD_DEBUG_PRINT ("    Write #%u: Synthesized - categories=0x%x, uses=%u, escapes=%u",
+                        i, synth_result->category_bitmap,
+                        synth_result->total_uses, synth_result->total_escapes);
+      }
+    }
+  }
 
   AD_DEBUG_PRINT ("Synthesis complete: %u results", total_synthesized);
   AD_RETURNE (OK);

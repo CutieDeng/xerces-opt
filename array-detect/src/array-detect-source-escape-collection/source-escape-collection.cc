@@ -608,6 +608,12 @@ ArrayDetectErrorCode collectAllFieldEscapes (
           total_escaped++;
         }
 
+        // 将逃逸分析结果存储到 capture->aux，供后续综合器使用
+        // 注意：aux 字段在 write-operation-trace 阶段存储 FieldSourceInfo*
+        // 我们需要将其转移到 SourceUseAnalysisResult 中，然后存储 SourceUseAnalysisResult
+        use_result->original_write_info = capture->aux;  // 保存原来的 FieldSourceInfo*
+        capture->aux = use_result;  // 用 SourceUseAnalysisResult 替换 aux
+
         // 输出所有收集到的 escape 信息到 stderr
         printSourceUseAnalysisResult (use_result, stderr);
       }
