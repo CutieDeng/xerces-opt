@@ -4,6 +4,7 @@
 #include "source-escape-collection.hh"
 #include "escape-synthesizer.hh"
 #include "ownership-transfer-analysis.hh"
+#include "owned-conclusion.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -52,8 +53,15 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_DEBUG_PRINT ("Ownership transfer analysis complete: %u analyzed, %u certain transfers",
                   transfer_analyzed, certain_transfers);
 
-  // 第六步：输出结果
-  AD_DEBUG_PRINT ("Step 6: Printing results");
+  // 第六步：字段 owned 结论分析
+  AD_DEBUG_PRINT ("Step 6: Analyzing field owned conclusions");
+  vec<FieldOwnedConclusion*, va_gc>* owned_conclusions = NULL;
+  AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, &owned_conclusions));
+  AD_DEBUG_PRINT ("Field owned conclusion analysis complete");
+
+  // 第七步：输出最终结果
+  AD_DEBUG_PRINT ("Step 7: Printing final results");
+  printAllFieldOwnedConclusions (AD_ARGS, owned_conclusions);
   AD_TRY (printResults (AD_ARGS, detector));
 
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");

@@ -13,7 +13,7 @@
 (define output-so-path (build-path out-dir "plugin-array-detect.dylib"))
 
 ;; New modular structure
-(define modules '("array-detect-core" "array-detect-collection" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis" "array-detect-pipeline" "array-detect-write-trace" "array-detect-source-escape-collection" "array-detect-escape-synthesizer" "array-detect-ownership-transfer"))
+(define modules '("array-detect-core" "array-detect-collection" "array-detect-context" "array-detect-gcc" "array-detect-utils" "array-detect-field-analysis" "array-detect-pipeline" "array-detect-write-trace" "array-detect-source-escape-collection" "array-detect-escape-synthesizer" "array-detect-ownership-transfer" "array-detect-owned-conclusion"))
 (define s "src")
 (define i "include")
 (define c "config")
@@ -71,6 +71,8 @@
   ,(path->string (build-path "include/array-detect-escape-synthesizer"))
   "-I"
   ,(path->string (build-path "include/array-detect-ownership-transfer"))
+  "-I"
+  ,(path->string (build-path "include/array-detect-owned-conclusion"))
   "-undefined" "dynamic_lookup"
   "-Wall"
   "-Wextra"
