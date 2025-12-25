@@ -198,4 +198,106 @@ void printEscapeSynthesisResult (
   FILE * output
 );
 
+// ============================================================================
+// 二级综合器：所有权分析 (Ownership Analysis)
+// ============================================================================
+// 基于逃逸综合结果，判定字段是否支持 owned 指针的假设
+// 默认假设：每个字段都有潜在可能是 owned 的指针字段
+// 通过观察控制流现象来决定是否"不支持"该结论
+// ============================================================================
+
+// 所有权支持结论
+enum OwnershipSupportVerdict {
+  OWNERSHIP_VERDICT_SUPPORTED,      // 支持 owned（没有反对证据）
+  OWNERSHIP_VERDICT_REJECTED,       // 不支持 owned（有反对证据）
+  OWNERSHIP_VERDICT_UNCERTAIN,      // 不确定（需要更多分析）
+};
+
+// 反对原因位图（哪些逃逸类别导致了反对 owned）
+enum OwnershipRejectionReason {
+  REJECT_NONE                = 0,
+  REJECT_HEAP_ESCAPE         = 1 << 0,  // 逃逸到堆（可能被共享）
+  REJECT_RETURN_ESCAPE       = 1 << 1,  // 返回值逃逸（所有权转移）
+  REJECT_PARAMETER_ESCAPE    = 1 << 2,  // 参数逃逸（可能被共享）
+  REJECT_GLOBAL_ESCAPE       = 1 << 3,  // 全局变量逃逸（可能被共享）
+  REJECT_VIRTUAL_CALL        = 1 << 4,  // 虚函数调用（不确定行为）
+  REJECT_INDIRECT_CALL       = 1 << 5,  // 间接调用（不确定行为）
+  REJECT_UNKNOWN_CALL        = 1 << 6,  // 未知函数调用（不确定行为）
+  REJECT_FIELD_ESCAPE        = 1 << 7,  // 字段逃逸（多个 field access，可能被共享）
+};
+
+// 所有权分析结果（针对单个 type, field）
+struct OwnershipAnalysisResult {
+  // (type, field) 标识
+  tree type;
+  tree field_decl;
+  char const * type_name;
+  char const * field_name;
+
+  // 结论
+  OwnershipSupportVerdict verdict;
+
+  // 证据统计
+  unsigned int total_writes;          // 总写入次数
+  unsigned int supporting_writes;     // 支持 owned 的写入（无反对证据）
+  unsigned int rejecting_writes;      // 反对 owned 的写入（有反对证据）
+  unsigned int uncertain_writes;      // 不确定的写入
+
+  // 反对原因（位图）
+  unsigned int rejection_reasons;     // 哪些类别导致了反对
+
+  // 详细信息
+  vec<EscapeSynthesisResult*> * all_write_results;  // 所有写入操作的综合结果
+
+  // 结论描述
+  char const * verdict_description;
+};
+
+// 检查宏
+#define OWNERSHIP_HAS_REJECTION(result, reason) (((result).rejection_reasons & (reason)) != 0)
+
+// ============================================================================
+// 二级综合器核心接口
+// ============================================================================
+
+// 分析单个 (type, field) 的所有权支持情况
+// 输入：write_results - 该 (type, field) 的所有写入操作的综合结果
+//       type, field_decl - 类型和字段标识
+// 输出：result - 所有权分析结果
+ArrayDetectErrorCode analyzeFieldOwnershipSupport (
+  AD_FUNC_ARGS,
+  vec<EscapeSynthesisResult*> * write_results,
+  tree type,
+  tree field_decl,
+  OwnershipAnalysisResult * &result
+);
+
+// 判断单个逃逸综合结果是否反对 owned
+// 返回：true - 反对，false - 不反对
+bool isEscapeResultRejectingOwnership (
+  EscapeSynthesisResult const * synth_result,
+  unsigned int &rejection_reasons
+);
+
+// 获取结论描述字符串
+char const * getOwnershipVerdictString (OwnershipSupportVerdict verdict);
+
+// 获取反对原因描述字符串
+char const * getOwnershipRejectionReasonString (unsigned int reason);
+
+// 打印所有权分析结果（调试用）
+void printOwnershipAnalysisResult (
+  OwnershipAnalysisResult const * result,
+  FILE * output
+);
+
+// 打印字段的所有写入操作的逃逸综合结果（调试用）
+void printFieldEscapeSynthesisResults (
+  AD_FUNC_ARGS,
+  tree type,
+  tree field_decl,
+  vec<EscapeSynthesisResult*> * write_results,
+  FILE * output
+);
+
 } // namespace array_detect_ns

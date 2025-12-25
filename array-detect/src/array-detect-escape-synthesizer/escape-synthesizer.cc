@@ -455,6 +455,10 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
                     field_name ? field_name : "<unknown>",
                     write_ops->write_ops->length ());
 
+    // 为该 (type, field) 分配临时结果向量
+    vec<EscapeSynthesisResult*> * field_synth_results = ggc_alloc<vec<EscapeSynthesisResult*>> ();
+    field_synth_results->create (0);
+
     // 遍历该 (type, field) 的所有写入操作
     for (unsigned i = 0; i < write_ops->write_ops->length (); i++) {
       FieldWriteCapture * capture = (*write_ops->write_ops)[i];
@@ -476,7 +480,10 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
         // 记录原始写入信息（FieldWriteCapture）
         synth_result->original_write_info = capture;
 
-        // 添加到结果列表
+        // 添加到该字段的临时结果列表
+        field_synth_results->safe_push (synth_result);
+
+        // 也添加到全局结果列表
         synthesis_results->safe_push (synth_result);
         total_synthesized++;
 
@@ -484,6 +491,25 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
                         i, synth_result->category_bitmap,
                         synth_result->total_uses, synth_result->total_escapes);
       }
+    }
+
+    // === 打印该字段的详细逃逸综合结果 ===
+    AD_DEBUG_PRINT ("  Printing detailed escape synthesis results for (type=%s, field=%s)",
+                    type_name ? type_name : "<unknown>",
+                    field_name ? field_name : "<unknown>");
+    printFieldEscapeSynthesisResults (AD_ARGS, key.type, key.field_decl, field_synth_results, stderr);
+
+    // === 进行二级综合：所有权分析 ===
+    AD_DEBUG_PRINT ("  Performing ownership analysis for (type=%s, field=%s)",
+                    type_name ? type_name : "<unknown>",
+                    field_name ? field_name : "<unknown>");
+    OwnershipAnalysisResult * ownership_result = NULL;
+    AD_TRY (analyzeFieldOwnershipSupport (AD_ARGS, field_synth_results, key.type, key.field_decl, ownership_result));
+
+    if (ownership_result) {
+      AD_DEBUG_PRINT ("  Ownership analysis complete: verdict=%s",
+                      getOwnershipVerdictString (ownership_result->verdict));
+      printOwnershipAnalysisResult (ownership_result, stderr);
     }
   }
 
@@ -510,6 +536,295 @@ char const * getEscapeCategoryString (unsigned int category) {
     case ESC_SYNTH_INDIRECT_CALL: return "INDIRECT_CALL";
     default: return "UNKNOWN";
   }
+}
+
+// ============================================================================
+// 二级综合器实现：所有权分析
+// ============================================================================
+
+// 判断单个逃逸综合结果是否反对 owned
+bool isEscapeResultRejectingOwnership (
+  EscapeSynthesisResult const * synth_result,
+  unsigned int &rejection_reasons
+) {
+  if (!synth_result) return false;
+
+  rejection_reasons = REJECT_NONE;
+  bool is_rejecting = false;
+
+  // 检查各种反对 owned 的逃逸类别
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_HEAP_ESCAPE)) {
+    rejection_reasons |= REJECT_HEAP_ESCAPE;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_RETURN_ESCAPE)) {
+    rejection_reasons |= REJECT_RETURN_ESCAPE;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_PARAMETER_ESCAPE)) {
+    rejection_reasons |= REJECT_PARAMETER_ESCAPE;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_GLOBAL_ESCAPE)) {
+    rejection_reasons |= REJECT_GLOBAL_ESCAPE;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_VIRTUAL_CALL)) {
+    rejection_reasons |= REJECT_VIRTUAL_CALL;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_INDIRECT_CALL)) {
+    rejection_reasons |= REJECT_INDIRECT_CALL;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_UNKNOWN_CALL)) {
+    rejection_reasons |= REJECT_UNKNOWN_CALL;
+    is_rejecting = true;
+  }
+
+  if (ESC_SYNTH_HAS (*synth_result, ESC_SYNTH_FIELD_ESCAPE)) {
+    rejection_reasons |= REJECT_FIELD_ESCAPE;
+    is_rejecting = true;
+  }
+
+  // 不反对的类别：
+  // - NO_ESCAPE: 无逃逸，支持 owned
+  // - ARITHMETIC_POTENTIAL: 算术运算，不影响所有权
+  // - SAFE_DEBUG: 安全调试函数，不影响所有权
+
+  return is_rejecting;
+}
+
+// 分析单个 (type, field) 的所有权支持情况
+ArrayDetectErrorCode analyzeFieldOwnershipSupport (
+  AD_FUNC_ARGS,
+  vec<EscapeSynthesisResult*> * write_results,
+  tree type,
+  tree field_decl,
+  OwnershipAnalysisResult * &result
+) AD_FUNCTION_BEGIN {
+  if (!write_results) {
+    result = NULL;
+    AD_RETURNE (OK);
+  }
+
+  // 分配结果结构
+  result = ggc_alloc<OwnershipAnalysisResult> ();
+  memset (result, 0, sizeof (OwnershipAnalysisResult));
+
+  // 设置标识信息
+  result->type = type;
+  result->field_decl = field_decl;
+  result->all_write_results = write_results;
+
+  // 获取类型名和字段名
+  AD_TRY (gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, type, result->type_name));
+  if (field_decl && DECL_NAME (field_decl)) {
+    result->field_name = IDENTIFIER_POINTER (DECL_NAME (field_decl));
+  } else {
+    result->field_name = "<anonymous>";
+  }
+
+  // 初始化统计信息
+  result->total_writes = write_results->length ();
+  result->supporting_writes = 0;
+  result->rejecting_writes = 0;
+  result->uncertain_writes = 0;
+  result->rejection_reasons = REJECT_NONE;
+
+  // 默认假设：支持 owned
+  result->verdict = OWNERSHIP_VERDICT_SUPPORTED;
+
+  // 遍历所有写入操作的综合结果
+  for (unsigned i = 0; i < write_results->length (); i++) {
+    EscapeSynthesisResult * synth = (*write_results)[i];
+    if (!synth) continue;
+
+    unsigned int write_rejection_reasons = REJECT_NONE;
+    bool is_rejecting = isEscapeResultRejectingOwnership (synth, write_rejection_reasons);
+
+    if (is_rejecting) {
+      result->rejecting_writes++;
+      result->rejection_reasons |= write_rejection_reasons;
+      result->verdict = OWNERSHIP_VERDICT_REJECTED;
+    } else {
+      result->supporting_writes++;
+    }
+  }
+
+  // 生成结论描述
+  if (result->verdict == OWNERSHIP_VERDICT_SUPPORTED) {
+    result->verdict_description = "No evidence against owned pointer (supported)";
+  } else if (result->verdict == OWNERSHIP_VERDICT_REJECTED) {
+    result->verdict_description = "Evidence against owned pointer found (rejected)";
+  } else {
+    result->verdict_description = "Uncertain ownership (needs more analysis)";
+  }
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// 获取结论描述字符串
+char const * getOwnershipVerdictString (OwnershipSupportVerdict verdict) {
+  switch (verdict) {
+    case OWNERSHIP_VERDICT_SUPPORTED: return "SUPPORTED (no objection)";
+    case OWNERSHIP_VERDICT_REJECTED: return "REJECTED (evidence against)";
+    case OWNERSHIP_VERDICT_UNCERTAIN: return "UNCERTAIN";
+    default: return "UNKNOWN";
+  }
+}
+
+// 获取反对原因描述字符串
+char const * getOwnershipRejectionReasonString (unsigned int reason) {
+  switch (reason) {
+    case REJECT_HEAP_ESCAPE: return "HEAP_ESCAPE";
+    case REJECT_RETURN_ESCAPE: return "RETURN_ESCAPE";
+    case REJECT_PARAMETER_ESCAPE: return "PARAMETER_ESCAPE";
+    case REJECT_GLOBAL_ESCAPE: return "GLOBAL_ESCAPE";
+    case REJECT_VIRTUAL_CALL: return "VIRTUAL_CALL";
+    case REJECT_INDIRECT_CALL: return "INDIRECT_CALL";
+    case REJECT_UNKNOWN_CALL: return "UNKNOWN_CALL";
+    case REJECT_FIELD_ESCAPE: return "FIELD_ESCAPE";
+    default: return "UNKNOWN";
+  }
+}
+
+// 打印所有权分析结果
+void printOwnershipAnalysisResult (
+  OwnershipAnalysisResult const * result,
+  FILE * output
+) {
+  if (!result) return;
+
+  fprintf (output, "\n");
+  fprintf (output, "=== Ownership Analysis Result ===\n");
+  fprintf (output, "Type: %s\n", result->type_name ? result->type_name : "<unknown>");
+  fprintf (output, "Field: %s\n", result->field_name ? result->field_name : "<unknown>");
+  fprintf (output, "\n");
+  fprintf (output, "Verdict: %s\n", getOwnershipVerdictString (result->verdict));
+  fprintf (output, "Description: %s\n", result->verdict_description ? result->verdict_description : "");
+  fprintf (output, "\n");
+  fprintf (output, "Statistics:\n");
+  fprintf (output, "  Total writes: %u\n", result->total_writes);
+  fprintf (output, "  Supporting writes (no objection): %u\n", result->supporting_writes);
+  fprintf (output, "  Rejecting writes (with objection): %u\n", result->rejecting_writes);
+  fprintf (output, "  Uncertain writes: %u\n", result->uncertain_writes);
+  fprintf (output, "\n");
+
+  if (result->rejection_reasons != REJECT_NONE) {
+    fprintf (output, "Rejection Reasons:\n");
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_HEAP_ESCAPE)) {
+      fprintf (output, "  - HEAP_ESCAPE: Escapes to heap (may be shared)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_RETURN_ESCAPE)) {
+      fprintf (output, "  - RETURN_ESCAPE: Escapes via return (ownership transfer)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_PARAMETER_ESCAPE)) {
+      fprintf (output, "  - PARAMETER_ESCAPE: Escapes via parameter (may be shared)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_GLOBAL_ESCAPE)) {
+      fprintf (output, "  - GLOBAL_ESCAPE: Escapes to global variable (may be shared)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_VIRTUAL_CALL)) {
+      fprintf (output, "  - VIRTUAL_CALL: Escapes via virtual call (uncertain behavior)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_INDIRECT_CALL)) {
+      fprintf (output, "  - INDIRECT_CALL: Escapes via indirect call (uncertain behavior)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_UNKNOWN_CALL)) {
+      fprintf (output, "  - UNKNOWN_CALL: Escapes via unknown call (uncertain behavior)\n");
+    }
+    if (OWNERSHIP_HAS_REJECTION (*result, REJECT_FIELD_ESCAPE)) {
+      fprintf (output, "  - FIELD_ESCAPE: Escapes to other fields (may be shared)\n");
+    }
+  } else {
+    fprintf (output, "No rejection reasons (all writes support owned pointer assumption)\n");
+  }
+
+  fprintf (output, "=================================\n");
+}
+
+// 打印字段的所有写入操作的逃逸综合结果
+void printFieldEscapeSynthesisResults (
+  AD_FUNC_ARGS,
+  tree type,
+  tree field_decl,
+  vec<EscapeSynthesisResult*> * write_results,
+  FILE * output
+) {
+  if (!write_results) return;
+
+  // 获取类型名和字段名
+  char const * type_name = NULL;
+  gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, type, type_name);
+  char const * field_name = NULL;
+  if (field_decl && DECL_NAME (field_decl)) {
+    field_name = IDENTIFIER_POINTER (DECL_NAME (field_decl));
+  }
+
+  fprintf (output, "\n");
+  fprintf (output, "=== Field Escape Synthesis Results ===\n");
+  fprintf (output, "Type: %s\n", type_name ? type_name : "<unknown>");
+  fprintf (output, "Field: %s\n", field_name ? field_name : "<unknown>");
+  fprintf (output, "Total write operations: %u\n", write_results->length ());
+  fprintf (output, "\n");
+
+  for (unsigned i = 0; i < write_results->length (); i++) {
+    EscapeSynthesisResult * synth = (*write_results)[i];
+    if (!synth) continue;
+
+    fprintf (output, "--- Write Operation #%u ---\n", i);
+    fprintf (output, "  Categories (bitmap: 0x%x):\n", synth->category_bitmap);
+
+    // 打印所有激活的类别
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_NO_ESCAPE)) {
+      fprintf (output, "    - NO_ESCAPE (single field access, no escape)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_ARITHMETIC_POTENTIAL)) {
+      fprintf (output, "    - ARITHMETIC_POTENTIAL (arithmetic/bit operations)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_SAFE_DEBUG)) {
+      fprintf (output, "    - SAFE_DEBUG (safe debug functions like printf)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_UNKNOWN_CALL)) {
+      fprintf (output, "    - UNKNOWN_CALL (unknown function call)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_HEAP_ESCAPE)) {
+      fprintf (output, "    - HEAP_ESCAPE (escapes to heap)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_RETURN_ESCAPE)) {
+      fprintf (output, "    - RETURN_ESCAPE (escapes via return)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_PARAMETER_ESCAPE)) {
+      fprintf (output, "    - PARAMETER_ESCAPE (escapes via parameter)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_GLOBAL_ESCAPE)) {
+      fprintf (output, "    - GLOBAL_ESCAPE (escapes to global variable)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_FIELD_ESCAPE)) {
+      fprintf (output, "    - FIELD_ESCAPE (multiple field accesses)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_VIRTUAL_CALL)) {
+      fprintf (output, "    - VIRTUAL_CALL (virtual function call)\n");
+    }
+    if (ESC_SYNTH_HAS (*synth, ESC_SYNTH_INDIRECT_CALL)) {
+      fprintf (output, "    - INDIRECT_CALL (indirect call)\n");
+    }
+
+    fprintf (output, "  Statistics:\n");
+    fprintf (output, "    Total uses: %u\n", synth->total_uses);
+    fprintf (output, "    Total escapes: %u\n", synth->total_escapes);
+    fprintf (output, "    Category count: %u\n", synth->category_count);
+    fprintf (output, "\n");
+  }
+
+  fprintf (output, "======================================\n");
 }
 
 } // namespace array_detect_ns
