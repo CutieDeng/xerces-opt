@@ -486,8 +486,10 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
       ));
 
       if (transfer_result) {
-        // 存储结果到 record（需要扩展 FieldWriteAnalysisRecord 结构）
-        // 暂时打印结果
+        // 存储结果到 record
+        record->ownership_transfer = transfer_result;
+
+        // 打印结果（调试信息）
         printOwnershipTransferResult (AD_ARGS, transfer_result);
 
         if (transfer_result->verdict == TRANSFER_CERTAIN) {

@@ -15,10 +15,11 @@
 // 避免循环依赖，保持模块解耦
 
 namespace array_detect_ns {
-  struct FieldWriteCapture;       // 字段写入捕获（field-write-collector）
-  struct SourceUseAnalysisResult; // 源使用分析结果（source-escape-collection）
-  struct EscapeSynthesisResult;   // 逃逸综合结果（escape-synthesizer）
-  struct OwnershipAnalysisResult; // 所有权分析结果（escape-synthesizer）
+  struct FieldWriteCapture;                 // 字段写入捕获（field-write-collector）
+  struct SourceUseAnalysisResult;           // 源使用分析结果（source-escape-collection）
+  struct EscapeSynthesisResult;             // 逃逸综合结果（escape-synthesizer）
+  struct OwnershipAnalysisResult;           // 所有权分析结果（escape-synthesizer）
+  struct OwnershipTransferAnalysisResult;   // 所有权转移分析结果（ownership-transfer）
 }
 
 namespace array_detector {
@@ -75,6 +76,10 @@ struct FieldWriteAnalysisRecord {
   // === 逃逸综合（可选，由 escape-synthesizer 生成）===
   EscapeSynthesisResult* escape_synthesis;    // 逃逸综合结果：逃逸的分类和统计
                                                // 包含：逃逸类别位图、详细统计等
+
+  // === 所有权转移分析（可选，由 ownership-transfer 生成）===
+  OwnershipTransferAnalysisResult* ownership_transfer; // 所有权转移分析结果：字段赋值的所有权转移判定
+                                               // 包含：销毁点、路径统计、转移判定（CERTAIN/IMPOSSIBLE/CONDITIONAL）等
 
   // === 元数据 ===
   void* reserved;                              // 保留字段，供未来扩展使用
