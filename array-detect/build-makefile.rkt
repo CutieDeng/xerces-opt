@@ -240,10 +240,14 @@
   (printf "~n~n"))
 
 (define (write-test-xercese)
+  (define test-dir (simplify-path (build-path (current-directory) "../test/test-xercese")))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) output-so-path)))
+  (define rel-plugin-path (path->string (find-relative-path test-dir abs-plugin-path)))
   (printf "test: ~a~n" output-so-path)
-  (printf "\tcd ../test/test-xercese; ")
-  (printf "racket build-xercese.rkt < ~s~n"
-    (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
+  (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
+  (define input `((cxx . ,(path->string cxx)) (cflags ,plugin-arg)))
+  (printf "\t@(cd ../test/test-xercese && echo ~s | racket build-xercese.rkt)~n"
+          (~s input))
   (printf "~n"))
 
 (define (calc-dependency filename)
@@ -302,10 +306,14 @@
                   "test-simple-ptr-copy-escape"))
 
 (define (write-test name)
+  (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) output-so-path)))
+  (define rel-plugin-path (path->string (find-relative-path test-dir abs-plugin-path)))
   (printf "~a: ~a~n" name output-so-path)
-  (printf "\tcd ../test/~a; " name)
-  (printf "racket build.rkt < ~s~n"
-    (path->string (path->complete-path (build-path "test-script/test-simple-virtual-call.rktd"))))
+  (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
+  (define input `((cxx . ,(path->string cxx)) (cflags ,plugin-arg)))
+  (printf "\t@(cd ../test/~a && echo ~s | racket build.rkt)~n"
+          name (~s input))
   (printf "~n"))
 
 (define (write-tests)
@@ -319,8 +327,10 @@
   (printf "# Generated Makefile for ~a~n" (if is-macos? "macOS" "Linux"))
   (printf "# Compiler: ~a~n" cxx)
   (printf "# Shared library extension: .~a~n" so-ext)
-  (printf "# Platform-specific flags: ~a~n~n"
-    (if (null? platform-linker-flags) "none" (string-join platform-linker-flags " "))))
+  (printf "# Platform-specific flags: ~a~n"
+    (if (null? platform-linker-flags) "none" (string-join platform-linker-flags " ")))
+  (printf "~n"))
+
 
 ;; ============================================================================
 ;; Main Entry Point
