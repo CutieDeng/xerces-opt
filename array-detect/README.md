@@ -20,13 +20,13 @@ make
 
 ## 测试
 
-### 运行所有测试
+### 核心测试套（集成测试）
 
 ```bash
 make test
 ```
 
-### 运行单个测试
+### 模块级/功能级测试
 
 ```bash
 make test-simple-ptr-field
