@@ -5,6 +5,10 @@
 #include "escape-synthesizer.hh"
 #include "ownership-transfer-analysis.hh"
 #include "owned-conclusion.hh"
+#include "capacity-association.hh"
+#include "array-access-collector.hh"
+#include "bound-condition-analyzer.hh"
+#include "result-aggregator.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -59,14 +63,43 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, &owned_conclusions));
   AD_DEBUG_PRINT ("Field owned conclusion analysis complete");
 
-  // 第七步：输出最终结果
-  AD_DEBUG_PRINT ("Step 7: Printing final results");
+  // 第七步：指针-容量关联分析
+  AD_DEBUG_PRINT ("Step 7: Analyzing pointer-capacity associations");
+  vec<PointerCapacityAssociation*, va_gc>* capacity_results = NULL;
+  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, &capacity_results));
+  AD_DEBUG_PRINT ("Pointer-capacity association analysis complete");
+
+  // 第八步：数组访问收集
+  AD_DEBUG_PRINT ("Step 8: Collecting array access patterns");
+  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses = NULL;
+  AD_TRY (collectAllArrayAccessesByTypeField (AD_ARGS, &array_accesses));
+  AD_DEBUG_PRINT ("Array access collection complete");
+
+  // 第九步：边界条件分析
+  AD_DEBUG_PRINT ("Step 9: Analyzing bound conditions");
+  if (array_accesses) {
+    AD_TRY (analyzeAllBoundConditions (AD_ARGS, array_accesses));
+  }
+  AD_DEBUG_PRINT ("Bound condition analysis complete");
+
+  // 第十步：结果聚合
+  AD_DEBUG_PRINT ("Step 10: Aggregating all results");
+  vec<UnifiedFieldAnalysisResult*, va_gc>* unified_results = NULL;
+  AD_TRY (aggregateAllResults (AD_ARGS, detector, owned_conclusions,
+                               capacity_results, array_accesses, &unified_results));
+  AD_DEBUG_PRINT ("Result aggregation complete: %u unified results",
+                  (unsigned int)vec_safe_length(unified_results));
+
+  // 第十一步：输出调试信息
+  AD_DEBUG_PRINT ("Step 11: Printing debug results");
   printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
+  printAllPointerCapacityAssociations (AD_ARGS, ctx.debug_file, capacity_results);
+  printAllUnifiedResults (AD_ARGS, ctx.debug_file, unified_results);
   AD_TRY (printResults (AD_ARGS, detector));
 
-  // 第八步：写入 Racket datum 格式结果文件（如果配置了 AD_RESULT_FILE）
-  AD_DEBUG_PRINT ("Step 8: Writing Racket datum results");
-  AD_TRY (writeResultsToRacketDatum (AD_ARGS, owned_conclusions));
+  // 第十二步：写入统一格式的 Racket datum 结果文件
+  AD_DEBUG_PRINT ("Step 12: Writing unified Racket datum results");
+  AD_TRY (writeUnifiedResultsToRacketDatum (AD_ARGS, unified_results));
 
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");
   AD_RETURNE (OK);

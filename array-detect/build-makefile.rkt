@@ -64,7 +64,11 @@
                   "array-detect-source-escape-collection"
                   "array-detect-escape-synthesizer"
                   "array-detect-ownership-transfer"
-                  "array-detect-owned-conclusion"))
+                  "array-detect-owned-conclusion"
+                  "array-detect-capacity-association"
+                  "array-detect-array-access"
+                  "array-detect-bound-analysis"
+                  "array-detect-result-aggregator"))
 
 (define s "src")
 (define i "include")
@@ -127,7 +131,11 @@
       "-I" ,(path->string (build-path "include/array-detect-source-escape-collection"))
       "-I" ,(path->string (build-path "include/array-detect-escape-synthesizer"))
       "-I" ,(path->string (build-path "include/array-detect-ownership-transfer"))
-      "-I" ,(path->string (build-path "include/array-detect-owned-conclusion")))
+      "-I" ,(path->string (build-path "include/array-detect-owned-conclusion"))
+      "-I" ,(path->string (build-path "include/array-detect-capacity-association"))
+      "-I" ,(path->string (build-path "include/array-detect-array-access"))
+      "-I" ,(path->string (build-path "include/array-detect-bound-analysis"))
+      "-I" ,(path->string (build-path "include/array-detect-result-aggregator")))
     platform-linker-flags
     '("-Wall"
       "-Wextra"
