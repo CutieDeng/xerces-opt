@@ -117,6 +117,58 @@ ComparisonDirection normalizeComparison (
 // 检查表达式是否引用了索引变量
 // ============================================================================
 
+// 辅助函数：获取 SSA_NAME 的基础变量（追溯到原始 PARM_DECL 或 VAR_DECL）
+static tree getSSABaseVar (tree ssa) {
+  if (!ssa) return NULL_TREE;
+  if (TREE_CODE (ssa) != SSA_NAME) return ssa;
+
+  // 首先尝试获取 SSA_NAME_VAR
+  tree base = SSA_NAME_VAR (ssa);
+  if (base) return base;
+
+  // 如果没有基础变量，追溯定义语句
+  gimple* def = SSA_NAME_DEF_STMT (ssa);
+  if (!def) return NULL_TREE;
+
+  // 赋值语句：追溯 RHS
+  if (gimple_code (def) == GIMPLE_ASSIGN) {
+    tree rhs = gimple_assign_rhs1 (def);
+    if (rhs && TREE_CODE (rhs) == SSA_NAME) {
+      return getSSABaseVar (rhs);
+    }
+    // NOP_EXPR 或类型转换
+    if (CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def))) {
+      return getSSABaseVar (rhs);
+    }
+  }
+
+  return NULL_TREE;
+}
+
+// 辅助函数：比较两个 SSA_NAME 是否来自同一基础变量
+static bool sameSSABaseVar (tree a, tree b) {
+  if (!a || !b) return false;
+  if (a == b) return true;
+
+  tree base_a = getSSABaseVar (a);
+  tree base_b = getSSABaseVar (b);
+
+  // 两边都有基础变量且相同
+  if (base_a && base_b && base_a == base_b) return true;
+
+  // 一边有基础变量，另一边是 SSA，检查 SSA 是否来自该基础变量
+  if (base_a && TREE_CODE (b) == SSA_NAME) {
+    tree b_base = getSSABaseVar (b);
+    if (b_base && b_base == base_a) return true;
+  }
+  if (base_b && TREE_CODE (a) == SSA_NAME) {
+    tree a_base = getSSABaseVar (a);
+    if (a_base && a_base == base_b) return true;
+  }
+
+  return false;
+}
+
 bool expressionInvolvesIndex (
   AD_FUNC_ARGS,
   tree expr,
@@ -127,7 +179,11 @@ bool expressionInvolvesIndex (
 
   if (!expr || !index_var) return false;
 
+  // 直接相等
   if (expr == index_var) return true;
+
+  // 比较 SSA 基础变量
+  if (sameSSABaseVar (expr, index_var)) return true;
 
   // SSA_NAME: 追溯定义
   if (TREE_CODE (expr) == SSA_NAME) {
@@ -338,7 +394,66 @@ ArrayDetectErrorCode findDominatingConditions (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 分析条件是否为边界检查
+// 辅助函数：从表达式中收集所有引用的字段
+// ============================================================================
+
+static void collectFieldsFromExpression (
+  AD_FUNC_ARGS,
+  tree expr,
+  vec<tree, va_gc>** out_fields,
+  int depth = 0
+) {
+  (void)ctx;
+  (void)gcc_ctx;
+
+  if (!expr || depth > 10) return;
+
+  // COMPONENT_REF: 直接的字段访问
+  if (TREE_CODE (expr) == COMPONENT_REF) {
+    tree field = TREE_OPERAND (expr, 1);
+    if (field && TREE_CODE (field) == FIELD_DECL) {
+      vec_safe_push (*out_fields, field);
+    }
+    // 继续检查基础对象
+    collectFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), out_fields, depth + 1);
+    return;
+  }
+
+  // SSA_NAME: 追溯定义
+  if (TREE_CODE (expr) == SSA_NAME) {
+    gimple* def = SSA_NAME_DEF_STMT (expr);
+    if (def && gimple_code (def) == GIMPLE_ASSIGN) {
+      collectFieldsFromExpression (AD_ARGS, gimple_assign_rhs1 (def), out_fields, depth + 1);
+      tree rhs2 = gimple_assign_rhs2 (def);
+      if (rhs2) {
+        collectFieldsFromExpression (AD_ARGS, rhs2, out_fields, depth + 1);
+      }
+    }
+    return;
+  }
+
+  // 二元操作
+  if (BINARY_CLASS_P (expr)) {
+    collectFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), out_fields, depth + 1);
+    collectFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 1), out_fields, depth + 1);
+    return;
+  }
+
+  // 一元操作或类型转换
+  if (UNARY_CLASS_P (expr) || CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
+    collectFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), out_fields, depth + 1);
+    return;
+  }
+
+  // MEM_REF: 内存引用
+  if (TREE_CODE (expr) == MEM_REF) {
+    collectFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), out_fields, depth + 1);
+    return;
+  }
+}
+
+// ============================================================================
+// 分析条件中引用的字段（简化版：不判断索引匹配，直接收集所有字段）
 // ============================================================================
 
 ArrayDetectErrorCode analyzeBoundCondition (
@@ -348,6 +463,8 @@ ArrayDetectErrorCode analyzeBoundCondition (
   ArrayAccessCapture* access,
   BoundConditionAssociation** out_association
 ) AD_FUNCTION_BEGIN {
+  (void)index_var;  // 不再需要判断索引匹配
+
   *out_association = NULL;
 
   if (!cond_stmt || gimple_code (cond_stmt) != GIMPLE_COND) {
@@ -362,117 +479,60 @@ ArrayDetectErrorCode analyzeBoundCondition (
     AD_RETURNE (OK);
   }
 
-  // 检查是否是比较操作
+  // 检查是否是比较操作（边界检查通常是 <, <=, >, >=）
   if (cmp_code != LT_EXPR && cmp_code != LE_EXPR &&
-      cmp_code != GT_EXPR && cmp_code != GE_EXPR) {
+      cmp_code != GT_EXPR && cmp_code != GE_EXPR &&
+      cmp_code != NE_EXPR && cmp_code != EQ_EXPR) {
     AD_RETURNE (OK);
   }
 
-  // 检查是否涉及索引变量
-  bool lhs_involves_index = expressionInvolvesIndex (AD_ARGS, lhs, index_var);
-  bool rhs_involves_index = expressionInvolvesIndex (AD_ARGS, rhs, index_var);
+  // 收集条件两边引用的所有字段
+  vec<tree, va_gc>* fields = NULL;
+  vec_alloc (fields, 4);
 
-  // 必须有一边涉及索引
-  if (!lhs_involves_index && !rhs_involves_index) {
+  collectFieldsFromExpression (AD_ARGS, lhs, &fields);
+  collectFieldsFromExpression (AD_ARGS, rhs, &fields);
+
+  // 如果没有找到任何字段引用，跳过
+  if (vec_safe_length (fields) == 0) {
     AD_RETURNE (OK);
   }
-
-  // 两边都涉及索引的情况暂不处理
-  if (lhs_involves_index && rhs_involves_index) {
-    AD_RETURNE (OK);
-  }
-
-  // 确定边界表达式（不涉及索引的一边）
-  tree bound_expr = lhs_involves_index ? rhs : lhs;
-  tree index_expr = lhs_involves_index ? lhs : rhs;
 
   // 创建关联结构
   BoundConditionAssociation* assoc = ggc_alloc<BoundConditionAssociation>();
   memset (assoc, 0, sizeof (BoundConditionAssociation));
 
   assoc->condition_stmt = cond_stmt;
-  assoc->condition_expr = gimple_cond_lhs (cond_stmt); // 整个条件
+  assoc->condition_expr = lhs;
   assoc->comparison_code = cmp_code;
-  assoc->index_var = index_var;
-  assoc->index_origin = index_expr;
-  assoc->bound_expr = bound_expr;
   assoc->condition_bb = gimple_bb (cond_stmt);
   assoc->location = gimple_location (cond_stmt);
-  assoc->dominates_access = true; // 已知是支配者
+  assoc->dominates_access = true;
 
-  // 检查边界是否为常量
-  if (TREE_CODE (bound_expr) == INTEGER_CST) {
-    assoc->is_field_bound = false;
-    assoc->constant_bound = TREE_INT_CST_LOW (bound_expr);
+  // 使用第一个找到的字段作为主要边界字段
+  assoc->is_field_bound = true;
+  assoc->bound_field_decl = (*fields)[0];
 
-    // 确定条件类型
-    ComparisonDirection dir = normalizeComparison (cmp_code, lhs, rhs, index_var);
-    switch (dir) {
-      case CMP_INDEX_LT_BOUND:
-      case CMP_BOUND_GT_INDEX:
-        assoc->condition_type = BOUND_COND_LT_CONSTANT;
-        break;
-      case CMP_INDEX_LE_BOUND:
-      case CMP_BOUND_GE_INDEX:
-        assoc->condition_type = BOUND_COND_LE_CONSTANT;
-        break;
-      default:
-        assoc->condition_type = BOUND_COND_COMPLEX;
-    }
-
-    AD_DEBUG_PRINT ("[analyzeBoundCondition] Found constant bound: %ld, type: %s",
-                    (long)assoc->constant_bound,
-                    getBoundConditionTypeName (assoc->condition_type));
+  // 追溯字段所属类型
+  tree first_field = (*fields)[0];
+  if (first_field && DECL_CONTEXT (first_field)) {
+    assoc->bound_type = DECL_CONTEXT (first_field);
   }
-  else {
-    // 尝试追溯到字段
-    tree bound_type = NULL_TREE;
-    tree bound_field = NULL_TREE;
-    AD_TRY (traceExpressionToField (AD_ARGS, bound_expr, &bound_type, &bound_field));
 
-    if (bound_type && bound_field) {
-      assoc->is_field_bound = true;
-      assoc->bound_type = bound_type;
-      assoc->bound_field_decl = bound_field;
+  // 设置条件类型
+  assoc->condition_type = BOUND_COND_LT_FIELD;  // 简化：统一标记为字段边界
 
-      // 确定条件类型
-      ComparisonDirection dir = normalizeComparison (cmp_code, lhs, rhs, index_var);
-      switch (dir) {
-        case CMP_INDEX_LT_BOUND:
-        case CMP_BOUND_GT_INDEX:
-          assoc->condition_type = BOUND_COND_LT_FIELD;
-          break;
-        case CMP_INDEX_LE_BOUND:
-        case CMP_BOUND_GE_INDEX:
-          assoc->condition_type = BOUND_COND_LE_FIELD;
-          break;
-        case CMP_INDEX_GT_BOUND:
-          assoc->condition_type = BOUND_COND_GT_FIELD;
-          break;
-        case CMP_INDEX_GE_BOUND:
-          assoc->condition_type = BOUND_COND_GE_FIELD;
-          break;
-        default:
-          assoc->condition_type = BOUND_COND_COMPLEX;
-      }
+  AD_DEBUG_PRINT ("[analyzeBoundCondition] Found %u fields in condition at %s:%d",
+                  vec_safe_length (fields),
+                  LOCATION_FILE (gimple_location (cond_stmt)) ?
+                    LOCATION_FILE (gimple_location (cond_stmt)) : "<unknown>",
+                  LOCATION_LINE (gimple_location (cond_stmt)));
 
-      AD_DEBUG_PRINT ("[analyzeBoundCondition] Found field bound: %s::%s, type: %s",
-                      safeGetTypeName (AD_ARGS, bound_type),
-                      safeGetFieldName (AD_ARGS, bound_field),
-                      getBoundConditionTypeName (assoc->condition_type));
-
-      // 检查边界字段是否与访问的指针字段属于同一类型
-      if (access && access->is_field_based && access->containing_type) {
-        if (TYPE_MAIN_VARIANT (access->containing_type) ==
-            TYPE_MAIN_VARIANT (bound_type)) {
-          assoc->description = "Same-object bound check";
-          AD_DEBUG_PRINT ("[analyzeBoundCondition] Bound is from same object type");
-        }
-      }
-    }
-    else {
-      assoc->is_field_bound = false;
-      assoc->condition_type = BOUND_COND_COMPLEX;
+  // 检查是否与访问的指针字段属于同一类型
+  if (access && access->is_field_based && access->containing_type && assoc->bound_type) {
+    if (TYPE_MAIN_VARIANT (access->containing_type) ==
+        TYPE_MAIN_VARIANT (assoc->bound_type)) {
+      assoc->description = "Same-object bound check";
     }
   }
 
@@ -526,12 +586,40 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Found %u dominating conditions",
                   conditions->length ());
 
-  // 分析每个条件
+  // 分析每个条件，收集所有引用的字段
   BoundConditionAssociation* best_field_bound = NULL;
 
   for (unsigned int i = 0; i < conditions->length (); i++) {
     gimple* cond = (*conditions)[i];
 
+    if (gimple_code (cond) != GIMPLE_COND) continue;
+
+    tree lhs = gimple_cond_lhs (cond);
+    tree rhs = gimple_cond_rhs (cond);
+
+    // 直接从条件中收集所有字段
+    vec<tree, va_gc>* cond_fields = NULL;
+    vec_alloc (cond_fields, 4);
+    collectFieldsFromExpression (AD_ARGS, lhs, &cond_fields);
+    collectFieldsFromExpression (AD_ARGS, rhs, &cond_fields);
+
+    // 将所有字段添加到 related_fields（去重）
+    for (unsigned int j = 0; j < vec_safe_length (cond_fields); j++) {
+      tree field = (*cond_fields)[j];
+      bool already_exists = false;
+      for (unsigned int k = 0; k < vec_safe_length (analysis->related_fields); k++) {
+        if ((*analysis->related_fields)[k] == field) {
+          already_exists = true;
+          break;
+        }
+      }
+      if (!already_exists) {
+        vec_safe_push (analysis->related_fields, field);
+        analysis->field_bound_count++;
+      }
+    }
+
+    // 也调用 analyzeBoundCondition 来获取更多信息（用于 debug）
     BoundConditionAssociation* assoc = NULL;
     AD_TRY (analyzeBoundCondition (AD_ARGS, cond, index_var, access, &assoc));
 
@@ -539,10 +627,6 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
       vec_safe_push (analysis->bounds, assoc);
 
       if (assoc->is_field_bound) {
-        analysis->field_bound_count++;
-        vec_safe_push (analysis->related_fields, assoc->bound_field_decl);
-
-        // 选择最佳字段边界（优先选择同对象类型的）
         if (!best_field_bound) {
           best_field_bound = assoc;
         }

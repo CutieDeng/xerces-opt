@@ -92,6 +92,150 @@ static bool isMallocFamily (const char* function_name) {
 }
 
 // ============================================================================
+// 辅助函数：收集表达式中的所有基础源变量（参数、局部变量等）
+// ============================================================================
+// 对于复杂表达式如 n * sizeof(int)，会收集所有涉及的基础变量
+// 返回值：收集到的源变量数量
+
+static void collectExpressionBaseSources (tree expr, vec<tree, va_gc>** out_sources, int depth = 0) {
+  if (!expr || depth > 10 || !out_sources) return;
+
+  // PARM_DECL: 函数参数 - 这是终止条件
+  if (TREE_CODE (expr) == PARM_DECL) {
+    vec_safe_push (*out_sources, expr);
+    return;
+  }
+
+  // VAR_DECL: 局部变量 - 这是终止条件
+  if (TREE_CODE (expr) == VAR_DECL) {
+    vec_safe_push (*out_sources, expr);
+    return;
+  }
+
+  // SSA_NAME: 追溯到基变量或定义
+  if (TREE_CODE (expr) == SSA_NAME) {
+    tree base_var = SSA_NAME_VAR (expr);
+    if (base_var && (TREE_CODE (base_var) == PARM_DECL || TREE_CODE (base_var) == VAR_DECL)) {
+      vec_safe_push (*out_sources, base_var);
+      return;
+    }
+    // 如果没有基变量，尝试追溯定义语句
+    gimple* def_stmt = SSA_NAME_DEF_STMT (expr);
+    if (def_stmt && is_gimple_assign (def_stmt)) {
+      tree_code code = gimple_assign_rhs_code (def_stmt);
+      // 对于二元操作（如 MULT_EXPR），递归收集两个操作数的源
+      if (TREE_CODE_CLASS (code) == tcc_binary) {
+        collectExpressionBaseSources (gimple_assign_rhs1 (def_stmt), out_sources, depth + 1);
+        collectExpressionBaseSources (gimple_assign_rhs2 (def_stmt), out_sources, depth + 1);
+        return;
+      }
+      // 对于简单赋值或类型转换，追溯 RHS
+      if (code == SSA_NAME || code == NOP_EXPR || code == CONVERT_EXPR) {
+        collectExpressionBaseSources (gimple_assign_rhs1 (def_stmt), out_sources, depth + 1);
+        return;
+      }
+    }
+    return;
+  }
+
+  // 二元操作（树形式）
+  if (BINARY_CLASS_P (expr)) {
+    collectExpressionBaseSources (TREE_OPERAND (expr, 0), out_sources, depth + 1);
+    collectExpressionBaseSources (TREE_OPERAND (expr, 1), out_sources, depth + 1);
+    return;
+  }
+
+  // NOP_EXPR / CONVERT_EXPR: 类型转换 - 继续追溯
+  if (CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
+    collectExpressionBaseSources (TREE_OPERAND (expr, 0), out_sources, depth + 1);
+    return;
+  }
+}
+
+// 辅助函数：获取单个基础源（向后兼容）
+static tree getExpressionBaseSource (tree expr, int depth = 0) {
+  vec<tree, va_gc>* sources = NULL;
+  vec_alloc (sources, 4);
+  collectExpressionBaseSources (expr, &sources, depth);
+  if (sources && vec_safe_length (sources) > 0) {
+    return (*sources)[0];
+  }
+  return NULL_TREE;
+}
+
+// ============================================================================
+// 辅助函数：检查候选字段是否与 malloc 参数同源
+// ============================================================================
+// 检查候选字段的写入操作是否来自与 malloc size 参数相同的源变量
+
+static bool checkCoSourcedAssignment (
+  AD_FUNC_ARGS,
+  tree malloc_size_arg,
+  TypeFieldAnalysisData* candidate_field_data
+) {
+  if (!malloc_size_arg || !candidate_field_data) {
+    return false;
+  }
+
+  // 收集 malloc 参数的所有基础源（处理 n * sizeof(T) 等复杂表达式）
+  vec<tree, va_gc>* malloc_sources = NULL;
+  vec_alloc (malloc_sources, 4);
+  collectExpressionBaseSources (malloc_size_arg, &malloc_sources);
+
+  if (!malloc_sources || vec_safe_length (malloc_sources) == 0) {
+    AD_DEBUG_PRINT ("[checkCoSourcedAssignment] Cannot trace malloc arg to base source");
+    return false;
+  }
+
+  if (ctx.debug_file) {
+    fprintf (ctx.debug_file, "        Malloc arg base sources (%u):",
+             vec_safe_length (malloc_sources));
+    for (unsigned int i = 0; i < vec_safe_length (malloc_sources); i++) {
+      tree src = (*malloc_sources)[i];
+      const char* name = DECL_NAME (src) ? IDENTIFIER_POINTER (DECL_NAME (src)) : "<anon>";
+      fprintf (ctx.debug_file, " %s", name);
+    }
+    fprintf (ctx.debug_file, "\n");
+  }
+
+  // 遍历候选字段的所有写入操作
+  if (!candidate_field_data->write_analysis_records) {
+    return false;
+  }
+
+  unsigned int write_count = candidate_field_data->write_analysis_records->length ();
+  for (unsigned int i = 0; i < write_count; i++) {
+    FieldWriteAnalysisRecord* record = (*candidate_field_data->write_analysis_records)[i];
+    if (!record || !record->source_info) continue;
+
+    // 检查源类型是否为变量
+    LET_SOURCE_VARIABLE (var_source, *record->source_info) {
+      tree source_operand = var_source.ssa_name;
+      tree source_base = getExpressionBaseSource (source_operand);
+
+      if (source_base) {
+        // 检查是否与任一 malloc 源匹配
+        for (unsigned int j = 0; j < vec_safe_length (malloc_sources); j++) {
+          tree malloc_base = (*malloc_sources)[j];
+          if (source_base == malloc_base) {
+            const char* source_name = var_source.var_name ? var_source.var_name : "<unknown>";
+            AD_DEBUG_PRINT ("[checkCoSourcedAssignment] MATCH: candidate field assigned from same source '%s'",
+                            source_name);
+            if (ctx.debug_file) {
+              fprintf (ctx.debug_file, "        -> MATCH: field assigned from '%s' (same as malloc arg)\n",
+                       source_name);
+            }
+            return true;
+          }
+        }
+      }
+    } END_LET()
+  }
+
+  return false;
+}
+
+// ============================================================================
 // 收集类型中的所有整数类型字段作为候选
 // ============================================================================
 
@@ -340,6 +484,7 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
 
 static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_FUNC_ARGS,
+  ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
   tree candidate_field,
   CapacityCandidateAnalysis** out_analysis
@@ -353,6 +498,16 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   const char* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
   const char* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
   const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+
+  // 从 detector 中获取候选字段的分析数据
+  TypeFieldAnalysisData* candidate_field_data = NULL;
+  if (detector.m_type_field_writes) {
+    TypeFieldKey key = { pointer_field_data->type, candidate_field };
+    TypeFieldAnalysisData** data_ptr = detector.m_type_field_writes->get (key);
+    if (data_ptr) {
+      candidate_field_data = *data_ptr;
+    }
+  }
 
   AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Analyzing candidate '%s' for pointer '%s::%s'",
                   candidate_name, ptr_type_name, ptr_field_name);
@@ -411,6 +566,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
                    i, func_call.function_name ? func_call.function_name : "<unknown>");
         }
 
+        // 方法1: 检查 malloc 参数是否直接引用候选字段
         bool references = false;
         CapacityAssociationEvidence* evidence = NULL;
 
@@ -422,8 +578,45 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
           vec_safe_push (analysis->evidences, evidence);
 
           if (ctx.debug_file) {
-            fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND: '%s' references '%s'\n",
+            fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (direct ref): '%s' references '%s'\n",
                      ptr_field_name, candidate_name);
+          }
+        }
+
+        // 方法2: 检查 malloc 参数与候选字段是否同源（如都来自同一参数）
+        if (!references && candidate_field_data && func_call.call_stmt) {
+          const char* function_name = func_call.function_name;
+          if (function_name && isMallocFamily (function_name)) {
+            gimple* call_stmt = func_call.call_stmt;
+            unsigned int nargs = gimple_call_num_args (call_stmt);
+
+            // 检查每个 malloc 参数
+            for (unsigned int arg_idx = 0; arg_idx < nargs && !references; arg_idx++) {
+              tree arg = gimple_call_arg (call_stmt, arg_idx);
+              if (checkCoSourcedAssignment (AD_ARGS, arg, candidate_field_data)) {
+                references = true;
+
+                // 创建证据
+                location_t loc = gimple_location (call_stmt);
+                CapacityAssociationEvidence* co_evidence = ggc_alloc<CapacityAssociationEvidence>();
+                memset (co_evidence, 0, sizeof (CapacityAssociationEvidence));
+
+                co_evidence->evidence_type = CAP_EVID_MALLOC_SIZE_ARG;
+                co_evidence->location = loc;
+                co_evidence->stmt = call_stmt;
+                co_evidence->description = "Allocation size and field assigned from same source";
+                co_evidence->function_name = ggc_strdup (function_name);
+                co_evidence->size_expr = arg;
+
+                analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
+                vec_safe_push (analysis->evidences, co_evidence);
+
+                if (ctx.debug_file) {
+                  fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (co-sourced): '%s' co-sourced with '%s'\n",
+                           ptr_field_name, candidate_name);
+                }
+              }
+            }
           }
         }
       } END_LET()
@@ -529,7 +722,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
                     i, candidate_name);
 
     CapacityCandidateAnalysis* analysis = NULL;
-    AD_TRY (analyzeCandidateAssociation (AD_ARGS, pointer_field_data, candidate, &analysis));
+    AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, candidate, &analysis));
 
     if (analysis) {
       vec_safe_push (result->candidate_analyses, analysis);

@@ -583,11 +583,11 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     APPEND_STR("(");
 
     // 基本信息
-    APPEND_STR("(current-file \"");
+    APPEND_STR("(file \"");
     APPEND_STR(escaped_file_buffer);
     APPEND_STR("\")");
     APPEND_FMT("(type \"%s\")", result->type_name ? result->type_name : "<unknown>");
-    APPEND_FMT("(pointer-field \"%s\")", result->pointer_field_name ? result->pointer_field_name : "<unknown>");
+    APPEND_FMT("(field \"%s\")", result->pointer_field_name ? result->pointer_field_name : "<unknown>");
 
     // Owned 结论
     APPEND_STR("(owned ");
@@ -598,32 +598,8 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     }
     APPEND_STR(")");
 
-    // 数组访问统计
-    APPEND_FMT("(array-accesses %u)",
-               result->total_read_accesses + result->total_write_accesses);
-    APPEND_FMT("(read-accesses %u)", result->total_read_accesses);
-    APPEND_FMT("(write-accesses %u)", result->total_write_accesses);
-
-    // 边界检查
-    APPEND_FMT("(has-bound-check %s)",
-               result->has_bound_check ? "yes" : "no");
-    APPEND_FMT("(accesses-with-bound %u)", result->accesses_with_bound);
-    APPEND_FMT("(accesses-without-bound %u)", result->accesses_without_bound);
-
-    // 容量关联
-    APPEND_STR("(capacity-field ");
-    if (result->best_capacity_match && result->best_capacity_match->capacity_field_name) {
-      APPEND_FMT("\"%s\"", result->best_capacity_match->capacity_field_name);
-    } else {
-      APPEND_STR("#f");
-    }
-    APPEND_STR(")");
-
-    APPEND_FMT("(capacity-confidence %u)",
-               result->best_capacity_match ? result->best_capacity_match->confidence_score : 0);
-
-    // 分类关联 - malloc
-    APPEND_STR("(malloc-relation (");
+    // malloc-size: 与 malloc 参数关联的字段列表
+    APPEND_STR("(malloc-size (");
     if (result->capacity_relations) {
       bool first = true;
       unsigned int rel_len = vec_safe_length(result->capacity_relations);
@@ -638,40 +614,71 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     }
     APPEND_STR("))");
 
-    // 分类关联 - read
-    APPEND_STR("(read-relation (");
-    if (result->capacity_relations) {
-      bool first = true;
-      unsigned int rel_len = vec_safe_length(result->capacity_relations);
-      for (unsigned int j = 0; j < rel_len; j++) {
-        CapacityFieldRelation* rel = (*result->capacity_relations)[j];
-        if (rel && rel->capacity_field_name && (rel->evidence_bitmap & EVID_ARRAY_READ_BOUND)) {
-          if (!first) APPEND_STR(" ");
-          APPEND_FMT("\"%s\"", rel->capacity_field_name);
-          first = false;
+    // reads: 每次读访问关联的边界字段列表
+    APPEND_STR("(reads (");
+    if (result->array_accesses) {
+      bool first_access = true;
+      unsigned int acc_len = vec_safe_length(result->array_accesses);
+      for (unsigned int j = 0; j < acc_len; j++) {
+        ArrayAccessCapture* access = (*result->array_accesses)[j];
+        if (!access || access->direction != ACCESS_READ) continue;
+
+        if (!first_access) APPEND_STR(" ");
+        first_access = false;
+
+        APPEND_STR("(");
+        // 获取该访问关联的边界字段
+        ArrayAccessBoundAnalysis* ba = (ArrayAccessBoundAnalysis*)access->bound_analysis;
+        if (ba && ba->related_fields) {
+          bool first_field = true;
+          unsigned int field_len = vec_safe_length(ba->related_fields);
+          for (unsigned int k = 0; k < field_len; k++) {
+            tree field_decl = (*ba->related_fields)[k];
+            if (!field_decl) continue;
+            const char* field_name = DECL_NAME(field_decl) ?
+              IDENTIFIER_POINTER(DECL_NAME(field_decl)) : "<anon>";
+            if (!first_field) APPEND_STR(" ");
+            APPEND_FMT("\"%s\"", field_name);
+            first_field = false;
+          }
         }
+        APPEND_STR(")");
       }
     }
     APPEND_STR("))");
 
-    // 分类关联 - write
-    APPEND_STR("(write-relation (");
-    if (result->capacity_relations) {
-      bool first = true;
-      unsigned int rel_len = vec_safe_length(result->capacity_relations);
-      for (unsigned int j = 0; j < rel_len; j++) {
-        CapacityFieldRelation* rel = (*result->capacity_relations)[j];
-        if (rel && rel->capacity_field_name && (rel->evidence_bitmap & EVID_ARRAY_WRITE_BOUND)) {
-          if (!first) APPEND_STR(" ");
-          APPEND_FMT("\"%s\"", rel->capacity_field_name);
-          first = false;
+    // writes: 每次写访问关联的边界字段列表
+    APPEND_STR("(writes (");
+    if (result->array_accesses) {
+      bool first_access = true;
+      unsigned int acc_len = vec_safe_length(result->array_accesses);
+      for (unsigned int j = 0; j < acc_len; j++) {
+        ArrayAccessCapture* access = (*result->array_accesses)[j];
+        if (!access || access->direction != ACCESS_WRITE) continue;
+
+        if (!first_access) APPEND_STR(" ");
+        first_access = false;
+
+        APPEND_STR("(");
+        // 获取该访问关联的边界字段
+        ArrayAccessBoundAnalysis* ba = (ArrayAccessBoundAnalysis*)access->bound_analysis;
+        if (ba && ba->related_fields) {
+          bool first_field = true;
+          unsigned int field_len = vec_safe_length(ba->related_fields);
+          for (unsigned int k = 0; k < field_len; k++) {
+            tree field_decl = (*ba->related_fields)[k];
+            if (!field_decl) continue;
+            const char* field_name = DECL_NAME(field_decl) ?
+              IDENTIFIER_POINTER(DECL_NAME(field_decl)) : "<anon>";
+            if (!first_field) APPEND_STR(" ");
+            APPEND_FMT("\"%s\"", field_name);
+            first_field = false;
+          }
         }
+        APPEND_STR(")");
       }
     }
     APPEND_STR("))");
-
-    // 综合置信度
-    APPEND_FMT("(overall-confidence %u)", result->overall_confidence);
 
     APPEND_STR(")\n");
   }

@@ -687,3 +687,6 @@ test-simple-virtual-call: out/plugin-array-detect.dylib
 test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
 	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
+test-bound-check: out/plugin-array-detect.dylib
+	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+
