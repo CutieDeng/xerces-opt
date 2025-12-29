@@ -12,6 +12,9 @@ struct ArrayDetectContext {
   // 如果为 nullptr，则不输出结果
   char const *result_file_path;
 
+  // 当前编译的主输入文件路径（用于在结果中区分不同编译流程）
+  char const *current_input_file;
+
   // 匹配调试开关（虚函数匹配失败时输出调试信息）
   bool match_debug_tracer;
   

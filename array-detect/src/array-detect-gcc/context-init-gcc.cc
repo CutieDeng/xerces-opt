@@ -1,4 +1,5 @@
 #include "gcc-common.hh"
+#include "input.h"  // for main_input_filename
 
 #include "context.hh"
 #include "context-init.hh"
@@ -37,6 +38,9 @@ ArrayDetectErrorCode initContextBuffers (AD_FUNC_ARGS, size_t capacity) AD_FUNCT
   if (!ctx.escaped_string_buffer) {
     AD_RETURNE (MEMORY_ERROR);
   }
+
+  // 设置当前编译的主输入文件路径
+  ctx.current_input_file = main_input_filename;
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

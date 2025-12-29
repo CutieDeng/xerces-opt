@@ -21,7 +21,27 @@ void nothingWithFile (FILE *) {
 
 }
 
+// ============================================================================
+// 初始化环境变量相关配置
+// ============================================================================
+
+void initContextEnvVars (AD_FUNC_ARGS) {
+  (void)gcc_ctx;
+
+  // 读取 AD_RESULT_FILE 环境变量
+  char const *result_file_env = getenv ("AD_RESULT_FILE");
+  ctx.result_file_path = result_file_env;
+
+  // current_input_file 需要从 GCC 获取，在 initContextBuffers 中设置
+  ctx.current_input_file = nullptr;
+}
+
+// ============================================================================
+// Context 初始化函数
+// ============================================================================
+
 ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  initContextEnvVars (AD_ARGS);
   ctx.debug_file = fopen ("/tmp/array-detect.log", "w");
   ctx.debug_file_dtor = closeWrap;
   ctx.match_debug_tracer = false;
@@ -38,6 +58,7 @@ ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
+  initContextEnvVars (AD_ARGS);
   AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
   ctx.debug_file = fopen (debug_file_path, "w");
   ctx.debug_file_dtor = closeWrap;
@@ -55,6 +76,7 @@ ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_f
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  initContextEnvVars (AD_ARGS);
   ctx.debug_file = stderr;
   ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
@@ -68,11 +90,8 @@ ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  initContextEnvVars (AD_ARGS);
   char const *debug_file_env = getenv ("AD_DEBUG_FILE");
-  char const *result_file_env = getenv ("AD_RESULT_FILE");
-
-  // 初始化结果文件路径（如果设置了 AD_RESULT_FILE 环境变量）
-  ctx.result_file_path = result_file_env;  // 直接使用环境变量字符串（生命周期足够长）
 
   if (debug_file_env == nullptr) {
     // 环境变量未设置，禁用调试输出

@@ -24,4 +24,8 @@ void deinitContext (AD_FUNC_ARGS);
 // 初始化上下文内部缓冲区（内部实现函数）
 ArrayDetectErrorCode initContextBuffers (AD_FUNC_ARGS, size_t capacity);
 
+// 初始化环境变量相关配置（AD_RESULT_FILE 等）
+// 应在所有 init 函数中调用
+void initContextEnvVars (AD_FUNC_ARGS);
+
 } // namespace array_detect_ns

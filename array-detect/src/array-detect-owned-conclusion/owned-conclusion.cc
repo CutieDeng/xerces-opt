@@ -646,6 +646,23 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
   // 重置缓冲区使用量
   ctx.result_datum_buffer_size = 0;
 
+  // 先转义 current_input_file（对所有结论相同）
+  // 使用 escaped_string_buffer 的前半部分，然后复制到 result_datum_buffer 开头临时保存
+  const char* current_file = ctx.current_input_file ? ctx.current_input_file : "";
+  escapeRacketString (ctx, current_file, 0);
+  const char* escaped_file_ptr = getEscapedString (ctx, 0);
+  size_t escaped_file_len = strlen (escaped_file_ptr);
+
+  // 将转义后的文件名保存到 result_datum_buffer 开头（临时存储）
+  if (!ensureResultBufferCapacity (ctx, escaped_file_len + 1)) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memcpy (ctx.result_datum_buffer, escaped_file_ptr, escaped_file_len + 1);
+  const char* escaped_current_file = ctx.result_datum_buffer;
+
+  // 重置写入位置到文件名之后
+  ctx.result_datum_buffer_size = escaped_file_len + 1;
+
   // === 构建所有 datum 到缓冲区 ===
   for (unsigned int i = 0; i < conclusions->length (); i++) {
     FieldOwnedConclusion* conclusion = (*conclusions)[i];
@@ -668,7 +685,7 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
     }
 
     // 计算需要的空间
-    size_t needed = strlen (escaped_type) + strlen (escaped_field) + 64;
+    size_t needed = escaped_file_len + strlen (escaped_type) + strlen (escaped_field) + 128;
     size_t required_capacity = ctx.result_datum_buffer_size + needed;
 
     // 确保缓冲区容量足够
@@ -676,12 +693,12 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
       AD_RETURNE (MEMORY_ERROR);
     }
 
-    // 格式化当前条目
+    // 格式化当前条目（包含 current-file 字段）
     int written = snprintf (
       ctx.result_datum_buffer + ctx.result_datum_buffer_size,
       ctx.result_datum_buffer_capacity - ctx.result_datum_buffer_size,
-      "((type \"%s\")(field \"%s\")(result %s))\n",
-      escaped_type, escaped_field, result_str
+      "((current-file \"%s\")(type \"%s\")(field \"%s\")(result %s))\n",
+      escaped_current_file, escaped_type, escaped_field, result_str
     );
 
     if (written > 0) {
@@ -691,16 +708,20 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
 
   // === 原子性写入文件 ===
   // 使用 O_APPEND 模式，单次 write() 调用保证原子性（POSIX）
+  // 注意：result_datum_buffer 开头存储了转义后的文件名，实际数据从 escaped_file_len + 1 开始
+  size_t data_offset = escaped_file_len + 1;
+  size_t data_size = ctx.result_datum_buffer_size - data_offset;
+
   int fd = open (ctx.result_file_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
   if (fd < 0) {
     AD_DEBUG_PRINT ("Failed to open result file: %s", ctx.result_file_path);
     AD_RETURNE (RESOURCE_ERROR);
   }
 
-  ssize_t bytes_written = write (fd, ctx.result_datum_buffer, ctx.result_datum_buffer_size);
-  if (bytes_written < 0 || (size_t)bytes_written != ctx.result_datum_buffer_size) {
+  ssize_t bytes_written = write (fd, ctx.result_datum_buffer + data_offset, data_size);
+  if (bytes_written < 0 || (size_t)bytes_written != data_size) {
     AD_DEBUG_PRINT ("Failed to write to result file (written %zd of %zu bytes)",
-                    bytes_written, ctx.result_datum_buffer_size);
+                    bytes_written, data_size);
     close (fd);
     AD_RETURNE (RESOURCE_ERROR);
   }
@@ -708,7 +729,7 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
   close (fd);
 
   AD_DEBUG_PRINT ("Successfully wrote %zu bytes (%u conclusions) to result file",
-                  ctx.result_datum_buffer_size, conclusions->length ());
+                  data_size, conclusions->length ());
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
