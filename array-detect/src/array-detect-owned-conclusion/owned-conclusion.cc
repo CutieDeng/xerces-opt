@@ -265,6 +265,60 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 } AD_FUNCTION_END
 
 // ============================================================================
+// 辅助函数：安全获取类型名
+// ============================================================================
+
+static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
+  (void)gcc_ctx;
+
+  if (!type) {
+    AD_DEBUG_PRINT ("Warning: type is NULL when getting type name");
+    return "<null-type>";
+  }
+
+  tree type_id = TYPE_IDENTIFIER (type);
+  if (!type_id) {
+    AD_DEBUG_PRINT ("Warning: TYPE_IDENTIFIER returned NULL for type %p", (void*)type);
+    return "<anonymous-type>";
+  }
+
+  const char* id_ptr = IDENTIFIER_POINTER (type_id);
+  if (!id_ptr) {
+    AD_DEBUG_PRINT ("Warning: IDENTIFIER_POINTER returned NULL for type identifier");
+    return "<unnamed-type>";
+  }
+
+  return identifier_to_locale (id_ptr);
+}
+
+// ============================================================================
+// 辅助函数：安全获取字段名
+// ============================================================================
+
+static const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
+  (void)gcc_ctx;
+
+  if (!field_decl) {
+    AD_DEBUG_PRINT ("Warning: field_decl is NULL when getting field name");
+    return "<null-field>";
+  }
+
+  tree decl_name = DECL_NAME (field_decl);
+  if (!decl_name) {
+    AD_DEBUG_PRINT ("Warning: DECL_NAME returned NULL for field_decl %p", (void*)field_decl);
+    return "<anonymous-field>";
+  }
+
+  const char* id_ptr = IDENTIFIER_POINTER (decl_name);
+  if (!id_ptr) {
+    AD_DEBUG_PRINT ("Warning: IDENTIFIER_POINTER returned NULL for field name");
+    return "<unnamed-field>";
+  }
+
+  return identifier_to_locale (id_ptr);
+}
+
+// ============================================================================
 // 核心函数：分析单个字段的 owned 结论
 // ============================================================================
 
@@ -274,11 +328,23 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   FieldOwnedConclusion** out_conclusion
 ) AD_FUNCTION_BEGIN {
   if (!field_data) {
+    AD_DEBUG_PRINT ("Warning: field_data is NULL in analyzeFieldOwnedConclusion");
     *out_conclusion = NULL;
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   *out_conclusion = NULL;
+
+  // 验证必要的字段
+  if (!field_data->type) {
+    AD_DEBUG_PRINT ("Warning: field_data->type is NULL, skipping this field");
+    AD_RETURNE (OK);  // 跳过无效字段，不返回错误
+  }
+
+  if (!field_data->field_decl) {
+    AD_DEBUG_PRINT ("Warning: field_data->field_decl is NULL, skipping this field");
+    AD_RETURNE (OK);  // 跳过无效字段，不返回错误
+  }
 
   // 创建结论结构
   FieldOwnedConclusion* conclusion = ggc_alloc<FieldOwnedConclusion>();
@@ -286,8 +352,8 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
 
   conclusion->type = field_data->type;
   conclusion->field_decl = field_data->field_decl;
-  conclusion->type_name = identifier_to_locale (IDENTIFIER_POINTER (TYPE_IDENTIFIER (field_data->type)));
-  conclusion->field_name = identifier_to_locale (IDENTIFIER_POINTER (DECL_NAME (field_data->field_decl)));
+  conclusion->type_name = safeGetTypeName (AD_ARGS, field_data->type);
+  conclusion->field_name = safeGetFieldName (AD_ARGS, field_data->field_decl);
 
   // 初始化证据列表
   vec_alloc (conclusion->supporting_evidences, 4);
