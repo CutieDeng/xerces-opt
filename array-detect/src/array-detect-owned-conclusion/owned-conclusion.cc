@@ -8,6 +8,10 @@
 #include "ownership-transfer-analysis.hh"
 #include "info-print.hh"
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstring>
+
 namespace array_detect_ns {
 
 using namespace ::array_detector;
@@ -557,5 +561,156 @@ void printAllFieldOwnedConclusions (
   fprintf (out, "================================================================================\n");
   fprintf (out, "\n");
 }
+
+// ============================================================================
+// 辅助函数：转义 Racket 字符串中的特殊字符（使用 context 缓冲区）
+// ============================================================================
+
+static void escapeRacketString (
+  ArrayDetectContext& ctx,
+  const char* input,
+  size_t half_offset  // 0 = 使用前半部分，1 = 使用后半部分
+) {
+  // 使用 escaped_string_buffer 的前半或后半部分
+  size_t half_size = ctx.escaped_string_buffer_size / 2;
+  char* output = ctx.escaped_string_buffer + (half_offset * half_size);
+  size_t output_size = half_size;
+
+  size_t j = 0;
+  for (size_t i = 0; input[i] != '\0' && j < output_size - 1; i++) {
+    char c = input[i];
+    if (c == '"' || c == '\\') {
+      if (j + 2 >= output_size) break;
+      output[j++] = '\\';
+      output[j++] = c;
+    } else {
+      output[j++] = c;
+    }
+  }
+  output[j] = '\0';
+}
+
+// 获取转义后的字符串指针
+static inline char* getEscapedString (ArrayDetectContext& ctx, size_t half_offset) {
+  size_t half_size = ctx.escaped_string_buffer_size / 2;
+  return ctx.escaped_string_buffer + (half_offset * half_size);
+}
+
+// ============================================================================
+// 辅助函数：确保 result_datum_buffer 有足够容量
+// ============================================================================
+
+static bool ensureResultBufferCapacity (ArrayDetectContext& ctx, size_t required) {
+  if (ctx.result_datum_buffer_capacity >= required) {
+    return true;
+  }
+
+  // 扩展容量（至少翻倍，或满足需求）
+  size_t new_capacity = ctx.result_datum_buffer_capacity * 2;
+  while (new_capacity < required) {
+    new_capacity *= 2;
+  }
+
+  char* new_buffer = (char*) ggc_realloc (ctx.result_datum_buffer, new_capacity);
+  if (!new_buffer) {
+    return false;
+  }
+
+  ctx.result_datum_buffer = new_buffer;
+  ctx.result_datum_buffer_capacity = new_capacity;
+  return true;
+}
+
+// ============================================================================
+// 将结论写入 Racket datum 格式的结果文件
+// ============================================================================
+
+ArrayDetectErrorCode writeResultsToRacketDatum (
+  AD_FUNC_ARGS,
+  vec<FieldOwnedConclusion*, va_gc>* conclusions
+) AD_FUNCTION_BEGIN {
+  (void)gcc_ctx;
+
+  // 如果未设置结果文件路径，直接返回
+  if (!ctx.result_file_path) {
+    AD_RETURNE (OK);
+  }
+
+  // 如果没有结论，直接返回
+  if (!conclusions || conclusions->length () == 0) {
+    AD_RETURNE (OK);
+  }
+
+  AD_DEBUG_PRINT ("Writing results to Racket datum file: %s", ctx.result_file_path);
+
+  // 重置缓冲区使用量
+  ctx.result_datum_buffer_size = 0;
+
+  // === 构建所有 datum 到缓冲区 ===
+  for (unsigned int i = 0; i < conclusions->length (); i++) {
+    FieldOwnedConclusion* conclusion = (*conclusions)[i];
+    if (!conclusion) continue;
+
+    // 转义类型名和字段名（分别使用缓冲区的前半和后半部分）
+    escapeRacketString (ctx, conclusion->type_name ? conclusion->type_name : "", 0);
+    escapeRacketString (ctx, conclusion->field_name ? conclusion->field_name : "", 1);
+
+    const char* escaped_type = getEscapedString (ctx, 0);
+    const char* escaped_field = getEscapedString (ctx, 1);
+
+    // 获取结果字符串
+    const char* result_str;
+    switch (conclusion->verdict) {
+      case OWNED_YES: result_str = "yes"; break;
+      case OWNED_NO: result_str = "no"; break;
+      case OWNED_UNDETERMINED:
+      default: result_str = "maybe"; break;
+    }
+
+    // 计算需要的空间
+    size_t needed = strlen (escaped_type) + strlen (escaped_field) + 64;
+    size_t required_capacity = ctx.result_datum_buffer_size + needed;
+
+    // 确保缓冲区容量足够
+    if (!ensureResultBufferCapacity (ctx, required_capacity)) {
+      AD_RETURNE (MEMORY_ERROR);
+    }
+
+    // 格式化当前条目
+    int written = snprintf (
+      ctx.result_datum_buffer + ctx.result_datum_buffer_size,
+      ctx.result_datum_buffer_capacity - ctx.result_datum_buffer_size,
+      "((type \"%s\")(field \"%s\")(result %s))\n",
+      escaped_type, escaped_field, result_str
+    );
+
+    if (written > 0) {
+      ctx.result_datum_buffer_size += (size_t)written;
+    }
+  }
+
+  // === 原子性写入文件 ===
+  // 使用 O_APPEND 模式，单次 write() 调用保证原子性（POSIX）
+  int fd = open (ctx.result_file_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  if (fd < 0) {
+    AD_DEBUG_PRINT ("Failed to open result file: %s", ctx.result_file_path);
+    AD_RETURNE (RESOURCE_ERROR);
+  }
+
+  ssize_t bytes_written = write (fd, ctx.result_datum_buffer, ctx.result_datum_buffer_size);
+  if (bytes_written < 0 || (size_t)bytes_written != ctx.result_datum_buffer_size) {
+    AD_DEBUG_PRINT ("Failed to write to result file (written %zd of %zu bytes)",
+                    bytes_written, ctx.result_datum_buffer_size);
+    close (fd);
+    AD_RETURNE (RESOURCE_ERROR);
+  }
+
+  close (fd);
+
+  AD_DEBUG_PRINT ("Successfully wrote %zu bytes (%u conclusions) to result file",
+                  ctx.result_datum_buffer_size, conclusions->length ());
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 } // namespace array_detect_ns

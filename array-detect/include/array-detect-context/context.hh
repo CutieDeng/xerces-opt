@@ -7,7 +7,11 @@ namespace array_detect_ns {
 struct ArrayDetectContext {
   FILE *debug_file;
   void (*debug_file_dtor)(FILE *);
-  
+
+  // 结果输出文件路径（通过 AD_RESULT_FILE 环境变量配置）
+  // 如果为 nullptr，则不输出结果
+  char const *result_file_path;
+
   // 匹配调试开关（虚函数匹配失败时输出调试信息）
   bool match_debug_tracer;
   
@@ -20,6 +24,13 @@ struct ArrayDetectContext {
   // 预分配的缓冲区用于地址解析格式化
   char *address_format_buffer;
   size_t address_format_buffer_size;
+
+  // 预分配的缓冲区用于 Racket datum 结果输出
+  char *result_datum_buffer;
+  size_t result_datum_buffer_size;
+  size_t result_datum_buffer_capacity;  // 当前容量（可动态扩展）
+  char *escaped_string_buffer;          // 用于转义字符串
+  size_t escaped_string_buffer_size;
 };
 
 extern ArrayDetectContext g_array_detect_ctx;

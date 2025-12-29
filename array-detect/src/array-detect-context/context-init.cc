@@ -69,6 +69,10 @@ ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
 ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   char const *debug_file_env = getenv ("AD_DEBUG_FILE");
+  char const *result_file_env = getenv ("AD_RESULT_FILE");
+
+  // 初始化结果文件路径（如果设置了 AD_RESULT_FILE 环境变量）
+  ctx.result_file_path = result_file_env;  // 直接使用环境变量字符串（生命周期足够长）
 
   if (debug_file_env == nullptr) {
     // 环境变量未设置，禁用调试输出

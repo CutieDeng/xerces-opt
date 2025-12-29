@@ -22,6 +22,22 @@ ArrayDetectErrorCode initContextBuffers (AD_FUNC_ARGS, size_t capacity) AD_FUNCT
   if (!ctx.address_format_buffer) {
     AD_RETURNE (MEMORY_ERROR);
   }
+
+  // 初始化 Racket datum 结果输出缓冲区
+  ctx.result_datum_buffer_capacity = 4096;  // 初始容量 4KB
+  ctx.result_datum_buffer_size = 0;         // 当前使用量
+  ctx.result_datum_buffer = (char*)ggc_alloc_atomic (ctx.result_datum_buffer_capacity);
+  if (!ctx.result_datum_buffer) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+
+  // 初始化转义字符串缓冲区
+  ctx.escaped_string_buffer_size = 512;
+  ctx.escaped_string_buffer = (char*)ggc_alloc_atomic (ctx.escaped_string_buffer_size);
+  if (!ctx.escaped_string_buffer) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

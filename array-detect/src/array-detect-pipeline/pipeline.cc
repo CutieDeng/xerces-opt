@@ -64,6 +64,10 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
   AD_TRY (printResults (AD_ARGS, detector));
 
+  // 第八步：写入 Racket datum 格式结果文件（如果配置了 AD_RESULT_FILE）
+  AD_DEBUG_PRINT ("Step 8: Writing Racket datum results");
+  AD_TRY (writeResultsToRacketDatum (AD_ARGS, owned_conclusions));
+
   AD_DEBUG_PRINT ("=== Array Detection Pipeline Completed ===");
   AD_RETURNE (OK);
 } AD_FUNCTION_END

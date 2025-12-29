@@ -118,4 +118,12 @@ void printAllFieldOwnedConclusions (
   vec<FieldOwnedConclusion*, va_gc>* conclusions
 );
 
+// 将结论写入 Racket datum 格式的结果文件
+// 格式: ((type "TypeName")(field "FieldName")(result yes|no|maybe))
+// 使用原子性写入以避免多进程并发问题
+ArrayDetectErrorCode writeResultsToRacketDatum (
+  AD_FUNC_ARGS,
+  vec<FieldOwnedConclusion*, va_gc>* conclusions
+);
+
 } // namespace array_detect_ns
