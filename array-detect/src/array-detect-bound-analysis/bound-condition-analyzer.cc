@@ -768,6 +768,16 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   // 分析每个条件，收集所有引用的字段
   BoundConditionAssociation* best_field_bound = NULL;
 
+  // 检查 index_var 是否是变量（SSA_NAME）还是常量
+  // 如果是常量，则采用宽松策略，从所有条件中收集边界字段
+  bool index_is_variable = (index_var && TREE_CODE (index_var) == SSA_NAME);
+
+  if (ctx.debug_file) {
+    fprintf (ctx.debug_file, "    index_var code=%s, is_variable=%d\n",
+             index_var ? get_tree_code_name (TREE_CODE (index_var)) : "NULL",
+             index_is_variable);
+  }
+
   for (unsigned int i = 0; i < conditions->length (); i++) {
     gimple* cond = (*conditions)[i];
 
@@ -776,26 +786,46 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     tree lhs = gimple_cond_lhs (cond);
     tree rhs = gimple_cond_rhs (cond);
 
-    // 检查条件是否涉及索引变量
-    // 只有当条件实际约束索引时，才收集边界字段
-    bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
-    bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
-
-    if (!lhs_involves_index && !rhs_involves_index) {
-      // 条件不涉及索引变量，跳过此条件
-      continue;
-    }
-
-    // 收集边界字段（从非索引侧收集，并过滤非容量字段）
+    // 收集边界字段
     vec<tree, va_gc>* cond_fields = NULL;
     vec_alloc (cond_fields, 4);
 
-    // 只从不涉及索引的一侧收集字段
-    if (!lhs_involves_index) {
-      collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &cond_fields);
-    }
-    if (!rhs_involves_index) {
-      collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &cond_fields);
+    if (index_is_variable) {
+      // 索引是变量：尝试严格模式
+      bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
+      bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
+
+      if (ctx.debug_file) {
+        fprintf (ctx.debug_file, "    [COND %u] code=%s, lhs_involves=%d, rhs_involves=%d\n",
+                 i, get_tree_code_name (gimple_cond_code (cond)),
+                 lhs_involves_index, rhs_involves_index);
+      }
+
+      if (lhs_involves_index || rhs_involves_index) {
+        // 严格模式成功：只从不涉及索引的一侧收集字段
+        if (!lhs_involves_index) {
+          collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &cond_fields);
+        }
+        if (!rhs_involves_index) {
+          collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &cond_fields);
+        }
+      } else {
+        // 严格模式失败（SSA 版本不匹配）：回退到宽松模式
+        // 从两侧收集整数类型字段，依赖 isCapacityField 过滤
+        collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, &cond_fields);
+        collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, &cond_fields);
+      }
+    } else {
+      // 索引是常量：宽松模式 - 从所有比较条件中收集整数类型字段
+      // 仍然过滤非容量字段（vptr、布尔等）
+      if (ctx.debug_file) {
+        fprintf (ctx.debug_file, "    [COND %u] code=%s (relaxed mode)\n",
+                 i, get_tree_code_name (gimple_cond_code (cond)));
+      }
+
+      // 从两侧都收集字段（因为我们不知道哪边是"索引侧"）
+      collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, &cond_fields);
+      collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, &cond_fields);
     }
 
     // 将所有字段添加到 related_fields（去重）
@@ -876,6 +906,11 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
        ++iter) {
     TypeFieldArrayAccesses* entry = (*iter).second;
     if (!entry || !entry->accesses) continue;
+
+    // 跳过 vptr 字段（虚表指针不是真正的数组）
+    if (entry->field_name && strstr (entry->field_name, "_vptr")) {
+      continue;
+    }
 
     for (unsigned int i = 0; i < entry->accesses->length (); i++) {
       ArrayAccessCapture* access = (*entry->accesses)[i];
