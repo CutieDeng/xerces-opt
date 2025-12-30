@@ -717,5 +717,5 @@ test-bound-check: out/plugin-array-detect.dylib
 	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-lto: out/plugin-array-detect.dylib
-	@(cd ../test/test-lto && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-lto && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\" \"-flto\"))" | racket build.rkt)
 

@@ -313,7 +313,7 @@
                   "test-simple-virtual-call"
                   "test-simple-ptr-copy-escape"
                   "test-bound-check"
-                  "test-lto"))
+                  ))
 
 (define (write-test name)
   (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
@@ -326,8 +326,24 @@
           name (~s input))
   (printf "~n"))
 
+(define (write-lto-test name)
+  (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) output-so-path)))
+  (define rel-plugin-path (path->string (find-relative-path test-dir abs-plugin-path)))
+  (printf "~a: ~a~n" name output-so-path)
+  (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
+  (define input `((cxx . ,(path->string cxx)) (cflags ,plugin-arg "-flto")))
+  (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
+          name (~s input))
+  (printf "~n"))
+
 (define (write-tests)
   (for ([a a-tests]) (write-test a)))
+
+(define a-lto-tests '("test-lto"))
+
+(define (write-lto-tests)
+  (for ([a a-lto-tests]) (write-lto-test a)))
 
 ;; ============================================================================
 ;; Platform Info (for debugging)
@@ -356,6 +372,8 @@
       (write-clean)
       (write-test-xercese)
       (write-prepare)
-      (write-tests)))))
+      (write-tests)
+      (write-lto-tests)
+    ))))
 
 (module+ main (write-makefile))
