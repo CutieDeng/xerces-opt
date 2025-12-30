@@ -1,3 +1,4 @@
+#!/usr/bin/env racket
 #lang racket
 
 (define r (read))
@@ -7,6 +8,7 @@
 
 (make-directory* "obj")
 (make-directory* "out")
+(delete-directory/files (build-path "out" "result.rktd") #:must-exist? #f)
 
 ;; Environment variables for plugin output
 (putenv "AD_RESULT_FILE" "out/result.rktd")
