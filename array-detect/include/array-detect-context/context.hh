@@ -34,6 +34,10 @@ struct ArrayDetectContext {
   size_t result_datum_buffer_capacity;  // 当前容量（可动态扩展）
   char *escaped_string_buffer;          // 用于转义字符串
   size_t escaped_string_buffer_size;
+
+  // LTO support: store unified results for later serialization
+  // Type: vec<UnifiedFieldAnalysisResult*, va_gc>* (use void* to avoid header dependency)
+  void *unified_results;
 };
 
 extern ArrayDetectContext g_array_detect_ctx;

@@ -90,6 +90,9 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_DEBUG_PRINT ("Result aggregation complete: %u unified results",
                   (unsigned int)vec_safe_length(unified_results));
 
+  // Store results in context for LTO serialization
+  ctx.unified_results = unified_results;
+
   // 第十一步：输出调试信息
   AD_DEBUG_PRINT ("Step 11: Printing debug results");
   printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);

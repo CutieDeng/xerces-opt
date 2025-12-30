@@ -312,7 +312,8 @@
 (define a-tests '("test-simple-ptr-field"
                   "test-simple-virtual-call"
                   "test-simple-ptr-copy-escape"
-                  "test-bound-check"))
+                  "test-bound-check"
+                  "test-lto"))
 
 (define (write-test name)
   (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
