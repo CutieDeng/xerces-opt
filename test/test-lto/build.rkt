@@ -10,15 +10,17 @@
 
 ;; Environment variables for plugin output
 (putenv "AD_RESULT_FILE" "out/result.rktd")
-(putenv "AD_DEBUG_FILE" "out/debug.txt")
+; (putenv "AD_DEBUG_FILE" "out/debug.txt")
 
 ;; LTO compilation: compile each TU with -flto
 (define (compile-lto name)
+  (putenv "AD_DEBUG_FILE" (~a (build-path "out" (path-add-extension name ".debug"))))
   (apply system* (cons cxx (append `(,(format "~a.cpp" name) "-c" "-flto" "-o" ,(format "obj/~a.o" name)) cflags))))
 
 ;; LTO link: link all object files with -flto to trigger LTRANS
 ;; The plugin is also needed during link to handle LTRANS phase
 (define (link-lto)
+  (putenv "AD_DEBUG_FILE" (~a (build-path "out" "main.debug")))
   (apply system* (cons cxx (append cflags `("-flto" "obj/a.o" "obj/b.o" "-o" "obj/test-lto")))))
 
 ;; Compile both TUs
