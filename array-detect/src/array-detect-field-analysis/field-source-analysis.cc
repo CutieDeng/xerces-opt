@@ -22,7 +22,7 @@ ArrayDetectErrorCode extractSourceVariables (
   
   // 遍历所有字段的写入操作
   for (unsigned int i = 0; i < field_decls.length (); i++) {
-    tree field_decl = field_decls[i];
+    (void) field_decls[i];  // field_decl available for future use
     vec<FieldWriteCapture*>* write_ops = field_writes[i];
     
     if (!write_ops) {

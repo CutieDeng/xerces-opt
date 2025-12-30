@@ -18,7 +18,7 @@ using namespace ::array_detector;
 // ============================================================================
 
 static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
-  (void)gcc_ctx;
+  (void)ctx; (void)gcc_ctx;
 
   if (!type) {
     return "<null-type>";
@@ -42,7 +42,7 @@ static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
 // ============================================================================
 
 static const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
-  (void)gcc_ctx;
+  (void)ctx; (void)gcc_ctx;
 
   if (!field_decl) {
     return "<null-field>";
@@ -173,6 +173,7 @@ static bool checkCoSourcedAssignment (
   tree malloc_size_arg,
   TypeFieldAnalysisData* candidate_field_data
 ) {
+  (void)gcc_ctx;
   if (!malloc_size_arg || !candidate_field_data) {
     return false;
   }

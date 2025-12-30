@@ -346,16 +346,6 @@ vec<LtoUnifiedResultSummary*, va_gc>* convertAllToLtoSummaries (
 // LTRANS aggregation: merge summaries from multiple TUs
 // ============================================================================
 
-// Simple string hash for aggregation (not currently used, but kept for future optimization)
-static size_t hash_cstr (char const* s) {
-  if (!s) return 0;
-  size_t h = 5381;
-  for (char const* p = s; *p; p++) {
-    h = ((h << 5) + h) + (unsigned char)*p;
-  }
-  return h;
-}
-
 vec<LtoUnifiedResultSummary*, va_gc>* aggregateLtransSummaries () {
   vec<LtoUnifiedResultSummary*, va_gc>* all = g_ltrans_summaries;
   if (!all || all->is_empty ()) return nullptr;

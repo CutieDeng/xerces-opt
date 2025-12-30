@@ -129,12 +129,12 @@ class pass_array_detect : public ipa_opt_pass_d {
   opt_pass * clone () override { return new pass_array_detect (g); }
 
   // Gate function: only run during regular compilation, skip during LTO link
-  bool gate (function*) override {
+  bool gate (function* /*fn*/) override {
     // During LTO WPA/LTRANS phases, we only need summary hooks, not execute()
     return !in_lto_p;
   }
 
-  unsigned int execute (function*) override {
+  unsigned int execute (function* /*fn*/) override {
     // Skip analysis during LTO WPA/LTRANS phases - we only need the summary hooks
     // Analysis was already done during initial compilation
     if (in_lto_p) {
