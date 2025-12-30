@@ -73,25 +73,6 @@ static bool isIntegerType (tree type) {
 }
 
 // ============================================================================
-// 辅助函数：判断分配函数名
-// ============================================================================
-
-static bool isMallocFamily (const char* function_name) {
-  if (!function_name) return false;
-
-  // 检查常见的内存分配函数
-  if (strstr (function_name, "malloc")) return true;
-  if (strstr (function_name, "calloc")) return true;
-  if (strstr (function_name, "realloc")) return true;
-  if (strstr (function_name, "xmalloc")) return true;
-  if (strstr (function_name, "g_malloc")) return true;
-  if (strstr (function_name, "ggc_alloc")) return true;
-  if (strstr (function_name, "operator new")) return true;
-
-  return false;
-}
-
-// ============================================================================
 // 辅助函数：收集表达式中的所有基础源变量（参数、局部变量等）
 // ============================================================================
 // 对于复杂表达式如 n * sizeof(int)，会收集所有涉及的基础变量
@@ -397,8 +378,9 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
     AD_RETURNE (OK);
   }
 
+  // 获取函数名（仅用于调试输出）
   tree fndecl = gimple_call_fndecl (call_stmt);
-  const char* function_name = NULL;
+  const char* function_name = "<unknown>";
 
   if (fndecl) {
     tree id = DECL_NAME (fndecl);
@@ -407,9 +389,8 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
     }
   }
 
-  if (!function_name || !isMallocFamily (function_name)) {
-    AD_RETURNE (OK);
-  }
+  // 激进假设：任何返回指针的函数调用都可能是分配函数
+  // 不再检查函数名是否在 malloc family 中
 
   location_t loc = gimple_location (call_stmt);
   const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
@@ -584,38 +565,37 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
           }
         }
 
-        // 方法2: 检查 malloc 参数与候选字段是否同源（如都来自同一参数）
+        // 方法2: 检查函数参数与候选字段是否同源（如都来自同一参数）
+        // 激进假设：任何返回指针的函数调用都可能是分配函数
         if (!references && candidate_field_data && func_call.call_stmt) {
-          const char* function_name = func_call.function_name;
-          if (function_name && isMallocFamily (function_name)) {
-            gimple* call_stmt = func_call.call_stmt;
-            unsigned int nargs = gimple_call_num_args (call_stmt);
+          const char* function_name = func_call.function_name ? func_call.function_name : "<unknown>";
+          gimple* call_stmt = func_call.call_stmt;
+          unsigned int nargs = gimple_call_num_args (call_stmt);
 
-            // 检查每个 malloc 参数
-            for (unsigned int arg_idx = 0; arg_idx < nargs && !references; arg_idx++) {
-              tree arg = gimple_call_arg (call_stmt, arg_idx);
-              if (checkCoSourcedAssignment (AD_ARGS, arg, candidate_field_data)) {
-                references = true;
+          // 检查每个函数参数
+          for (unsigned int arg_idx = 0; arg_idx < nargs && !references; arg_idx++) {
+            tree arg = gimple_call_arg (call_stmt, arg_idx);
+            if (checkCoSourcedAssignment (AD_ARGS, arg, candidate_field_data)) {
+              references = true;
 
-                // 创建证据
-                location_t loc = gimple_location (call_stmt);
-                CapacityAssociationEvidence* co_evidence = ggc_alloc<CapacityAssociationEvidence>();
-                memset (co_evidence, 0, sizeof (CapacityAssociationEvidence));
+              // 创建证据
+              location_t loc = gimple_location (call_stmt);
+              CapacityAssociationEvidence* co_evidence = ggc_alloc<CapacityAssociationEvidence>();
+              memset (co_evidence, 0, sizeof (CapacityAssociationEvidence));
 
-                co_evidence->evidence_type = CAP_EVID_MALLOC_SIZE_ARG;
-                co_evidence->location = loc;
-                co_evidence->stmt = call_stmt;
-                co_evidence->description = "Allocation size and field assigned from same source";
-                co_evidence->function_name = ggc_strdup (function_name);
-                co_evidence->size_expr = arg;
+              co_evidence->evidence_type = CAP_EVID_MALLOC_SIZE_ARG;
+              co_evidence->location = loc;
+              co_evidence->stmt = call_stmt;
+              co_evidence->description = "Allocation size and field assigned from same source";
+              co_evidence->function_name = ggc_strdup (function_name);
+              co_evidence->size_expr = arg;
 
-                analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
-                vec_safe_push (analysis->evidences, co_evidence);
+              analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
+              vec_safe_push (analysis->evidences, co_evidence);
 
-                if (ctx.debug_file) {
-                  fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (co-sourced): '%s' co-sourced with '%s'\n",
-                           ptr_field_name, candidate_name);
-                }
+              if (ctx.debug_file) {
+                fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (co-sourced): '%s' co-sourced with '%s'\n",
+                         ptr_field_name, candidate_name);
               }
             }
           }

@@ -65,6 +65,174 @@ const char* getBoundConditionTypeName (BoundConditionType type) {
 }
 
 // ============================================================================
+// 判断字段是否是合理的容量/索引边界字段
+// ============================================================================
+
+static bool isCapacityField (tree field_decl) {
+  if (!field_decl || TREE_CODE (field_decl) != FIELD_DECL) {
+    return false;
+  }
+
+  // 获取字段名
+  tree decl_name = DECL_NAME (field_decl);
+  if (!decl_name) {
+    return false;
+  }
+  const char* field_name = IDENTIFIER_POINTER (decl_name);
+  if (!field_name) {
+    return false;
+  }
+
+  // 排除 vptr 字段（虚表指针）
+  if (strstr (field_name, "_vptr") || strstr (field_name, "vptr")) {
+    return false;
+  }
+
+  // 获取字段类型
+  tree field_type = TREE_TYPE (field_decl);
+  if (!field_type) {
+    return false;
+  }
+
+  // 只接受整数类型作为容量字段
+  if (!INTEGRAL_TYPE_P (field_type)) {
+    return false;
+  }
+
+  // 排除布尔类型（如 fCallDestructor）
+  if (TREE_CODE (field_type) == BOOLEAN_TYPE) {
+    return false;
+  }
+
+  // 进一步检查：如果字段名包含某些关键词，更可能是容量字段
+  // 但我们不强制要求，因为可能有各种命名约定
+
+  return true;
+}
+
+// ============================================================================
+// 检查表达式是否涉及指定的索引变量
+// ============================================================================
+
+static bool expressionInvolvesVar (tree expr, tree index_var, int depth = 0) {
+  if (!expr || !index_var || depth > 10) {
+    return false;
+  }
+
+  // 直接匹配
+  if (expr == index_var) {
+    return true;
+  }
+
+  // SSA_NAME: 追溯定义
+  if (TREE_CODE (expr) == SSA_NAME) {
+    if (TREE_CODE (index_var) == SSA_NAME) {
+      // 检查是否来自同一基础变量
+      tree expr_var = SSA_NAME_VAR (expr);
+      tree index_base = SSA_NAME_VAR (index_var);
+      if (expr_var && index_base && expr_var == index_base) {
+        return true;
+      }
+    }
+
+    // 追溯定义语句
+    gimple* def = SSA_NAME_DEF_STMT (expr);
+    if (def && gimple_code (def) == GIMPLE_ASSIGN) {
+      if (expressionInvolvesVar (gimple_assign_rhs1 (def), index_var, depth + 1)) {
+        return true;
+      }
+      tree rhs2 = gimple_assign_rhs2 (def);
+      if (rhs2 && expressionInvolvesVar (rhs2, index_var, depth + 1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 二元操作
+  if (BINARY_CLASS_P (expr)) {
+    return expressionInvolvesVar (TREE_OPERAND (expr, 0), index_var, depth + 1) ||
+           expressionInvolvesVar (TREE_OPERAND (expr, 1), index_var, depth + 1);
+  }
+
+  // 一元操作或类型转换
+  if (UNARY_CLASS_P (expr) || CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
+    return expressionInvolvesVar (TREE_OPERAND (expr, 0), index_var, depth + 1);
+  }
+
+  return false;
+}
+
+// ============================================================================
+// 从表达式中收集边界字段（仅收集非索引侧的字段）
+// ============================================================================
+
+static void collectBoundFieldsFromExpression (
+  AD_FUNC_ARGS,
+  tree expr,
+  tree index_var,
+  vec<tree, va_gc>** out_fields,
+  int depth = 0
+) {
+  (void)ctx;
+  (void)gcc_ctx;
+
+  if (!expr || depth > 10) return;
+
+  // 如果这个表达式涉及索引变量，不应从中收集字段
+  // （因为它是"索引侧"，不是"边界侧"）
+  if (expressionInvolvesVar (expr, index_var, 0)) {
+    return;
+  }
+
+  // COMPONENT_REF: 直接的字段访问
+  if (TREE_CODE (expr) == COMPONENT_REF) {
+    tree field = TREE_OPERAND (expr, 1);
+    if (field && TREE_CODE (field) == FIELD_DECL) {
+      // 只收集可能作为容量的字段
+      if (isCapacityField (field)) {
+        vec_safe_push (*out_fields, field);
+      }
+    }
+    // 继续检查基础对象
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    return;
+  }
+
+  // SSA_NAME: 追溯定义
+  if (TREE_CODE (expr) == SSA_NAME) {
+    gimple* def = SSA_NAME_DEF_STMT (expr);
+    if (def && gimple_code (def) == GIMPLE_ASSIGN) {
+      collectBoundFieldsFromExpression (AD_ARGS, gimple_assign_rhs1 (def), index_var, out_fields, depth + 1);
+      tree rhs2 = gimple_assign_rhs2 (def);
+      if (rhs2) {
+        collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, out_fields, depth + 1);
+      }
+    }
+    return;
+  }
+
+  // 二元操作
+  if (BINARY_CLASS_P (expr)) {
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 1), index_var, out_fields, depth + 1);
+    return;
+  }
+
+  // 一元操作或类型转换
+  if (UNARY_CLASS_P (expr) || CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    return;
+  }
+
+  // MEM_REF: 内存引用
+  if (TREE_CODE (expr) == MEM_REF) {
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    return;
+  }
+}
+
+// ============================================================================
 // 规范化比较方向
 // ============================================================================
 
@@ -453,7 +621,7 @@ static void collectFieldsFromExpression (
 }
 
 // ============================================================================
-// 分析条件中引用的字段（简化版：不判断索引匹配，直接收集所有字段）
+// 分析条件中引用的字段（仅收集与索引语义相关的边界字段）
 // ============================================================================
 
 ArrayDetectErrorCode analyzeBoundCondition (
@@ -463,8 +631,6 @@ ArrayDetectErrorCode analyzeBoundCondition (
   ArrayAccessCapture* access,
   BoundConditionAssociation** out_association
 ) AD_FUNCTION_BEGIN {
-  (void)index_var;  // 不再需要判断索引匹配
-
   *out_association = NULL;
 
   if (!cond_stmt || gimple_code (cond_stmt) != GIMPLE_COND) {
@@ -486,12 +652,25 @@ ArrayDetectErrorCode analyzeBoundCondition (
     AD_RETURNE (OK);
   }
 
-  // 收集条件两边引用的所有字段
+  // 检查条件是否涉及索引变量
+  bool lhs_involves_index = index_var && expressionInvolvesVar (lhs, index_var, 0);
+  bool rhs_involves_index = index_var && expressionInvolvesVar (rhs, index_var, 0);
+
+  if (!lhs_involves_index && !rhs_involves_index) {
+    // 条件不涉及索引变量，不是边界检查
+    AD_RETURNE (OK);
+  }
+
+  // 收集边界字段（从非索引侧收集，并过滤非容量字段）
   vec<tree, va_gc>* fields = NULL;
   vec_alloc (fields, 4);
 
-  collectFieldsFromExpression (AD_ARGS, lhs, &fields);
-  collectFieldsFromExpression (AD_ARGS, rhs, &fields);
+  if (!lhs_involves_index) {
+    collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &fields);
+  }
+  if (!rhs_involves_index) {
+    collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &fields);
+  }
 
   // 如果没有找到任何字段引用，跳过
   if (vec_safe_length (fields) == 0) {
@@ -597,11 +776,27 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     tree lhs = gimple_cond_lhs (cond);
     tree rhs = gimple_cond_rhs (cond);
 
-    // 直接从条件中收集所有字段
+    // 检查条件是否涉及索引变量
+    // 只有当条件实际约束索引时，才收集边界字段
+    bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
+    bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
+
+    if (!lhs_involves_index && !rhs_involves_index) {
+      // 条件不涉及索引变量，跳过此条件
+      continue;
+    }
+
+    // 收集边界字段（从非索引侧收集，并过滤非容量字段）
     vec<tree, va_gc>* cond_fields = NULL;
     vec_alloc (cond_fields, 4);
-    collectFieldsFromExpression (AD_ARGS, lhs, &cond_fields);
-    collectFieldsFromExpression (AD_ARGS, rhs, &cond_fields);
+
+    // 只从不涉及索引的一侧收集字段
+    if (!lhs_involves_index) {
+      collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &cond_fields);
+    }
+    if (!rhs_involves_index) {
+      collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &cond_fields);
+    }
 
     // 将所有字段添加到 related_fields（去重）
     for (unsigned int j = 0; j < vec_safe_length (cond_fields); j++) {
