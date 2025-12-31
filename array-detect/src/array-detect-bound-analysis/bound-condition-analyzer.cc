@@ -391,21 +391,40 @@ static void collectBoundFieldsFromExpression (
       return;
     }
 
+    // 关键检查：确保定义语句在当前函数的基本块中
+    // 如果 gimple_bb(def) 为 NULL，说明语句不在任何基本块中（如函数参数的 GIMPLE_NOP）
+    basic_block def_bb = gimple_bb (def);
+    if (!def_bb) {
+      if (depth <= 2) AD_DEBUG_PRINT ("    def has no basic_block (gimple_bb is NULL), skipping");
+      return;
+    }
+
+    // 额外检查：确保定义语句的基本块属于当前函数
+    if (cfun && def_bb->flags == BB_RTL) {
+      if (depth <= 2) AD_DEBUG_PRINT ("    def basic_block is RTL (not GIMPLE), skipping");
+      return;
+    }
+
     enum gimple_code def_code = gimple_code (def);
     if (depth <= 2) {
-      AD_DEBUG_PRINT ("    def=%p, gimple_code=%s (%d)",
-                      (void*)def, gimple_code_name[def_code], (int)def_code);
+      AD_DEBUG_PRINT ("    def=%p, gimple_code=%s (%d), bb=%p (bb%d)",
+                      (void*)def, gimple_code_name[def_code], (int)def_code,
+                      (void*)def_bb, def_bb->index);
     }
 
     if (def_code == GIMPLE_ASSIGN) {
       if (depth <= 2) AD_DEBUG_PRINT ("    Processing GIMPLE_ASSIGN...");
       tree rhs1 = gimple_assign_rhs1 (def);
-      if (depth <= 2) AD_DEBUG_PRINT ("    rhs1=%p", (void*)rhs1);
+      if (!rhs1) {
+        if (depth <= 2) AD_DEBUG_PRINT ("    rhs1 is NULL, skipping");
+        return;
+      }
+      if (depth <= 2) AD_DEBUG_PRINT ("    rhs1=%p, TREE_CODE=%s", (void*)rhs1, get_tree_code_name (TREE_CODE (rhs1)));
       collectBoundFieldsFromExpression (AD_ARGS, rhs1, index_var, target_base_object, out_fields, depth + 1);
 
       tree rhs2 = gimple_assign_rhs2 (def);
       if (rhs2) {
-        if (depth <= 2) AD_DEBUG_PRINT ("    rhs2=%p", (void*)rhs2);
+        if (depth <= 2) AD_DEBUG_PRINT ("    rhs2=%p, TREE_CODE=%s", (void*)rhs2, get_tree_code_name (TREE_CODE (rhs2)));
         collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, target_base_object, out_fields, depth + 1);
       }
     }
