@@ -111,6 +111,145 @@ static bool isCapacityField (tree field_decl) {
 }
 
 // ============================================================================
+// 辅助函数：从 COMPONENT_REF 表达式中提取基础对象
+// 返回最内层的基础对象（去掉所有 COMPONENT_REF 链）
+// ============================================================================
+
+static tree extractBaseObject (tree expr, int depth = 0) {
+  if (!expr || depth > 10) {
+    return NULL_TREE;
+  }
+
+  // COMPONENT_REF: 递归获取基础对象
+  if (TREE_CODE (expr) == COMPONENT_REF) {
+    return extractBaseObject (TREE_OPERAND (expr, 0), depth + 1);
+  }
+
+  // SSA_NAME: 追溯定义
+  if (TREE_CODE (expr) == SSA_NAME) {
+    // 如果有基础变量声明，直接返回
+    tree base_var = SSA_NAME_VAR (expr);
+    if (base_var) {
+      return base_var;
+    }
+
+    // 追溯定义语句
+    gimple* def = SSA_NAME_DEF_STMT (expr);
+    if (def && gimple_code (def) == GIMPLE_ASSIGN) {
+      tree rhs = gimple_assign_rhs1 (def);
+      enum tree_code rhs_code = gimple_assign_rhs_code (def);
+
+      // 类型转换或简单复制
+      if (rhs_code == SSA_NAME || CONVERT_EXPR_CODE_P (rhs_code) ||
+          rhs_code == NOP_EXPR || rhs_code == VIEW_CONVERT_EXPR) {
+        return extractBaseObject (rhs, depth + 1);
+      }
+
+      // COMPONENT_REF 赋值
+      if (TREE_CODE (rhs) == COMPONENT_REF) {
+        return extractBaseObject (rhs, depth + 1);
+      }
+
+      // MEM_REF: 内存引用
+      if (TREE_CODE (rhs) == MEM_REF) {
+        return extractBaseObject (TREE_OPERAND (rhs, 0), depth + 1);
+      }
+    }
+    return expr; // 返回 SSA_NAME 本身
+  }
+
+  // MEM_REF: 继续追溯基址
+  if (TREE_CODE (expr) == MEM_REF) {
+    return extractBaseObject (TREE_OPERAND (expr, 0), depth + 1);
+  }
+
+  // ADDR_EXPR: 取地址表达式
+  if (TREE_CODE (expr) == ADDR_EXPR) {
+    return extractBaseObject (TREE_OPERAND (expr, 0), depth + 1);
+  }
+
+  // 类型转换
+  if (CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR ||
+      TREE_CODE (expr) == VIEW_CONVERT_EXPR) {
+    return extractBaseObject (TREE_OPERAND (expr, 0), depth + 1);
+  }
+
+  // VAR_DECL, PARM_DECL, INDIRECT_REF 等：直接返回
+  return expr;
+}
+
+// ============================================================================
+// 辅助函数：检查两个对象是否同一或可能别名
+// 用于判断边界字段是否与目标指针字段属于同一对象
+// ============================================================================
+
+static bool objectsAreSameOrAliased (AD_FUNC_ARGS, tree obj1, tree obj2) {
+  AD_ARGS_WARN_DENY;
+  if (!obj1 || !obj2) {
+    return false;
+  }
+
+  // 完全相等
+  if (obj1 == obj2) {
+    return true;
+  }
+
+  // 提取基础对象
+  tree base1 = extractBaseObject (obj1);
+  tree base2 = extractBaseObject (obj2);
+
+  if (!base1 || !base2) {
+    return false;
+  }
+
+  // 基础对象相等
+  if (base1 == base2) {
+    return true;
+  }
+
+  // 检查是否来自同一变量声明
+  // 对于 SSA_NAME，检查 SSA_NAME_VAR
+  tree var1 = (TREE_CODE (base1) == SSA_NAME) ? SSA_NAME_VAR (base1) : base1;
+  tree var2 = (TREE_CODE (base2) == SSA_NAME) ? SSA_NAME_VAR (base2) : base2;
+
+  if (var1 && var2 && var1 == var2) {
+    return true;
+  }
+
+  // 检查类型匹配（同一类型的 this 指针通常指向同一对象）
+  // 对于成员函数中的 this 指针，类型相同时认为可能是同一对象
+  tree type1 = TREE_TYPE (base1);
+  tree type2 = TREE_TYPE (base2);
+
+  if (type1 && type2) {
+    // 处理指针类型
+    if (TREE_CODE (type1) == POINTER_TYPE) type1 = TREE_TYPE (type1);
+    if (TREE_CODE (type2) == POINTER_TYPE) type2 = TREE_TYPE (type2);
+
+    // 处理引用类型
+    if (type1 && TREE_CODE (type1) == REFERENCE_TYPE) type1 = TREE_TYPE (type1);
+    if (type2 && TREE_CODE (type2) == REFERENCE_TYPE) type2 = TREE_TYPE (type2);
+
+    if (type1 && type2) {
+      // 去掉 const/volatile 限定符
+      type1 = TYPE_MAIN_VARIANT (type1);
+      type2 = TYPE_MAIN_VARIANT (type2);
+
+      // 类型相同，检查是否都是 PARM_DECL（函数参数，如 this）
+      if (type1 == type2) {
+        // 如果两者都是同一函数的参数（如 this 指针），认为同一
+        if ((TREE_CODE (var1) == PARM_DECL && TREE_CODE (var2) == PARM_DECL) ||
+            (TREE_CODE (base1) == PARM_DECL && TREE_CODE (base2) == PARM_DECL)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+// ============================================================================
 // 检查表达式是否涉及指定的索引变量
 // ============================================================================
 
@@ -165,18 +304,17 @@ static bool expressionInvolvesVar (tree expr, tree index_var, int depth = 0) {
 
 // ============================================================================
 // 从表达式中收集边界字段（仅收集非索引侧的字段）
+// 增强：添加目标对象检查，只收集与目标对象同一的字段
 // ============================================================================
 
 static void collectBoundFieldsFromExpression (
   AD_FUNC_ARGS,
   tree expr,
   tree index_var,
+  tree target_base_object,           // 目标对象（待分析指针字段的基础对象）
   vec<tree, va_gc>** out_fields,
   int depth = 0
 ) {
-  (void)ctx;
-  (void)gcc_ctx;
-
   if (!expr || depth > 10) return;
 
   // 如果这个表达式涉及索引变量，不应从中收集字段
@@ -188,14 +326,30 @@ static void collectBoundFieldsFromExpression (
   // COMPONENT_REF: 直接的字段访问
   if (TREE_CODE (expr) == COMPONENT_REF) {
     tree field = TREE_OPERAND (expr, 1);
+    tree base_obj = TREE_OPERAND (expr, 0);
+
     if (field && TREE_CODE (field) == FIELD_DECL) {
       // 只收集可能作为容量的字段
       if (isCapacityField (field)) {
-        vec_safe_push (*out_fields, field);
+        // 检查字段所属对象是否与目标对象同一
+        bool same_object = true;  // 默认允许（向后兼容）
+        if (target_base_object) {
+          same_object = objectsAreSameOrAliased (AD_ARGS, base_obj, target_base_object);
+          if (!same_object) {
+            AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] Skipping field %s: different object",
+                            safeGetFieldName (AD_ARGS, field));
+          }
+        }
+
+        if (same_object) {
+          vec_safe_push (*out_fields, field);
+          AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] Collected field %s",
+                          safeGetFieldName (AD_ARGS, field));
+        }
       }
     }
-    // 继续检查基础对象
-    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    // 继续检查基础对象（可能有嵌套字段访问）
+    collectBoundFieldsFromExpression (AD_ARGS, base_obj, index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 
@@ -205,10 +359,10 @@ static void collectBoundFieldsFromExpression (
     if (!def) return;
 
     if (gimple_code (def) == GIMPLE_ASSIGN) {
-      collectBoundFieldsFromExpression (AD_ARGS, gimple_assign_rhs1 (def), index_var, out_fields, depth + 1);
+      collectBoundFieldsFromExpression (AD_ARGS, gimple_assign_rhs1 (def), index_var, target_base_object, out_fields, depth + 1);
       tree rhs2 = gimple_assign_rhs2 (def);
       if (rhs2) {
-        collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, out_fields, depth + 1);
+        collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, target_base_object, out_fields, depth + 1);
       }
     }
     else if (gimple_code (def) == GIMPLE_PHI) {
@@ -217,7 +371,7 @@ static void collectBoundFieldsFromExpression (
       for (unsigned i = 0; i < gimple_phi_num_args (phi); i++) {
         tree arg = gimple_phi_arg_def (phi, i);
         if (arg) {
-          collectBoundFieldsFromExpression (AD_ARGS, arg, index_var, out_fields, depth + 1);
+          collectBoundFieldsFromExpression (AD_ARGS, arg, index_var, target_base_object, out_fields, depth + 1);
         }
       }
     }
@@ -226,20 +380,20 @@ static void collectBoundFieldsFromExpression (
 
   // 二元操作
   if (BINARY_CLASS_P (expr)) {
-    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
-    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 1), index_var, out_fields, depth + 1);
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 1), index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 
   // 一元操作或类型转换
   if (UNARY_CLASS_P (expr) || CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
-    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 
   // MEM_REF: 内存引用
   if (TREE_CODE (expr) == MEM_REF) {
-    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, out_fields, depth + 1);
+    collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 }
@@ -673,15 +827,21 @@ ArrayDetectErrorCode analyzeBoundCondition (
     AD_RETURNE (OK);
   }
 
+  // 提取目标对象（用于过滤不属于同一对象的边界字段）
+  tree target_base_object = NULL_TREE;
+  if (access && access->is_field_based && access->base_pointer) {
+    target_base_object = extractBaseObject (access->base_pointer);
+  }
+
   // 收集边界字段（从非索引侧收集，并过滤非容量字段）
   vec<tree, va_gc>* fields = NULL;
   vec_alloc (fields, 4);
 
   if (!lhs_involves_index) {
-    collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &fields);
+    collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &fields);
   }
   if (!rhs_involves_index) {
-    collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &fields);
+    collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &fields);
   }
 
   // 如果没有找到任何字段引用，跳过
@@ -763,6 +923,13 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     AD_RETURNE (OK);
   }
 
+  // 提取目标对象（待分析指针字段的基础对象）
+  // 用于过滤不属于同一对象的边界字段
+  tree target_base_object = NULL_TREE;
+  if (access->is_field_based && access->base_pointer) {
+    target_base_object = extractBaseObject (access->base_pointer);
+  }
+
   // 查找支配条件
   vec<gimple*, va_gc>* conditions = NULL;
   AD_TRY (findDominatingConditions (AD_ARGS, access, &conditions));
@@ -775,7 +942,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     if (index_var) {
       vec<tree, va_gc>* index_fields = NULL;
       vec_alloc (index_fields, 4);
-      collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, &index_fields);
+      collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
 
       // 将索引表达式中的字段添加到 related_fields
       for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
@@ -838,16 +1005,16 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
       if (lhs_involves_index || rhs_involves_index) {
         // 严格模式成功：只从不涉及索引的一侧收集字段
         if (!lhs_involves_index) {
-          collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, &cond_fields);
+          collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
         }
         if (!rhs_involves_index) {
-          collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, &cond_fields);
+          collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
         }
       } else {
         // 严格模式失败（SSA 版本不匹配）：回退到宽松模式
         // 从两侧收集整数类型字段，依赖 isCapacityField 过滤
-        collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, &cond_fields);
-        collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, &cond_fields);
+        collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
+        collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
       }
     } else {
       // 索引是常量：宽松模式 - 从所有比较条件中收集整数类型字段
@@ -858,8 +1025,8 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
       }
 
       // 从两侧都收集字段（因为我们不知道哪边是"索引侧"）
-      collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, &cond_fields);
-      collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, &cond_fields);
+      collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
+      collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
     }
 
     // 将所有字段添加到 related_fields（去重）
@@ -906,7 +1073,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   if (analysis->field_bound_count == 0 && index_var) {
     vec<tree, va_gc>* index_fields = NULL;
     vec_alloc (index_fields, 4);
-    collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, &index_fields);
+    collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
 
     for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
       tree field = (*index_fields)[j];

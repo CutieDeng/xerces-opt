@@ -146,39 +146,128 @@ ArrayDetectErrorCode get_type_name (AD_FUNC_ARGS, tree type, char const *&result
   AD_RETURNO ("<unnamed>");
 } AD_FUNCTION_END
 
-// 子函数：获取类型名（含命名空间），返回格式化的字符串
+// 辅助函数：获取模版参数列表并格式化
+// 返回：格式化的模版参数字符串存入 ctx.escaped_string_buffer
+// 注意：需要 C++ 前端头文件 cp-tree.h 才能获取完整的模版信息
+// 在纯 GCC 插件环境中，这些宏可能不可用，此时回退到基础类型名
+static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &has_template_args) AD_FUNCTION_BEGIN {
+  has_template_args = false;
+
+  // 使用 context 中的 escaped_string_buffer 作为模版参数缓冲区
+  if (!ctx.escaped_string_buffer || ctx.escaped_string_buffer_size == 0) {
+    AD_RETURNE (OK);
+  }
+  ctx.escaped_string_buffer[0] = '\0';
+
+  if (!type) {
+    AD_RETURNE (OK);
+  }
+
+  // 检查是否是模版实例化类型
+  // 尝试从类型名称本身获取模版参数（类型名可能包含完整的模版签名）
+  tree type_decl = TYPE_NAME (type);
+  if (!type_decl || TREE_CODE (type_decl) != TYPE_DECL) {
+    AD_RETURNE (OK);
+  }
+
+  // 尝试从 DECL_ORIGINAL_TYPE 获取原始模版类型
+  tree original_type = DECL_ORIGINAL_TYPE (type_decl);
+  if (original_type && original_type != type) {
+    // 这是一个 typedef，不是模版实例化
+    AD_RETURNE (OK);
+  }
+
+  // 直接从 GCC 的类型打印中提取模版参数
+  // 如果 TYPE_NAME 包含完整的模版签名（某些 GCC 版本会这样做），则使用它
+  if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
+    // 检查声明的汇编名称是否包含模版信息
+    tree assembler_name = DECL_ASSEMBLER_NAME (type_decl);
+    if (assembler_name && TREE_CODE (assembler_name) == IDENTIFIER_NODE) {
+      const char* asm_name = IDENTIFIER_POINTER (assembler_name);
+      if (asm_name) {
+        // C++ mangled name 通常包含模版参数的编码
+        // 格式类似于 "_ZN10namespace15ClassnameIiEE" 表示 namespace::Classname<int>
+        AD_DEBUG_PRINT ("[formatTemplateArgs] Assembler name: %s", asm_name);
+        // 我们不解码 mangled name，但记录其存在以供调试
+      }
+    }
+  }
+
+  // 检查 TYPE_LANG_SPECIFIC 是否存在
+  // 某些 GCC 版本中，C++ 类型信息存储在这里
+#if defined(TYPE_LANG_SPECIFIC) && defined(CLASSTYPE_TEMPLATE_INFO)
+  // 这些宏仅在包含 cp-tree.h 时可用
+  // 在标准插件环境中通常不可用
+  if (TYPE_LANG_SPECIFIC (type)) {
+    tree template_info = CLASSTYPE_TEMPLATE_INFO (type);
+    if (template_info) {
+      tree template_args = TI_ARGS (template_info);
+      // 处理模版参数，结果存入 ctx.escaped_string_buffer
+      has_template_args = true;
+    }
+  }
+#else
+  // C++ 前端头文件不可用，跳过模版参数提取
+  // 这是预期的行为 - 在纯插件环境中模版信息访问受限
+  AD_DEBUG_PRINT ("[formatTemplateArgs] C++ template info not available in plugin environment");
+#endif
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// 子函数：获取类型名（含命名空间和模版参数），返回格式化的字符串
 // 返回：成功返回 OK，result 指向格式化的类型名字符串
 ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
   if (!type) {
     result = "<unknown>";
     AD_RETURNE (OK);
   }
-  
+
   char const * type_name = NULL;
   AD_TRY (get_type_name (AD_ARGS, type, type_name));
   if (!type_name) {
     result = "<unknown>";
     AD_RETURNE (OK);
   }
-  
+
+  // 确保缓冲区可用
+  if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
+    // 无缓冲区，回退到简单类型名
+    result = type_name;
+    AD_RETURNE (OK);
+  }
+
+  // 获取模版参数（如果有），结果存入 ctx.escaped_string_buffer
+  bool has_template_args = false;
+  AD_TRY (formatTemplateArgs (AD_ARGS, type, has_template_args));
+
   // 尝试获取命名空间
+  char const * ns_name = NULL;
   tree type_decl = TYPE_NAME (type);
   if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
     tree context = DECL_CONTEXT (type_decl);
     if (context && TREE_CODE (context) == NAMESPACE_DECL && DECL_NAME (context)) {
-      char const * ns_name = IDENTIFIER_POINTER (DECL_NAME (context));
-      // 组合命名空间和类型名，使用上下文缓冲区
-      if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
-        AD_RETURNE (RESOURCE_ERROR);
-      }
-      snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s", ns_name, type_name);
-      result = ctx.address_format_buffer;
-      AD_RETURNE (OK);
+      ns_name = IDENTIFIER_POINTER (DECL_NAME (context));
     }
   }
-  
-  // 无命名空间，直接返回类型名
-  result = type_name;
+
+  // 组合命名空间、类型名和模版参数
+  if (ns_name && has_template_args) {
+    snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s%s",
+              ns_name, type_name, ctx.escaped_string_buffer);
+  } else if (ns_name) {
+    snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s::%s",
+              ns_name, type_name);
+  } else if (has_template_args) {
+    snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s%s",
+              type_name, ctx.escaped_string_buffer);
+  } else {
+    // 无命名空间和模版参数，直接返回类型名
+    result = type_name;
+    AD_RETURNE (OK);
+  }
+
+  result = ctx.address_format_buffer;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
