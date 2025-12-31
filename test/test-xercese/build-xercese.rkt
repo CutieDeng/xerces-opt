@@ -45,7 +45,7 @@
 )
 
 (define (link-objects)
-  (define objs (directory-list out-dir #:build? #t))
+  (define objs (glob (build-path out-dir "*.o")))
   (define objs-s (map path->string objs))
   (define out-main-p (build-path bin-dir out-main))
   (eprintf "+ g++(build) ~a~n" (path->string out-main-p))

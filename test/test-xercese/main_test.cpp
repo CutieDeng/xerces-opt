@@ -37,6 +37,147 @@ struct TestObject {
     }
 };
 
+// 用于测试 fCallDestructor=true 的计数器类
+struct DestructorCounter {
+    static int destructor_count;
+    int id;
+
+    DestructorCounter() : id(0) {}
+    DestructorCounter(int i) : id(i) {}
+    DestructorCounter(const DestructorCounter& other) : id(other.id) {}
+    DestructorCounter& operator=(const DestructorCounter& other) {
+        id = other.id;
+        return *this;
+    }
+    ~DestructorCounter() {
+        destructor_count++;
+    }
+
+    bool operator==(const DestructorCounter& other) const {
+        return id == other.id;
+    }
+};
+int DestructorCounter::destructor_count = 0;
+
+// 测试 ensureExtraCapacity 的扩容逻辑
+void test_capacity_growth(MemoryManager* mgr) {
+    cout << "\n=== Testing ensureExtraCapacity (1.25x growth) ===" << endl;
+    ValueVectorOf<int> vec(2, mgr, false);  // 初始容量 2
+    cout << "Initial capacity: " << vec.curCapacity() << endl;
+
+    unsigned prevCapacity = vec.curCapacity();
+    for (int i = 0; i < 20; i++) {
+        vec.addElement(i * 10);
+        unsigned newCapacity = vec.curCapacity();
+        if (newCapacity != prevCapacity) {
+            cout << "Capacity grew from " << prevCapacity << " to " << newCapacity
+                 << " (at size " << vec.size() << ")" << endl;
+            prevCapacity = newCapacity;
+        }
+    }
+    cout << "Final: size=" << vec.size() << ", capacity=" << vec.curCapacity() << endl;
+}
+
+// 测试 rawData() 方法
+void test_raw_data(MemoryManager* mgr) {
+    cout << "\n=== Testing rawData() ===" << endl;
+    ValueVectorOf<int> vec(10, mgr, false);
+    for (int i = 0; i < 5; i++) {
+        vec.addElement(i * 100);
+    }
+
+    const int* raw = vec.rawData();
+    cout << "rawData() contents: ";
+    for (unsigned i = 0; i < vec.size(); i++) {
+        cout << raw[i] << " ";
+    }
+    cout << endl;
+
+    // 验证与 elementAt 一致
+    bool consistent = true;
+    for (unsigned i = 0; i < vec.size(); i++) {
+        if (raw[i] != vec.elementAt(i)) {
+            consistent = false;
+            break;
+        }
+    }
+    cout << "rawData() consistent with elementAt(): " << (consistent ? "yes" : "no") << endl;
+}
+
+// 测试 fCallDestructor=true
+void test_destructor_calls(MemoryManager* mgr) {
+    cout << "\n=== Testing fCallDestructor=true ===" << endl;
+    DestructorCounter::destructor_count = 0;
+
+    {
+        ValueVectorOf<DestructorCounter> vec(5, mgr, true);  // toCallDestructor=true
+        for (int i = 0; i < 3; i++) {
+            vec.addElement(DestructorCounter(i));
+        }
+        cout << "Added 3 elements, destructor calls so far (from copies): "
+             << DestructorCounter::destructor_count << endl;
+        // vec 将在作用域结束时销毁
+    }
+
+    cout << "After vector destroyed, total destructor calls: "
+         << DestructorCounter::destructor_count << endl;
+}
+
+// 测试边界条件
+void test_edge_cases(MemoryManager* mgr) {
+    cout << "\n=== Testing edge cases ===" << endl;
+
+    // 空向量测试
+    cout << "-- Empty vector tests --" << endl;
+    ValueVectorOf<int> empty(1, mgr, false);
+    cout << "Empty vector size: " << empty.size() << endl;
+    cout << "Empty vector capacity: " << empty.curCapacity() << endl;
+    cout << "containsElement(0) on empty: " << (empty.containsElement(0) ? "true" : "false") << endl;
+
+    // 单元素测试
+    cout << "-- Single element tests --" << endl;
+    empty.addElement(42);
+    cout << "After adding 42: size=" << empty.size() << endl;
+    empty.removeElementAt(0);  // 删除唯一元素
+    cout << "After removing: size=" << empty.size() << endl;
+
+    // 位置 0 插入测试
+    cout << "-- Insert at position 0 tests --" << endl;
+    ValueVectorOf<int> vec(5, mgr, false);
+    vec.addElement(100);
+    vec.addElement(200);
+    vec.addElement(300);
+    cout << "Before insertAt(0): ";
+    for (unsigned i = 0; i < vec.size(); i++) cout << vec.elementAt(i) << " ";
+    cout << endl;
+
+    vec.insertElementAt(50, 0);  // 在开头插入
+    cout << "After insertAt(0, 50): ";
+    for (unsigned i = 0; i < vec.size(); i++) cout << vec.elementAt(i) << " ";
+    cout << endl;
+
+    // 末尾插入（通过 insertElementAt）
+    vec.insertElementAt(999, vec.size());  // 在末尾插入
+    cout << "After insertAt(end, 999): ";
+    for (unsigned i = 0; i < vec.size(); i++) cout << vec.elementAt(i) << " ";
+    cout << endl;
+
+    // 删除首元素
+    vec.removeElementAt(0);
+    cout << "After removeAt(0): ";
+    for (unsigned i = 0; i < vec.size(); i++) cout << vec.elementAt(i) << " ";
+    cout << endl;
+}
+
+// 测试 getMemoryManager()
+void test_get_memory_manager(MemoryManager* mgr) {
+    cout << "\n=== Testing getMemoryManager() ===" << endl;
+    ValueVectorOf<int> vec(5, mgr, false);
+    MemoryManager* retrieved = vec.getMemoryManager();
+    cout << "getMemoryManager() returns same as passed: "
+         << (retrieved == mgr ? "yes" : "no") << endl;
+}
+
 int main() {
     try {
         // 初始化XML平台工具
@@ -157,6 +298,21 @@ int main() {
             cout << "\nTesting memory management..." << endl;
             // 这里不做显式测试，但确保所有对象都被正确销毁
         }
+
+        // 新增测试：ensureExtraCapacity 扩容逻辑
+        test_capacity_growth(XMLPlatformUtils::fgMemoryManager);
+
+        // 新增测试：rawData() 方法
+        test_raw_data(XMLPlatformUtils::fgMemoryManager);
+
+        // 新增测试：fCallDestructor=true
+        test_destructor_calls(XMLPlatformUtils::fgMemoryManager);
+
+        // 新增测试：边界条件
+        test_edge_cases(XMLPlatformUtils::fgMemoryManager);
+
+        // 新增测试：getMemoryManager()
+        test_get_memory_manager(XMLPlatformUtils::fgMemoryManager);
 
         // 清理资源
         cout << "\nTerminating XMLPlatformUtils..." << endl;
