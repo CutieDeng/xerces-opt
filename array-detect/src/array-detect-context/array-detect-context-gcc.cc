@@ -2,8 +2,14 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include <cxxabi.h>
-#include <execinfo.h>
 #include <string.h>
+
+// execinfo.h 仅在 glibc 环境下可用（macOS 和大多数 Linux 发行版）
+// musl libc (Alpine Linux) 不提供此头文件
+// 注意：当前代码未实际使用 backtrace() 等函数，此包含仅为未来扩展预留
+#if defined(__GLIBC__) || defined(__APPLE__)
+#include <execinfo.h>
+#endif
 
 #include "array-detect-context-gcc.hh"
 #include "array-detect-context-gcc-interface.hh"
