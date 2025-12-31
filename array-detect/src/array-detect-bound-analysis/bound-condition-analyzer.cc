@@ -202,11 +202,23 @@ static void collectBoundFieldsFromExpression (
   // SSA_NAME: 追溯定义
   if (TREE_CODE (expr) == SSA_NAME) {
     gimple* def = SSA_NAME_DEF_STMT (expr);
-    if (def && gimple_code (def) == GIMPLE_ASSIGN) {
+    if (!def) return;
+
+    if (gimple_code (def) == GIMPLE_ASSIGN) {
       collectBoundFieldsFromExpression (AD_ARGS, gimple_assign_rhs1 (def), index_var, out_fields, depth + 1);
       tree rhs2 = gimple_assign_rhs2 (def);
       if (rhs2) {
         collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, out_fields, depth + 1);
+      }
+    }
+    else if (gimple_code (def) == GIMPLE_PHI) {
+      // PHI 节点：从所有输入中收集字段（循环变量的情况）
+      gphi* phi = as_a<gphi*>(def);
+      for (unsigned i = 0; i < gimple_phi_num_args (phi); i++) {
+        tree arg = gimple_phi_arg_def (phi, i);
+        if (arg) {
+          collectBoundFieldsFromExpression (AD_ARGS, arg, index_var, out_fields, depth + 1);
+        }
       }
     }
     return;
@@ -757,6 +769,28 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
 
   if (!conditions || conditions->length () == 0) {
     AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] No dominating conditions found");
+
+    // 即使没有支配条件，也检查索引表达式是否引用了容量字段
+    // 例如 fElemList[fCurCount] 中，fCurCount 本身就是边界字段
+    if (index_var) {
+      vec<tree, va_gc>* index_fields = NULL;
+      vec_alloc (index_fields, 4);
+      collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, &index_fields);
+
+      // 将索引表达式中的字段添加到 related_fields
+      for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
+        tree field = (*index_fields)[j];
+        vec_safe_push (analysis->related_fields, field);
+        analysis->field_bound_count++;
+      }
+
+      if (analysis->field_bound_count > 0) {
+        analysis->has_valid_bound = true;
+        AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Found %u fields from index expression",
+                        analysis->field_bound_count);
+      }
+    }
+
     access->bound_analysis = analysis;
     *out_analysis = analysis;
     AD_RETURNE (OK);
@@ -863,6 +897,35 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
                assoc->condition_type == BOUND_COND_LE_CONSTANT) {
         analysis->constant_bound_count++;
       }
+    }
+  }
+
+  // 后备检查：如果从支配条件中没有收集到任何字段，尝试从索引表达式中收集
+  // 例如析构函数中 for (i = fMaxCount - 1; i >= 0; i--) 的情况
+  // 条件 i >= 0 没有字段引用，但索引 i 的初始值引用了 fMaxCount
+  if (analysis->field_bound_count == 0 && index_var) {
+    vec<tree, va_gc>* index_fields = NULL;
+    vec_alloc (index_fields, 4);
+    collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, &index_fields);
+
+    for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
+      tree field = (*index_fields)[j];
+      bool already_exists = false;
+      for (unsigned int k = 0; k < vec_safe_length (analysis->related_fields); k++) {
+        if ((*analysis->related_fields)[k] == field) {
+          already_exists = true;
+          break;
+        }
+      }
+      if (!already_exists) {
+        vec_safe_push (analysis->related_fields, field);
+        analysis->field_bound_count++;
+      }
+    }
+
+    if (analysis->field_bound_count > 0) {
+      AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Fallback: found %u fields from index expression",
+                      analysis->field_bound_count);
     }
   }
 
