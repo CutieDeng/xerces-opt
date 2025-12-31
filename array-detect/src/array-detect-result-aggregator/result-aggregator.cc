@@ -598,18 +598,92 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     }
     APPEND_STR(")");
 
-    // malloc-size: 与 malloc 参数关联的字段列表
+    // malloc-size: 每次 malloc 调用关联的字段列表
+    // 格式：listof listof string，与 reads/writes 保持一致
+    // 每次 malloc 调用作为一个事件，输出该调用依赖的所有字段
     APPEND_STR("(malloc-size (");
-    if (result->capacity_relations) {
-      bool first = true;
-      unsigned int rel_len = vec_safe_length(result->capacity_relations);
-      for (unsigned int j = 0; j < rel_len; j++) {
-        CapacityFieldRelation* rel = (*result->capacity_relations)[j];
-        if (rel && rel->capacity_field_name && (rel->evidence_bitmap & EVID_MALLOC_SIZE_ARG)) {
-          if (!first) APPEND_STR(" ");
-          APPEND_FMT("\"%s\"", rel->capacity_field_name);
-          first = false;
+    {
+      // 收集所有 malloc 证据，按 malloc 调用语句分组
+      // 使用简单数组存储，因为 malloc 调用数量通常很少
+      struct MallocCallGroup {
+        gimple* stmt;
+        location_t loc;
+        vec<const char*, va_gc>* fields;
+      };
+      vec<MallocCallGroup, va_gc>* malloc_groups = NULL;
+      vec_alloc(malloc_groups, 4);
+
+      if (result->capacity_relations) {
+        unsigned int rel_len = vec_safe_length(result->capacity_relations);
+        for (unsigned int j = 0; j < rel_len; j++) {
+          CapacityFieldRelation* rel = (*result->capacity_relations)[j];
+          if (!rel || !rel->capacity_field_name) continue;
+          if (!(rel->evidence_bitmap & EVID_MALLOC_SIZE_ARG)) continue;
+          if (!rel->malloc_evidences) continue;
+
+          // 遍历该字段的所有 malloc 证据
+          unsigned int ev_len = vec_safe_length(rel->malloc_evidences);
+          for (unsigned int k = 0; k < ev_len; k++) {
+            CapacityAssociationEvidence* ev = (*rel->malloc_evidences)[k];
+            if (!ev) continue;
+
+            // 查找或创建该 malloc 调用的分组
+            MallocCallGroup* group = NULL;
+            unsigned int grp_len = vec_safe_length(malloc_groups);
+            for (unsigned int g = 0; g < grp_len; g++) {
+              MallocCallGroup& grp = (*malloc_groups)[g];
+              // 使用 stmt 或 location 匹配
+              if ((ev->stmt && grp.stmt == ev->stmt) ||
+                  (!ev->stmt && grp.loc == ev->location)) {
+                group = &grp;
+                break;
+              }
+            }
+
+            if (!group) {
+              // 创建新分组
+              MallocCallGroup new_grp;
+              new_grp.stmt = ev->stmt;
+              new_grp.loc = ev->location;
+              new_grp.fields = NULL;
+              vec_alloc(new_grp.fields, 4);
+              vec_safe_push(malloc_groups, new_grp);
+              group = &(*malloc_groups)[vec_safe_length(malloc_groups) - 1];
+            }
+
+            // 添加字段名（检查去重）
+            bool already_exists = false;
+            unsigned int fld_len = vec_safe_length(group->fields);
+            for (unsigned int f = 0; f < fld_len; f++) {
+              if (strcmp((*group->fields)[f], rel->capacity_field_name) == 0) {
+                already_exists = true;
+                break;
+              }
+            }
+            if (!already_exists) {
+              vec_safe_push(group->fields, rel->capacity_field_name);
+            }
+          }
         }
+      }
+
+      // 输出所有 malloc 调用分组
+      bool first_group = true;
+      unsigned int grp_len = vec_safe_length(malloc_groups);
+      for (unsigned int g = 0; g < grp_len; g++) {
+        MallocCallGroup& grp = (*malloc_groups)[g];
+        if (!first_group) APPEND_STR(" ");
+        first_group = false;
+
+        APPEND_STR("(");
+        bool first_field = true;
+        unsigned int fld_len = vec_safe_length(grp.fields);
+        for (unsigned int f = 0; f < fld_len; f++) {
+          if (!first_field) APPEND_STR(" ");
+          APPEND_FMT("\"%s\"", (*grp.fields)[f]);
+          first_field = false;
+        }
+        APPEND_STR(")");
       }
     }
     APPEND_STR("))");
