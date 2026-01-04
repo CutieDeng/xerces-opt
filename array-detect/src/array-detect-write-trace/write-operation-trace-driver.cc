@@ -164,8 +164,10 @@ ArrayDetectErrorCode extractSourceFromCall (
   END_LET ()
 } AD_FUNCTION_END
 
-// 从变量提取来源信息
-ArrayDetectErrorCode extractSourceFromVariable (
+// 从无法追踪的来源提取信息（原 extractSourceFromVariable）
+// 注意：SOURCE_VARIABLE 已被移除，因为它语义模糊（可能是函数参数或追踪失败）
+// 现在统一使用 SOURCE_UNKNOWN 表示无法确定的来源
+ArrayDetectErrorCode extractSourceFromUnknown (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree ssa_name,
@@ -177,30 +179,23 @@ ArrayDetectErrorCode extractSourceFromVariable (
   (void)detector;
   (void)function;
   (void)bb;
-  
+  (void)ssa_name;
+  (void)location;
+
   // 分配来源信息结构
   FieldSourceInfo * info = ggc_alloc<FieldSourceInfo> ();
   if (!info) {
     AD_RETURNE (MEMORY_ERROR);
   }
   memset (info, 0, sizeof (FieldSourceInfo));
-  
-  info->source_type = SOURCE_VARIABLE;
-  
-  // 初始化变量来源信息
-  VariableSource * var_source = &info->data.variable;
-  var_source->ssa_name = ssa_name;
-  var_source->location = location;
-  
-  // 获取变量声明
-  tree var_decl_nullable = SSA_NAME_VAR (ssa_name);
-  if (var_decl_nullable) {
-    var_source->var_decl = var_decl_nullable;
-    if (DECL_NAME (var_decl_nullable)) {
-      var_source->var_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (var_decl_nullable)));
-    }
-  }
-  
+
+  // 使用 SOURCE_UNKNOWN 表示无法追踪到明确来源
+  // 可能的情况：
+  // 1. 函数参数（SSA_NAME 没有定义语句）
+  // 2. 追踪深度达到限制
+  // 3. 复杂的控制流导致无法追踪
+  info->source_type = SOURCE_UNKNOWN;
+
   AD_RETURNO (info);
 } AD_FUNCTION_END
 

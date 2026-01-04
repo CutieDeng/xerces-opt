@@ -119,20 +119,20 @@ bool isArithmeticOperation (
 }
 
 // ============================================================================
-// 辅助函数：分类单个逃逸位置
+// 辅助函数：分类单个逃逸使用
 // ============================================================================
 
-ArrayDetectErrorCode classifyEscapeLocation (
+ArrayDetectErrorCode classifyEscapeUse (
   AD_FUNC_ARGS,
-  SourceUseEscapeLocation const &escape_loc,
+  SourceUseInfo const &use_info,
   EscapeSynthesisResult * result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[classifyEscapeLocation] Classifying escape kind: %s",
-                  getEscapeKindString (escape_loc.kind));
+  AD_DEBUG_PRINT ("[classifyEscapeUse] Classifying escape kind: %s",
+                  getEscapeKindString (use_info.escape_kind));
 
-  switch (escape_loc.kind) {
+  switch (use_info.escape_kind) {
     case SU_ESCAPE_NONE:
-      // 这不应该出现在逃逸位置中
+      // 这不应该出现在逃逸使用中
       AD_RETURNE (OK);
 
     case SU_ESCAPE_RETURN:
@@ -147,9 +147,9 @@ ArrayDetectErrorCode classifyEscapeLocation (
         }
 
         // 添加逃逸语句
-        vec_safe_push (result->return_escape->escape_stmts, escape_loc.stmt);
+        vec_safe_push (result->return_escape->escape_stmts, use_info.use_stmt);
         vec_safe_push (result->return_escape->targets,
-                      escape_loc.escape_target ? escape_loc.escape_target : "<return>");
+                      use_info.escape_target ? use_info.escape_target : "<return>");
         result->return_escape->count++;
       }
       AD_RETURNE (OK);
@@ -165,9 +165,9 @@ ArrayDetectErrorCode classifyEscapeLocation (
           result->parameter_escape->count = 0;
         }
 
-        vec_safe_push (result->parameter_escape->escape_stmts, escape_loc.stmt);
+        vec_safe_push (result->parameter_escape->escape_stmts, use_info.use_stmt);
         vec_safe_push (result->parameter_escape->targets,
-                      escape_loc.escape_target ? escape_loc.escape_target : "<parameter>");
+                      use_info.escape_target ? use_info.escape_target : "<parameter>");
         result->parameter_escape->count++;
       }
       AD_RETURNE (OK);
@@ -183,9 +183,9 @@ ArrayDetectErrorCode classifyEscapeLocation (
           result->global_escape->count = 0;
         }
 
-        vec_safe_push (result->global_escape->escape_stmts, escape_loc.stmt);
+        vec_safe_push (result->global_escape->escape_stmts, use_info.use_stmt);
         vec_safe_push (result->global_escape->targets,
-                      escape_loc.escape_target ? escape_loc.escape_target : "<global>");
+                      use_info.escape_target ? use_info.escape_target : "<global>");
         result->global_escape->count++;
       }
       AD_RETURNE (OK);
@@ -201,8 +201,8 @@ ArrayDetectErrorCode classifyEscapeLocation (
           result->heap_escape->count = 0;
         }
 
-        vec_safe_push (result->heap_escape->heap_stores, escape_loc.stmt);
-        vec_safe_push (result->heap_escape->stored_values, escape_loc.use_operand);
+        vec_safe_push (result->heap_escape->heap_stores, use_info.use_stmt);
+        vec_safe_push (result->heap_escape->stored_values, use_info.use_operand);
         result->heap_escape->count++;
       }
       AD_RETURNE (OK);
@@ -219,14 +219,14 @@ ArrayDetectErrorCode classifyEscapeLocation (
           result->field_escape->count = 0;
         }
 
-        vec_safe_push (result->field_escape->field_stores, escape_loc.stmt);
-        vec_safe_push (result->field_escape->field_decls, escape_loc.target_info.field_decl);
+        vec_safe_push (result->field_escape->field_stores, use_info.use_stmt);
+        vec_safe_push (result->field_escape->field_decls, use_info.target_info.field_decl);
 
         // 提取字段名
-        char const * field_name = escape_loc.escape_target;
-        if (!field_name && escape_loc.target_info.field_decl &&
-            DECL_NAME (escape_loc.target_info.field_decl)) {
-          field_name = IDENTIFIER_POINTER (DECL_NAME (escape_loc.target_info.field_decl));
+        char const * field_name = use_info.escape_target;
+        if (!field_name && use_info.target_info.field_decl &&
+            DECL_NAME (use_info.target_info.field_decl)) {
+          field_name = IDENTIFIER_POINTER (DECL_NAME (use_info.target_info.field_decl));
         }
         if (!field_name) {
           field_name = "<unknown-field>";
@@ -241,7 +241,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
     case SU_ESCAPE_EXTERNAL_CALL:
       {
         // 检查是否为安全调试函数
-        char const * func_name = escape_loc.escape_target;
+        char const * func_name = use_info.escape_target;
 
         if (func_name && isKnownSafeDebugFunction (AD_ARGS, func_name)) {
           ESC_SYNTH_ADD (*result, ESC_SYNTH_SAFE_DEBUG);
@@ -253,7 +253,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->safe_debug->count = 0;
           }
 
-          vec_safe_push (result->safe_debug->debug_calls, escape_loc.stmt);
+          vec_safe_push (result->safe_debug->debug_calls, use_info.use_stmt);
           vec_safe_push (result->safe_debug->function_names,
                         ggc_strdup (func_name ? func_name : "<unknown>"));
           result->safe_debug->count++;
@@ -268,14 +268,14 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->unknown_call->count = 0;
           }
 
-          vec_safe_push (result->unknown_call->unknown_calls, escape_loc.stmt);
+          vec_safe_push (result->unknown_call->unknown_calls, use_info.use_stmt);
           vec_safe_push (result->unknown_call->call_descriptions,
                         ggc_strdup (func_name ? func_name : "<unknown-call>"));
           result->unknown_call->count++;
         }
 
         // 同时记录虚函数或间接调用
-        if (escape_loc.kind == SU_ESCAPE_VIRTUAL_CALL) {
+        if (use_info.escape_kind == SU_ESCAPE_VIRTUAL_CALL) {
           ESC_SYNTH_ADD (*result, ESC_SYNTH_VIRTUAL_CALL);
           if (!result->virtual_call) {
             result->virtual_call = ggc_alloc<CallEscapeInfo> ();
@@ -285,11 +285,11 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->virtual_call->count = 0;
           }
 
-          vec_safe_push (result->virtual_call->call_stmts, escape_loc.stmt);
+          vec_safe_push (result->virtual_call->call_stmts, use_info.use_stmt);
           vec_safe_push (result->virtual_call->call_names,
                         ggc_strdup (func_name ? func_name : "<virtual-call>"));
           result->virtual_call->count++;
-        } else if (escape_loc.kind == SU_ESCAPE_INDIRECT_CALL) {
+        } else if (use_info.escape_kind == SU_ESCAPE_INDIRECT_CALL) {
           ESC_SYNTH_ADD (*result, ESC_SYNTH_INDIRECT_CALL);
           if (!result->indirect_call) {
             result->indirect_call = ggc_alloc<CallEscapeInfo> ();
@@ -299,7 +299,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->indirect_call->count = 0;
           }
 
-          vec_safe_push (result->indirect_call->call_stmts, escape_loc.stmt);
+          vec_safe_push (result->indirect_call->call_stmts, use_info.use_stmt);
           vec_safe_push (result->indirect_call->call_names,
                         ggc_strdup (func_name ? func_name : "<indirect-call>"));
           result->indirect_call->count++;
@@ -312,7 +312,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
       {
         // 检查是否为算术运算
         char const * operation_name = NULL;
-        if (escape_loc.stmt && isArithmeticOperation (escape_loc.stmt, operation_name)) {
+        if (use_info.use_stmt && isArithmeticOperation (use_info.use_stmt, operation_name)) {
           ESC_SYNTH_ADD (*result, ESC_SYNTH_ARITHMETIC_POTENTIAL);
           if (!result->arithmetic_potential) {
             result->arithmetic_potential = ggc_alloc<ArithmeticPotentialEscape> ();
@@ -322,7 +322,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->arithmetic_potential->count = 0;
           }
 
-          vec_safe_push (result->arithmetic_potential->arithmetic_stmts, escape_loc.stmt);
+          vec_safe_push (result->arithmetic_potential->arithmetic_stmts, use_info.use_stmt);
           vec_safe_push (result->arithmetic_potential->operations, ggc_strdup (operation_name));
           result->arithmetic_potential->count++;
         } else {
@@ -336,7 +336,7 @@ ArrayDetectErrorCode classifyEscapeLocation (
             result->unknown_call->count = 0;
           }
 
-          vec_safe_push (result->unknown_call->unknown_calls, escape_loc.stmt);
+          vec_safe_push (result->unknown_call->unknown_calls, use_info.use_stmt);
           vec_safe_push (result->unknown_call->call_descriptions,
                         ggc_strdup ("<unknown-escape>"));
           result->unknown_call->count++;
@@ -388,14 +388,16 @@ ArrayDetectErrorCode synthesizeEscapeInfo (
     AD_RETURNO (synth_result);
   }
 
-  // 遍历所有逃逸位置，进行分类
-  if (raw_result->escape_locations) {
-    unsigned int escape_count = raw_result->escape_locations->length ();
-    AD_DEBUG_PRINT ("[synthesizeEscapeInfo] Processing %u escape locations", escape_count);
+  // 遍历所有使用，分类逃逸的使用
+  if (raw_result->all_uses) {
+    unsigned int use_count = raw_result->all_uses->length ();
+    AD_DEBUG_PRINT ("[synthesizeEscapeInfo] Processing %u uses for escapes", use_count);
 
-    for (unsigned int i = 0; i < escape_count; i++) {
-      SourceUseEscapeLocation const &escape_loc = (*raw_result->escape_locations)[i];
-      AD_TRY (classifyEscapeLocation (AD_ARGS, escape_loc, synth_result));
+    for (unsigned int i = 0; i < use_count; i++) {
+      SourceUseInfo const &use_info = (*raw_result->all_uses)[i];
+      if (use_info.is_escape()) {
+        AD_TRY (classifyEscapeUse (AD_ARGS, use_info, synth_result));
+      }
     }
   }
 

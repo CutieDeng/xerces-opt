@@ -182,10 +182,10 @@ bool isArithmeticOperation (
   char const * &operation_name
 );
 
-// 分类单个逃逸位置
-ArrayDetectErrorCode classifyEscapeLocation (
+// 分类单个逃逸使用
+ArrayDetectErrorCode classifyEscapeUse (
   AD_FUNC_ARGS,
-  SourceUseEscapeLocation const &escape_loc,
+  SourceUseInfo const &use_info,
   EscapeSynthesisResult * result
 );
 

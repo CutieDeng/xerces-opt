@@ -190,28 +190,10 @@ static bool checkCoSourcedAssignment (
     FieldWriteAnalysisRecord* record = (*candidate_field_data->write_analysis_records)[i];
     if (!record || !record->source_info) continue;
 
-    // 检查源类型是否为变量
-    LET_SOURCE_VARIABLE (var_source, *record->source_info) {
-      tree source_operand = var_source.ssa_name;
-      tree source_base = getExpressionBaseSource (source_operand);
-
-      if (source_base) {
-        // 检查是否与任一 malloc 源匹配
-        for (unsigned int j = 0; j < vec_safe_length (malloc_sources); j++) {
-          tree malloc_base = (*malloc_sources)[j];
-          if (source_base == malloc_base) {
-            const char* source_name = var_source.var_name ? var_source.var_name : "<unknown>";
-            AD_DEBUG_PRINT ("[checkCoSourcedAssignment] MATCH: candidate field assigned from same source '%s'",
-                            source_name);
-            if (ctx.debug_file) {
-              fprintf (ctx.debug_file, "        -> MATCH: field assigned from '%s' (same as malloc arg)\n",
-                       source_name);
-            }
-            return true;
-          }
-        }
-      }
-    } END_LET()
+    // 注意：SOURCE_VARIABLE 已移除（语义模糊：变量不是真正的来源）
+    // 字段值的真正来源是函数调用、常量、字段访问、计算或 PHI 节点
+    // 同源检查应基于 SSA 定义链追踪，而非简单的"变量"分类
+    // TODO: 如需同源检查，应在 source_info 中记录 SSA 定义链的基源
   }
 
   return false;

@@ -391,25 +391,23 @@ static void collectBoundFieldsFromExpression (
       return;
     }
 
-    // 关键检查：确保定义语句在当前函数的基本块中
-    // 如果 gimple_bb(def) 为 NULL，说明语句不在任何基本块中（如函数参数的 GIMPLE_NOP）
+    // 获取定义语句的基本块
+    // 在 GCC 12 中，函数参数的 SSA_NAME 定义语句 (GIMPLE_NOP) 没有关联的基本块
+    // gimple_bb 返回 NULL 是正常行为，需要跳过这类定义
     basic_block def_bb = gimple_bb (def);
-    if (!def_bb) {
-      if (depth <= 2) AD_DEBUG_PRINT ("    def has no basic_block (gimple_bb is NULL), skipping");
-      return;
-    }
-
-    // 额外检查：确保定义语句的基本块属于当前函数
-    if (cfun && def_bb->flags == BB_RTL) {
-      if (depth <= 2) AD_DEBUG_PRINT ("    def basic_block is RTL (not GIMPLE), skipping");
-      return;
-    }
-
     enum gimple_code def_code = gimple_code (def);
+
     if (depth <= 2) {
       AD_DEBUG_PRINT ("    def=%p, gimple_code=%s (%d), bb=%p (bb%d)",
                       (void*)def, gimple_code_name[def_code], (int)def_code,
-                      (void*)def_bb, def_bb->index);
+                      (void*)def_bb, def_bb ? def_bb->index : -1);
+    }
+
+    // 如果定义语句不在任何基本块中（如 GIMPLE_NOP），跳过进一步处理
+    // 这不是错误情况，而是 GCC 对函数参数 SSA_NAME 的正常表示
+    if (!def_bb) {
+      if (depth <= 2) AD_DEBUG_PRINT ("    def has no basic block (parameter or special def), skipping");
+      return;
     }
 
     if (def_code == GIMPLE_ASSIGN) {

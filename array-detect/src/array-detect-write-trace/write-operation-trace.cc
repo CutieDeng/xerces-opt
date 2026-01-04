@@ -171,8 +171,9 @@ ArrayDetectErrorCode extractSourceFromRhs (
                           (void*)final_stmt_nullable, (void*)final_value, (int)gimple_code (final_stmt_nullable));
       AD_TRY (extractSourceFromCall (detector, AD_ARGS, final_stmt_nullable, function, call_bb, result));
     } else {
-      // 来自变量（可能是参数或其他）
-      AD_TRY (extractSourceFromVariable (detector, AD_ARGS, final_value, location, function, bb, result));
+      // 无法追踪到明确来源（可能是函数参数或追踪失败）
+      // 使用 SOURCE_UNKNOWN 标记
+      AD_TRY (extractSourceFromUnknown (detector, AD_ARGS, final_value, location, function, bb, result));
     }
     AD_RETURNE (OK);
   } else if (CONSTANT_CLASS_P (final_value)) {

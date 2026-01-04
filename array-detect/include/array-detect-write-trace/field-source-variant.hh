@@ -15,10 +15,11 @@ using namespace ::array_detect_ns;
 // ============================================================================
 
 // 字段来源类型枚举
+// 注意：已移除 SOURCE_VARIABLE，原因见 OPT.md
+// SOURCE_VARIABLE 语义模糊（可能是函数参数或追踪失败），无法提供有价值的 owned 判定信息
 enum FieldSourceType {
-  SOURCE_UNKNOWN,        // 未知来源
+  SOURCE_UNKNOWN,        // 未知来源（追踪失败或无法分类）
   SOURCE_FUNCTION_CALL,  // 函数调用（包括虚函数、直接调用、间接调用）
-  SOURCE_VARIABLE,       // 变量（SSA_NAME）
   SOURCE_CONSTANT,       // 常量
   SOURCE_FIELD_ACCESS,   // 字段访问（对另一对象的字段读取，如 b.ptr）
   SOURCE_COMPUTATION,    // 计算表达式
@@ -31,14 +32,6 @@ struct FunctionCallSource {
   CallType call_type;          // 调用类型（CALL_VIRTUAL, CALL_DIRECT, CALL_INDIRECT, CALL_UNKNOWN）
   char const *function_name;   // 函数名（mangled，ggc_strdup 分配）
   location_t location;         // 调用位置（GCC 内部管理）
-};
-
-// 变量来源信息
-struct VariableSource {
-  tree ssa_name;               // SSA_NAME（GCC 内部管理）
-  tree var_decl;               // 变量声明（VAR_DECL，GCC 内部管理，可能为 NULL）
-  char const *var_name;        // 变量名（ggc_strdup 分配，可能为 NULL）
-  location_t location;         // 变量定义位置（GCC 内部管理）
 };
 
 // 常量来源信息
@@ -81,7 +74,6 @@ struct FieldSourceInfo {
   FieldSourceType source_type;  // 来源类型（discriminator）
   union {
     FunctionCallSource function_call;  // 函数调用来源
-    VariableSource variable;           // 变量来源
     ConstantSource constant;           // 常量来源
     FieldAccessSource field_access;    // 字段访问来源
     ComputationSource computation;     // 计算来源
@@ -95,7 +87,6 @@ struct FieldSourceInfo {
 
 // 检查来源类型
 #define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == ::array_detector::SOURCE_FUNCTION_CALL)
-#define FIELD_SOURCE_IS_VARIABLE(src) ((src).source_type == ::array_detector::SOURCE_VARIABLE)
 #define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == ::array_detector::SOURCE_CONSTANT)
 #define FIELD_SOURCE_IS_FIELD_ACCESS(src) ((src).source_type == ::array_detector::SOURCE_FIELD_ACCESS)
 #define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == ::array_detector::SOURCE_COMPUTATION)
@@ -105,10 +96,6 @@ struct FieldSourceInfo {
 // 安全访问函数调用来源
 #define FIELD_SOURCE_GET_FUNCTION_CALL(src) \
   (FIELD_SOURCE_IS_FUNCTION_CALL (src) ? &((src).data.function_call) : nullptr)
-
-// 安全访问变量来源
-#define FIELD_SOURCE_GET_VARIABLE(src) \
-  (FIELD_SOURCE_IS_VARIABLE (src) ? &((src).data.variable) : nullptr)
 
 // 安全访问常量来源
 #define FIELD_SOURCE_GET_CONSTANT(src) \
@@ -148,13 +135,6 @@ struct FieldSourceInfo {
 #define LET_SOURCE_FUNCTION_CALL(VAR, SRC) \
   if (FIELD_SOURCE_IS_FUNCTION_CALL (SRC)) { \
     ::array_detector::FunctionCallSource& VAR = (SRC).data.function_call;
-
-// 变量来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
-#define LET_SOURCE_VARIABLE(VAR, SRC) \
-  if (FIELD_SOURCE_IS_VARIABLE (SRC)) { \
-    ::array_detector::VariableSource& VAR = (SRC).data.variable;
 
 // 常量来源模式匹配
 // VAR: 变量名（引用类型）

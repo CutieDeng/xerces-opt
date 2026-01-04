@@ -62,13 +62,14 @@ ArrayDetectErrorCode extractSourceFromCall (
   FieldSourceInfo * &result
 );
 
-// 从变量提取来源信息
-// 输入：ssa_name - SSA_NAME
+// 从无法追踪的来源提取信息（标记为 SOURCE_UNKNOWN）
+// 注意：原 extractSourceFromVariable 已被替换，因为 SOURCE_VARIABLE 语义模糊
+// 输入：ssa_name - 无法追踪的 SSA_NAME
 //       location - 源码位置
 //       function - 所在函数（用于上下文信息）
 //       bb - 所在基本块（用于上下文信息）
-// 输出：result - 提取的来源信息（已分配内存，使用 ggc_alloc）
-ArrayDetectErrorCode extractSourceFromVariable (
+// 输出：result - 提取的来源信息（source_type = SOURCE_UNKNOWN）
+ArrayDetectErrorCode extractSourceFromUnknown (
   ArrayDetector &detector,
   AD_FUNC_ARGS,
   tree ssa_name,

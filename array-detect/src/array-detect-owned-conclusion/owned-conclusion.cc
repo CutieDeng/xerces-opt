@@ -35,11 +35,6 @@ static bool isSourceTypeSupportingOwned (FieldSourceType source_type) {
       // 常量（如 NULL）：支持 owned
       return true;
 
-    case SOURCE_VARIABLE:
-      // 变量：可能支持，但通常不是 owned 模式
-      // 保守起见返回 false
-      return false;
-
     case SOURCE_COMPUTATION:
     case SOURCE_PHI:
     case SOURCE_UNKNOWN:
@@ -58,7 +53,6 @@ static const char* getSourceTypeDescription (FieldSourceType source_type) {
     case SOURCE_FUNCTION_CALL: return "function call";
     case SOURCE_FIELD_ACCESS: return "field access";
     case SOURCE_CONSTANT: return "constant";
-    case SOURCE_VARIABLE: return "variable";
     case SOURCE_COMPUTATION: return "computation";
     case SOURCE_PHI: return "phi node";
     case SOURCE_UNKNOWN: return "unknown";

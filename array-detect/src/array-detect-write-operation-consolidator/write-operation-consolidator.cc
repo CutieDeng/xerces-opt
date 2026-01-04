@@ -31,17 +31,6 @@ size_t hashWriteOperationFingerprint (WriteOperationFingerprint const *fp) {
       }
       break;
     }
-    case SOURCE_VARIABLE: {
-      if (fp->data.variable.var_name) {
-        char const *str = fp->data.variable.var_name;
-        size_t str_hash = 0;
-        for (; *str; ++str) {
-          str_hash = str_hash * 31 + (unsigned char)*str;
-        }
-        h ^= str_hash;
-      }
-      break;
-    }
     case SOURCE_CONSTANT: {
       if (fp->data.constant.constant_str) {
         char const *str = fp->data.constant.constant_str;
@@ -107,14 +96,6 @@ bool equalWriteOperationFingerprint (WriteOperationFingerprint const *fp1,
       }
       return name1 == name2;
     }
-    case SOURCE_VARIABLE: {
-      char const *name1 = fp1->data.variable.var_name;
-      char const *name2 = fp2->data.variable.var_name;
-      if (name1 && name2) {
-        return strcmp (name1, name2) == 0;
-      }
-      return name1 == name2;
-    }
     case SOURCE_CONSTANT: {
       char const *str1 = fp1->data.constant.constant_str;
       char const *str2 = fp2->data.constant.constant_str;
@@ -173,11 +154,6 @@ static ArrayDetectErrorCode generateFingerprint (
       // 更精确的等价性判断应该在生成 fingerprint 时使用 function-call-equivalence 模块
       // 但为了简化，这里先使用 function_name
       fp.data.function_call.function_name = call.function_name;  // 直接引用，不复制
-      break;
-    }
-    case SOURCE_VARIABLE: {
-      VariableSource const &var = source_info->data.variable;
-      fp.data.variable.var_name = var.var_name;  // 直接引用，不复制
       break;
     }
     case SOURCE_CONSTANT: {

@@ -433,10 +433,8 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
     
     AD_DEBUG_PRINT ("  Call function name: %s", display_function_name ? display_function_name : "<unknown>");
   } END_LET ()
-  else LET_SOURCE_VARIABLE (var, *source_info) {
-    AD_DEBUG_PRINT ("  Source type: VARIABLE");
-    AD_DEBUG_PRINT ("  Variable name: %s", var.var_name ? var.var_name : "<unknown>");
-  } END_LET ()
+  // 注意：SOURCE_VARIABLE 已移除（语义模糊）
+  // 无法追踪到明确来源的情况现在使用 SOURCE_UNKNOWN
   else LET_SOURCE_CONSTANT (constant, *source_info) {
     AD_DEBUG_PRINT ("  Source type: CONSTANT");
     AD_DEBUG_PRINT ("  Constant value: %s", constant.constant_str ? constant.constant_str : "<unknown>");
