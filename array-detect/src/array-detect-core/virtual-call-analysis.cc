@@ -105,12 +105,14 @@ ArrayDetectErrorCode matchVirtualFunctionCall (
     gimple * def = SSA_NAME_DEF_STMT (call_expr);
     if (def && gimple_code (def) == GIMPLE_ASSIGN) {
       tree rhs = gimple_assign_rhs1 (def);
-      return matchVirtualFunctionCall (AD_ARGS, rhs, object_type, method_decl, vtable_index);
+      AD_TRY (matchVirtualFunctionCall (AD_ARGS, rhs, object_type, method_decl, vtable_index));
+      AD_RETURNE (OK);
     }
   }
   if (TREE_CODE (call_expr) == ADDR_EXPR) {
     tree inner = TREE_OPERAND (call_expr, 0);
-    return matchVirtualFunctionCall (AD_ARGS, inner, object_type, method_decl, vtable_index);
+    AD_TRY (matchVirtualFunctionCall (AD_ARGS, inner, object_type, method_decl, vtable_index));
+    AD_RETURNE (OK);
   }
 
   if (TREE_CODE (call_expr) != OBJ_TYPE_REF) {
@@ -584,10 +586,11 @@ ArrayDetectErrorCode matchCallExpression (
       tree rhs = gimple_assign_rhs1 (def_stmt);
       if (TREE_CODE (rhs) == OBJ_TYPE_REF) {
         // 递归处理 OBJ_TYPE_REF
-        return matchCallExpression (AD_ARGS, rhs, result);
+        AD_TRY (matchCallExpression (AD_ARGS, rhs, result));
+        AD_RETURNE (OK);
       }
     }
-    
+
     // 否则是间接调用
     result.call_type = CALL_INDIRECT;
     result.info.indirect.function_expr = fn;
