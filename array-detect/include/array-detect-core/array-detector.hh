@@ -17,8 +17,8 @@
 namespace array_detect_ns {
   struct FieldWriteCapture;                 // 字段写入捕获（field-write-collector）
   struct SourceUseAnalysisResult;           // 源使用分析结果（source-escape-collection）
-  struct EscapeSynthesisResult;             // 逃逸综合结果（escape-synthesizer）
-  struct OwnershipAnalysisResult;           // 所有权分析结果（escape-synthesizer）
+  struct EscapeExtractionResult;            // 逃逸提取结果（escape-synthesizer 第一层）
+  struct EscapeEvidenceResult;              // 逃逸证据结果（escape-synthesizer 第二层）
   struct OwnershipTransferAnalysisResult;   // 所有权转移分析结果（ownership-transfer）
 }
 
@@ -73,9 +73,9 @@ struct FieldWriteAnalysisRecord {
   SourceUseAnalysisResult* escape_analysis;   // 源使用分析结果：源操作数的逃逸分析
                                                // 包含：所有使用、逃逸位置、逃逸类型等
 
-  // === 逃逸综合（可选，由 escape-synthesizer 生成）===
-  EscapeSynthesisResult* escape_synthesis;    // 逃逸综合结果：逃逸的分类和统计
-                                               // 包含：逃逸类别位图、详细统计等
+  // === 逃逸证据（可选，由 escape-synthesizer 生成）===
+  EscapeEvidenceResult* escape_evidence;       // 逃逸证据结果：非调试逃逸统计
+                                               // 包含：逃逸总数、调试逃逸数、拒绝证据标志
 
   // === 所有权转移分析（可选，由 ownership-transfer 生成）===
   OwnershipTransferAnalysisResult* ownership_transfer; // 所有权转移分析结果：字段赋值的所有权转移判定
@@ -100,8 +100,9 @@ struct TypeFieldAnalysisData {
                                                // 该字段的所有写入操作的完整分析记录
 
   // === 字段级别综合分析（可选）===
-  OwnershipAnalysisResult* ownership_analysis; // 所有权分析结果：字段是否支持 owned 指针
-                                               // 基于所有写入操作的逃逸综合结果生成
+  // 基于所有写入操作的逃逸证据结果，判定字段是否为 owned 指针
+  // 目前简化为：任意写入操作存在非调试逃逸 => 非 owned
+  bool has_rejecting_evidence;                // 是否存在拒绝 owned 的证据
 
   // === 元数据 ===
   void* reserved;                              // 保留字段，供未来扩展使用

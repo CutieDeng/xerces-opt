@@ -99,7 +99,7 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
   tfwo->write_analysis_records->create (0);
 
   // 初始化字段级别分析结果
-  tfwo->ownership_analysis = NULL;
+  tfwo->has_rejecting_evidence = false;
   tfwo->reserved = NULL;
   
   // 插入到 hash_map 中
@@ -217,7 +217,8 @@ ArrayDetectErrorCode collectTypesAndFields (ArrayDetector &detector, AD_FUNC_ARG
       // 其他分析结果初始化为 NULL，由后续模块填充
       analysis_record->source_info = NULL;
       analysis_record->escape_analysis = NULL;
-      analysis_record->escape_synthesis = NULL;
+      analysis_record->escape_evidence = NULL;
+      analysis_record->ownership_transfer = NULL;
       analysis_record->reserved = NULL;
 
       // 查找或创建 type -> field 的写入操作列表

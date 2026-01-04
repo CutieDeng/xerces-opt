@@ -61,61 +61,27 @@ static const char* getSourceTypeDescription (FieldSourceType source_type) {
 }
 
 // ============================================================================
-// 辅助函数：检查逃逸综合结果是否拒绝 owned
+// 辅助函数：检查逃逸证据是否拒绝 owned
 // ============================================================================
 //
 // Owned 语义要求：指针的唯一所有者，不与其他代码共享
-//
-// 拒绝 owned 的逃逸类别（指针逃逸到函数外部或被共享）：
-// - ESC_SYNTH_RETURN_ESCAPE: 返回给调用者（共享给调用者）
-// - ESC_SYNTH_GLOBAL_ESCAPE: 存储到全局变量（全局共享）
-// - ESC_SYNTH_PARAMETER_ESCAPE: 存储到参数（共享给调用者）
-// - ESC_SYNTH_FIELD_ESCAPE: 存储到多个字段（内部共享）
-// - ESC_SYNTH_HEAP_ESCAPE: 存储到堆内存（逃逸到其他位置）
-// - ESC_SYNTH_UNKNOWN_CALL: 传给未知函数（可能被保存）
-// - ESC_SYNTH_VIRTUAL_CALL: 传给虚函数（可能被保存）
-// - ESC_SYNTH_INDIRECT_CALL: 传给间接调用（可能被保存）
-//
-// 支持或中立的逃逸类别：
-// - ESC_SYNTH_NO_ESCAPE: 无逃逸（支持 owned）
-// - ESC_SYNTH_ARITHMETIC_POTENTIAL: 算术运算（可能只是地址计算）
-// - ESC_SYNTH_SAFE_DEBUG: 调试型逃逸（如 printf，通常不保存指针）
+// 简化判定：存在非调试逃逸 => 拒绝 owned
 
-static bool isEscapeSynthesisRejecting (EscapeSynthesisResult* synthesis) {
-  if (!synthesis) {
+static bool isEscapeEvidenceRejecting (EscapeEvidenceResult* evidence) {
+  if (!evidence) {
     return false;
   }
-
-  unsigned int categories = synthesis->category_bitmap;
-
-  // 检查所有拒绝性逃逸类别
-  if (categories & ESC_SYNTH_RETURN_ESCAPE) return true;
-  if (categories & ESC_SYNTH_GLOBAL_ESCAPE) return true;
-  if (categories & ESC_SYNTH_PARAMETER_ESCAPE) return true;
-  if (categories & ESC_SYNTH_FIELD_ESCAPE) return true;
-  if (categories & ESC_SYNTH_HEAP_ESCAPE) return true;
-  if (categories & ESC_SYNTH_UNKNOWN_CALL) return true;
-  if (categories & ESC_SYNTH_VIRTUAL_CALL) return true;
-  if (categories & ESC_SYNTH_INDIRECT_CALL) return true;
-
-  return false;
+  return evidence->has_rejecting_evidence;
 }
 
 // ============================================================================
-// 辅助函数：获取逃逸类别的描述
+// 辅助函数：获取逃逸证据的描述
 // ============================================================================
 
-static const char* getEscapeCategoryDescription (unsigned int categories) {
-  if (categories == 0) return "no escape";
-  if (categories & ESC_SYNTH_RETURN_ESCAPE) return "return to caller";
-  if (categories & ESC_SYNTH_GLOBAL_ESCAPE) return "store to global";
-  if (categories & ESC_SYNTH_PARAMETER_ESCAPE) return "store to parameter";
-  if (categories & ESC_SYNTH_FIELD_ESCAPE) return "multi-field escape";
-  if (categories & ESC_SYNTH_VIRTUAL_CALL) return "virtual call";
-  if (categories & ESC_SYNTH_INDIRECT_CALL) return "indirect call";
-  if (categories & ESC_SYNTH_UNKNOWN_CALL) return "unknown call";
-  if (categories & ESC_SYNTH_HEAP_ESCAPE) return "heap escape";
-  return "other escape";
+static const char* getEscapeEvidenceDescription (EscapeEvidenceResult* evidence) {
+  if (!evidence) return "no evidence";
+  if (!evidence->has_rejecting_evidence) return "no rejecting escape";
+  return "has rejecting escape";
 }
 
 // ============================================================================
@@ -154,7 +120,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
   FieldWriteCapture* capture = record->write_capture;
   FieldSourceInfo* source_info = record->source_info;
-  EscapeSynthesisResult* escape_synthesis = record->escape_synthesis;
+  EscapeEvidenceResult* escape_evidence = record->escape_evidence;
   OwnershipTransferAnalysisResult* transfer = record->ownership_transfer;
 
   location_t loc = gimple_location (capture->stmt);
@@ -178,8 +144,8 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
   FieldSourceType source_type = source_info->source_type;
   bool source_supports = isSourceTypeSupportingOwned (source_type);
 
-  // === 检查 2: 逃逸综合结果 ===
-  bool has_rejecting_escape = isEscapeSynthesisRejecting (escape_synthesis);
+  // === 检查 2: 逃逸证据结果 ===
+  bool has_rejecting_escape = isEscapeEvidenceRejecting (escape_evidence);
 
   // === 检查 3: 所有权转移（仅对字段访问源）===
   bool has_transfer_issue = false;
@@ -205,8 +171,8 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
     } else if (has_rejecting_escape) {
       evidence->rejection_reason = "Source operand has rejecting escape";
       evidence->has_rejecting_escape = true;
-      evidence->category_bitmap = escape_synthesis ? escape_synthesis->category_bitmap : 0;
-      evidence->total_escapes = escape_synthesis ? escape_synthesis->total_escapes : 0;
+      evidence->rejecting_escapes = escape_evidence ? escape_evidence->rejecting_escapes : 0;
+      evidence->total_escapes = escape_evidence ? escape_evidence->total_escapes : 0;
       evidence->source_description = getSourceTypeDescription (source_type);
     } else if (has_transfer_issue) {
       evidence->rejection_reason = "Ownership transfer indicates shared ownership";
@@ -234,10 +200,9 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
     evidence->source_description = getSourceTypeDescription (source_type);
 
-    if (escape_synthesis) {
-      evidence->total_uses = escape_synthesis->total_uses;
-      evidence->total_escapes = escape_synthesis->total_escapes;
-      evidence->category_bitmap = escape_synthesis->category_bitmap;
+    if (escape_evidence) {
+      evidence->total_escapes = escape_evidence->total_escapes;
+      evidence->safe_debug_escapes = escape_evidence->safe_debug_escapes;
     }
 
     if (transfer) {
@@ -522,10 +487,9 @@ void printFieldOwnedConclusion (
                LOCATION_LINE (evidence->location),
                LOCATION_COLUMN (evidence->location));
       fprintf (out, "      Source: %s\n", evidence->source_description);
-      fprintf (out, "      Uses: %u, Escapes: %u, Categories: 0x%x\n",
-               evidence->total_uses,
+      fprintf (out, "      Escapes: %u (safe debug: %u)\n",
                evidence->total_escapes,
-               evidence->category_bitmap);
+               evidence->safe_debug_escapes);
       if (evidence->has_transfer_analysis) {
         fprintf (out, "      Ownership transfer: %s\n", evidence->transfer_verdict_str);
       }
@@ -552,10 +516,9 @@ void printFieldOwnedConclusion (
       }
 
       if (evidence->has_rejecting_escape) {
-        fprintf (out, "      Escape categories: 0x%x (%s)\n",
-                 evidence->category_bitmap,
-                 getEscapeCategoryDescription (evidence->category_bitmap));
-        fprintf (out, "      Total escapes: %u\n", evidence->total_escapes);
+        fprintf (out, "      Rejecting escapes: %u / %u total\n",
+                 evidence->rejecting_escapes,
+                 evidence->total_escapes);
       }
 
       if (evidence->has_transfer_issue) {

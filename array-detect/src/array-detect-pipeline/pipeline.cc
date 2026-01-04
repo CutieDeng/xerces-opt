@@ -42,12 +42,12 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_DEBUG_PRINT ("Escape collection complete: %u writes collected, %u with escapes",
                   total_analyzed, total_escaped);
 
-  // 第四步：逃逸综合分析
-  AD_DEBUG_PRINT ("Step 4: Synthesizing escape information");
-  vec<EscapeSynthesisResult*> * synthesis_results = NULL;
+  // 第四步：逃逸证据生成（两层架构）
+  AD_DEBUG_PRINT ("Step 4: Generating escape evidence");
+  vec<EscapeEvidenceResult*> * evidence_results = NULL;
   unsigned int total_synthesized = 0;
-  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, synthesis_results, total_synthesized));
-  AD_DEBUG_PRINT ("Escape synthesis complete: %u results synthesized", total_synthesized);
+  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, evidence_results, total_synthesized));
+  AD_DEBUG_PRINT ("Escape evidence generation complete: %u results", total_synthesized);
 
   // 第五步：所有权转移分析
   AD_DEBUG_PRINT ("Step 5: Analyzing ownership transfers");

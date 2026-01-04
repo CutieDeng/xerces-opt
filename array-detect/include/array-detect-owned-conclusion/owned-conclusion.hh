@@ -29,9 +29,8 @@ struct OwnedSupportingEvidence {
   const char* source_description;               // 源描述信息
 
   // === 逃逸信息 ===
-  unsigned int total_uses;                      // 总使用次数
   unsigned int total_escapes;                   // 总逃逸次数
-  unsigned int category_bitmap;                 // 逃逸类别位图
+  unsigned int safe_debug_escapes;              // 安全调试逃逸次数
 
   // === 所有权转移信息（如果源是字段访问）===
   bool has_transfer_analysis;                   // 是否有所有权转移分析
@@ -54,8 +53,8 @@ struct OwnedRejectingEvidence {
 
   // 逃逸问题
   bool has_rejecting_escape;                    // 有拒绝性逃逸
-  unsigned int category_bitmap;                 // 逃逸类别位图
-  unsigned int total_escapes;                   // 逃逸次数
+  unsigned int rejecting_escapes;               // 拒绝性逃逸次数
+  unsigned int total_escapes;                   // 总逃逸次数
 
   // 所有权转移问题
   bool has_transfer_issue;                      // 所有权转移问题
