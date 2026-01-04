@@ -19,6 +19,7 @@ namespace array_detect_ns {
   struct SourceUseAnalysisResult;           // 源使用分析结果（source-escape-collection）
   struct EscapeExtractionResult;            // 逃逸提取结果（escape-synthesizer 第一层）
   struct EscapeEvidenceResult;              // 逃逸证据结果（escape-synthesizer 第二层）
+  struct TypeFieldEscapeSummary;            // (type, field) 级别逃逸汇总（escape-synthesizer 第三层）
   struct OwnershipTransferAnalysisResult;   // 所有权转移分析结果（ownership-transfer）
 }
 
@@ -103,6 +104,10 @@ struct TypeFieldAnalysisData {
   // 基于所有写入操作的逃逸证据结果，判定字段是否为 owned 指针
   // 目前简化为：任意写入操作存在非调试逃逸 => 非 owned
   bool has_rejecting_evidence;                // 是否存在拒绝 owned 的证据
+
+  // === (type, field) 级别逃逸汇总（可选，由 escape-synthesizer 第三层生成）===
+  TypeFieldEscapeSummary* escape_summary;     // 详细的逃逸汇总信息
+                                               // 包含：写入操作统计、逃逸统计、来源类型分布等
 
   // === 元数据 ===
   void* reserved;                              // 保留字段，供未来扩展使用

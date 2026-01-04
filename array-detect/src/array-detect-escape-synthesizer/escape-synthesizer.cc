@@ -2,6 +2,7 @@
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "gcc-ext-util.hh"
+#include "field-source-variant.hh"
 
 namespace array_detect_ns {
 
@@ -182,6 +183,120 @@ ArrayDetectErrorCode generateEscapeEvidence (
 } AD_FUNCTION_END
 
 // ============================================================================
+// 第三层模块：(type, field) 级别汇总
+// ============================================================================
+
+ArrayDetectErrorCode summarizeTypeFieldEscapes (
+  AD_FUNC_ARGS,
+  array_detector::TypeFieldAnalysisData * field_data,
+  TypeFieldEscapeSummary * &result
+) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("[summarizeTypeFieldEscapes] Summarizing escapes for (type, field)");
+
+  if (!field_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
+
+  // 分配汇总结构
+  TypeFieldEscapeSummary * summary = ggc_alloc<TypeFieldEscapeSummary> ();
+  if (!summary) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memset (summary, 0, sizeof (TypeFieldEscapeSummary));
+
+  // 设置标识
+  summary->type = field_data->type;
+  summary->field_decl = field_data->field_decl;
+
+  // 分配证据引用向量
+  summary->all_evidences = ggc_alloc<vec<EscapeEvidenceResult*>> ();
+  summary->all_evidences->create (0);
+
+  // 遍历所有写入操作记录
+  if (field_data->write_analysis_records) {
+    unsigned int record_count = field_data->write_analysis_records->length ();
+    AD_DEBUG_PRINT ("  Processing %u write records", record_count);
+
+    for (unsigned int i = 0; i < record_count; i++) {
+      array_detector::FieldWriteAnalysisRecord * record =
+        (*field_data->write_analysis_records)[i];
+      if (!record) continue;
+
+      summary->total_writes++;
+
+      // 统计来源类型分布
+      if (record->source_info) {
+        switch (record->source_info->source_type) {
+          case array_detector::SOURCE_FUNCTION_CALL:
+            summary->source_function_call++;
+            break;
+          case array_detector::SOURCE_FIELD_ACCESS:
+            summary->source_field_access++;
+            break;
+          case array_detector::SOURCE_CONSTANT:
+            summary->source_constant++;
+            break;
+          case array_detector::SOURCE_COMPUTATION:
+            summary->source_computation++;
+            break;
+          case array_detector::SOURCE_PHI:
+            summary->source_phi++;
+            break;
+          case array_detector::SOURCE_UNKNOWN:
+          default:
+            summary->source_unknown++;
+            break;
+        }
+      } else {
+        summary->writes_without_analysis++;
+        summary->source_unknown++;
+      }
+
+      // 统计逃逸
+      if (record->escape_evidence) {
+        EscapeEvidenceResult * evidence = record->escape_evidence;
+
+        summary->total_escapes += evidence->total_escapes;
+        summary->safe_debug_escapes += evidence->safe_debug_escapes;
+        summary->rejecting_escapes += evidence->rejecting_escapes;
+
+        if (evidence->total_escapes > 0) {
+          summary->writes_with_escape++;
+        }
+        if (evidence->has_rejecting_evidence) {
+          summary->writes_with_rejecting++;
+        }
+
+        // 添加到证据引用列表
+        summary->all_evidences->safe_push (evidence);
+      } else {
+        summary->writes_without_analysis++;
+      }
+    }
+  }
+
+  // 计算核心判定
+  summary->has_rejecting_evidence = (summary->writes_with_rejecting > 0);
+  summary->rejection_ratio = (summary->total_writes > 0)
+    ? (float)summary->writes_with_rejecting / (float)summary->total_writes
+    : 0.0f;
+
+  AD_DEBUG_PRINT ("  Summary: writes=%u, with_escape=%u, with_rejecting=%u, "
+                  "total_escapes=%u, debug=%u, rejecting=%u, ratio=%.2f",
+                  summary->total_writes, summary->writes_with_escape,
+                  summary->writes_with_rejecting, summary->total_escapes,
+                  summary->safe_debug_escapes, summary->rejecting_escapes,
+                  summary->rejection_ratio);
+  AD_DEBUG_PRINT ("  Source distribution: func=%u, field=%u, const=%u, "
+                  "comp=%u, phi=%u, unknown=%u",
+                  summary->source_function_call, summary->source_field_access,
+                  summary->source_constant, summary->source_computation,
+                  summary->source_phi, summary->source_unknown);
+
+  AD_RETURNO (summary);
+} AD_FUNCTION_END
+
+// ============================================================================
 // 组合接口：综合所有字段的逃逸信息
 // ============================================================================
 
@@ -280,6 +395,11 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 
     // 更新字段级别拒绝标志
     write_ops->has_rejecting_evidence = field_has_rejecting;
+
+    // 第三层：生成 (type, field) 级别汇总
+    TypeFieldEscapeSummary * summary = NULL;
+    AD_TRY (summarizeTypeFieldEscapes (AD_ARGS, write_ops, summary));
+    write_ops->escape_summary = summary;
 
     AD_DEBUG_PRINT ("  (type=%s, field=%s): has_rejecting_evidence=%d",
                     type_name ? type_name : "<unknown>",

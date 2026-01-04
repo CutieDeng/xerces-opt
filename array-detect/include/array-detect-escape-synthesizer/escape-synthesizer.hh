@@ -11,6 +11,7 @@
 namespace array_detector {
 
   class ArrayDetector;
+  struct TypeFieldAnalysisData;
 
 } // namespace array_detector
 
@@ -61,6 +62,56 @@ struct EscapeEvidenceResult {
   void * aux;
   void * original_write_info;           // 原始写入信息（FieldWriteCapture*）
 };
+
+// ============================================================================
+// 第三层：(type, field) 级别逃逸汇总 (Type Field Escape Summary)
+// ============================================================================
+// 汇总单个 (type, field) 的所有写入操作的逃逸信息
+
+struct TypeFieldEscapeSummary {
+  // === 标识 ===
+  tree type;
+  tree field_decl;
+
+  // === 写入操作统计 ===
+  unsigned int total_writes;              // 总写入操作数
+  unsigned int writes_with_escape;        // 有逃逸的写入操作数
+  unsigned int writes_with_rejecting;     // 有拒绝证据的写入操作数
+  unsigned int writes_without_analysis;   // 未分析的写入操作数
+
+  // === 逃逸统计（聚合所有写入操作）===
+  unsigned int total_escapes;             // 总逃逸数
+  unsigned int safe_debug_escapes;        // 调试逃逸数
+  unsigned int rejecting_escapes;         // 拒绝性逃逸数
+
+  // === 来源类型分布 ===
+  unsigned int source_function_call;      // 函数调用来源数
+  unsigned int source_field_access;       // 字段访问来源数
+  unsigned int source_constant;           // 常量来源数
+  unsigned int source_computation;        // 计算来源数
+  unsigned int source_phi;                // PHI 节点来源数
+  unsigned int source_unknown;            // 未知来源数
+
+  // === 核心判定 ===
+  bool has_rejecting_evidence;            // 是否存在拒绝证据
+  float rejection_ratio;                  // 拒绝比例 = writes_with_rejecting / total_writes
+
+  // === 详细记录引用 ===
+  vec<EscapeEvidenceResult*> * all_evidences;  // 所有写入操作的证据列表
+};
+
+// ============================================================================
+// 第三层模块接口：(type, field) 级别汇总
+// ============================================================================
+
+// 对单个 (type, field) 的所有写入操作进行逃逸汇总
+// 输入：field_data - 类型字段分析数据（包含所有写入操作记录）
+// 输出：result - 汇总结果（GC 管理）
+ArrayDetectErrorCode summarizeTypeFieldEscapes (
+  AD_FUNC_ARGS,
+  array_detector::TypeFieldAnalysisData * field_data,
+  TypeFieldEscapeSummary * &result
+);
 
 // ============================================================================
 // 第一层模块接口：逃逸提取
