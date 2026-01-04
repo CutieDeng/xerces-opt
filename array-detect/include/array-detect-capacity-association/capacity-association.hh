@@ -4,6 +4,7 @@
 #include "context.hh"
 #include "array-detector.hh"
 #include "owned-conclusion.hh"
+#include "array-access-collector.hh"
 
 namespace array_detect_ns {
 
@@ -113,11 +114,13 @@ struct PointerCapacityAssociation {
 
 // 分析所有疑似 owned 指针字段的容量关联
 // 输入：owned conclusions（筛选 verdict == OWNED_YES 或 OWNED_UNDETERMINED）
+//       array_accesses（数组访问收集结果，用于 READ/WRITE_CONDITION 证据提取）
 // 输出：所有指针字段的容量关联分析结果
 ArrayDetectErrorCode analyzeAllCapacityAssociations (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
+  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
   vec<PointerCapacityAssociation*, va_gc>** out_results
 );
 
@@ -126,6 +129,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
+  TypeFieldArrayAccesses* array_accesses,  // 该指针字段的数组访问（可为 NULL）
   PointerCapacityAssociation** out_result
 );
 

@@ -4,6 +4,7 @@
 #include "analysis-data.hh"
 #include "field-source-variant.hh"
 #include "info-print.hh"
+#include "bound-condition-analyzer.hh"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -443,6 +444,85 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
 } AD_FUNCTION_END
 
 // ============================================================================
+// 从边界条件分析中提取 READ/WRITE_CONDITION 证据
+// ============================================================================
+
+static ArrayDetectErrorCode extractBoundConditionEvidence (
+  AD_FUNC_ARGS,
+  TypeFieldArrayAccesses* accesses,           // 该指针字段的所有访问
+  tree candidate_field,                        // 候选容量字段
+  CapacityCandidateAnalysis* analysis          // 输出：添加证据
+) AD_FUNCTION_BEGIN {
+  if (!accesses || !accesses->accesses || !candidate_field || !analysis) {
+    AD_RETURNE (OK);
+  }
+
+  const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+  AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Checking %u accesses for field '%s'",
+                  vec_safe_length (accesses->accesses), candidate_name);
+
+  for (unsigned int i = 0; i < vec_safe_length (accesses->accesses); i++) {
+    ArrayAccessCapture* access = (*accesses->accesses)[i];
+    if (!access || !access->bound_analysis) continue;
+
+    ArrayAccessBoundAnalysis* ba = (ArrayAccessBoundAnalysis*)access->bound_analysis;
+    if (!ba->related_fields) continue;
+
+    // 检查边界条件是否引用了候选字段
+    for (unsigned int j = 0; j < vec_safe_length (ba->related_fields); j++) {
+      tree bound_field = (*ba->related_fields)[j];
+
+      if (bound_field == candidate_field) {
+        // 创建证据
+        CapacityAssociationEvidence* evidence = ggc_alloc<CapacityAssociationEvidence>();
+        memset (evidence, 0, sizeof (CapacityAssociationEvidence));
+
+        evidence->location = access->location;
+        evidence->stmt = access->stmt;
+
+        if (access->direction == ACCESS_READ) {
+          evidence->evidence_type = CAP_EVID_READ_CONDITION;
+          evidence->description = "Read access bounded by this field";
+          analysis->evidence_bitmap |= CAP_EVID_READ_CONDITION;
+          AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Found READ_CONDITION evidence at %s:%d",
+                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
+                          LOCATION_LINE (access->location));
+        } else {
+          evidence->evidence_type = CAP_EVID_WRITE_CONDITION;
+          evidence->description = "Write access bounded by this field";
+          analysis->evidence_bitmap |= CAP_EVID_WRITE_CONDITION;
+          AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Found WRITE_CONDITION evidence at %s:%d",
+                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
+                          LOCATION_LINE (access->location));
+        }
+
+        // 填充条件相关信息
+        if (ba->primary_bound) {
+          evidence->condition_expr = ba->primary_bound->condition_expr;
+          evidence->comparison_code = ba->primary_bound->comparison_code;
+        }
+        evidence->access_stmt = (tree)access->stmt;
+
+        vec_safe_push (analysis->evidences, evidence);
+
+        if (ctx.debug_file) {
+          fprintf (ctx.debug_file, "        -> BOUND EVIDENCE: %s access at %s:%d references '%s'\n",
+                   access->direction == ACCESS_READ ? "READ" : "WRITE",
+                   LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
+                   LOCATION_LINE (access->location),
+                   candidate_name);
+        }
+
+        // 对于同一个 access，只需要记录一次证据
+        break;
+      }
+    }
+  }
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// ============================================================================
 // 分析单个候选字段与指针字段的关联
 // ============================================================================
 
@@ -450,6 +530,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
+  TypeFieldArrayAccesses* array_accesses,      // 新增参数：数组访问数据
   tree candidate_field,
   CapacityCandidateAnalysis** out_analysis
 ) AD_FUNCTION_BEGIN {
@@ -589,6 +670,11 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_DEBUG_PRINT ("[analyzeCandidateAssociation] %u/%u writes are function calls",
                   malloc_source_count, write_count);
 
+  // 新增：从边界条件分析中提取 READ/WRITE_CONDITION 证据
+  if (array_accesses) {
+    AD_TRY (extractBoundConditionEvidence (AD_ARGS, array_accesses, candidate_field, analysis));
+  }
+
   // 判定结果
   if (analysis->evidence_bitmap != CAP_EVID_NONE) {
     analysis->verdict = CAP_ASSOC_RELATED;
@@ -617,6 +703,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
+  TypeFieldArrayAccesses* array_accesses,      // 新增参数：数组访问数据
   PointerCapacityAssociation** out_result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
@@ -685,7 +772,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
                     i, candidate_name);
 
     CapacityCandidateAnalysis* analysis = NULL;
-    AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, candidate, &analysis));
+    AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, array_accesses, candidate, &analysis));
 
     if (analysis) {
       vec_safe_push (result->candidate_analyses, analysis);
@@ -748,6 +835,7 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
+  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
   vec<PointerCapacityAssociation*, va_gc>** out_results
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Analyzing capacity associations for owned pointer fields");
@@ -780,8 +868,17 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
       continue;
     }
 
+    // 查找该指针字段的数组访问数据
+    TypeFieldArrayAccesses* field_accesses = NULL;
+    if (array_accesses) {
+      TypeFieldArrayAccesses** accesses_ptr = array_accesses->get (key);
+      if (accesses_ptr) {
+        field_accesses = *accesses_ptr;
+      }
+    }
+
     PointerCapacityAssociation* result = NULL;
-    AD_TRY (analyzePointerCapacityAssociation (AD_ARGS, detector, *data_ptr, &result));
+    AD_TRY (analyzePointerCapacityAssociation (AD_ARGS, detector, *data_ptr, field_accesses, &result));
 
     if (result) {
       vec_safe_push (results, result);

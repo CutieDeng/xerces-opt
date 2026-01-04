@@ -63,24 +63,24 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
   AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, &owned_conclusions));
   AD_DEBUG_PRINT ("Field owned conclusion analysis complete");
 
-  // 第七步：指针-容量关联分析
-  AD_DEBUG_PRINT ("Step 7: Analyzing pointer-capacity associations");
-  vec<PointerCapacityAssociation*, va_gc>* capacity_results = NULL;
-  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, &capacity_results));
-  AD_DEBUG_PRINT ("Pointer-capacity association analysis complete");
-
-  // 第八步：数组访问收集
-  AD_DEBUG_PRINT ("Step 8: Collecting array access patterns");
+  // 第七步：数组访问收集 [原 Step 8，提前执行]
+  AD_DEBUG_PRINT ("Step 7: Collecting array access patterns");
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses = NULL;
   AD_TRY (collectAllArrayAccessesByTypeField (AD_ARGS, &array_accesses));
   AD_DEBUG_PRINT ("Array access collection complete");
 
-  // 第九步：边界条件分析
-  AD_DEBUG_PRINT ("Step 9: Analyzing bound conditions");
+  // 第八步：边界条件分析 [原 Step 9，提前执行]
+  AD_DEBUG_PRINT ("Step 8: Analyzing bound conditions");
   if (array_accesses) {
     AD_TRY (analyzeAllBoundConditions (AD_ARGS, array_accesses));
   }
   AD_DEBUG_PRINT ("Bound condition analysis complete");
+
+  // 第九步：指针-容量关联分析 [原 Step 7，现在可以使用 array_accesses]
+  AD_DEBUG_PRINT ("Step 9: Analyzing pointer-capacity associations");
+  vec<PointerCapacityAssociation*, va_gc>* capacity_results = NULL;
+  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, array_accesses, &capacity_results));
+  AD_DEBUG_PRINT ("Pointer-capacity association analysis complete");
 
   // 第十步：结果聚合
   AD_DEBUG_PRINT ("Step 10: Aggregating all results");
