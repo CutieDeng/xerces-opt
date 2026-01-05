@@ -632,10 +632,7 @@ ArrayDetectErrorCode traceExpressionToField (
   *out_type = NULL_TREE;
   *out_field_decl = NULL_TREE;
 
-  if (!expr) {
-    AD_RETURNE (OK);
-  }
-
+  // expr 为 NULL 时，while 循环自然不执行
   tree current = expr;
   int depth = 0;
   int const MAX_DEPTH = 10;
@@ -720,17 +717,12 @@ ArrayDetectErrorCode findDominatingConditions (
   AD_DEBUG_PRINT ("========== [findDominatingConditions] ENTRY ==========");
   AD_DEBUG_PRINT ("  access=%p, out_conditions=%p", (void*)access, (void*)out_conditions);
 
-  if (!access) {
-    AD_DEBUG_PRINT ("  access is NULL, returning OK");
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (access, "access must not be NULL");
 
   AD_DEBUG_PRINT ("  access->bb=%p, access->fn=%p", (void*)access->bb, (void*)access->fn);
 
-  if (!access->bb || !access->fn) {
-    AD_DEBUG_PRINT ("  access->bb or access->fn is NULL, returning OK");
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (access->bb, "access->bb must not be NULL");
+  AD_ASSERT_GCC_LOGIC (access->fn, "access->fn must not be NULL");
 
   // 确保在正确的函数上下文中
   AD_DEBUG_PRINT ("  Checking function context: cfun=%p, access->fn=%p", (void*)cfun, (void*)access->fn);
@@ -902,7 +894,9 @@ ArrayDetectErrorCode analyzeBoundCondition (
 ) AD_FUNCTION_BEGIN {
   *out_association = NULL;
 
-  if (!cond_stmt || gimple_code (cond_stmt) != GIMPLE_COND) {
+  AD_ASSERT_GCC_LOGIC (cond_stmt, "cond_stmt must not be NULL");
+
+  if (gimple_code (cond_stmt) != GIMPLE_COND) {
     AD_RETURNE (OK);
   }
 
@@ -910,9 +904,8 @@ ArrayDetectErrorCode analyzeBoundCondition (
   tree lhs = gimple_cond_lhs (cond_stmt);
   tree rhs = gimple_cond_rhs (cond_stmt);
 
-  if (!lhs || !rhs) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (lhs, "GIMPLE_COND lhs must not be NULL");
+  AD_ASSERT_GCC_LOGIC (rhs, "GIMPLE_COND rhs must not be NULL");
 
   // 检查是否是比较操作（边界检查通常是 <, <=, >, >=）
   if (cmp_code != LT_EXPR && cmp_code != LE_EXPR &&

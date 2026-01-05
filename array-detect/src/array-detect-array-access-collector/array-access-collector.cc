@@ -47,10 +47,7 @@ ArrayDetectErrorCode traceBasePointerToField (
   *out_type = NULL_TREE;
   *out_field_decl = NULL_TREE;
 
-  if (!base_pointer) {
-    AD_RETURNE (OK);
-  }
-
+  // base_pointer 为 NULL 时，while 循环自然不执行，直接返回
   tree current = base_pointer;
   int depth = 0;
   int const MAX_DEPTH = 10;
@@ -142,9 +139,8 @@ ArrayDetectErrorCode analyzeArrayAccess (
 ) AD_FUNCTION_BEGIN {
   *out_capture = NULL;
 
-  if (!expr || !stmt) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (expr, "expr must not be NULL");
+  AD_ASSERT_GCC_LOGIC (stmt, "stmt must not be NULL");
 
   ArrayAccessCapture* capture = NULL;
   tree base_pointer = NULL_TREE;
@@ -244,7 +240,8 @@ ArrayDetectErrorCode analyzeArrayAccess (
     }
   }
 
-  // 如果没有找到数组访问模式，返回
+  // 未匹配到数组访问模式，正常返回（*out_capture 保持 NULL）
+  // 注：这不是错误，调用者通过检查 *out_capture 判断是否找到匹配
   if (!base_pointer) {
     AD_RETURNE (OK);
   }
@@ -317,9 +314,8 @@ ArrayDetectErrorCode collectFunctionArrayAccesses (
 ) AD_FUNCTION_BEGIN {
   *out_accesses = NULL;
 
-  if (!fn || !fn->cfg) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (fn, "fn must not be NULL");
+  AD_ASSERT_GCC_LOGIC (fn->cfg, "fn->cfg must not be NULL");
 
   vec<ArrayAccessCapture*, va_gc>* accesses = NULL;
   vec_alloc (accesses, 16);
@@ -384,9 +380,9 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
 ) AD_FUNCTION_BEGIN {
   *out_entry = NULL;
 
-  if (!map || !type || !field_decl) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (map, "map must not be NULL");
+  AD_ASSERT_GCC_LOGIC (type, "type must not be NULL");
+  AD_ASSERT_GCC_LOGIC (field_decl, "field_decl must not be NULL");
 
   TypeFieldKey key = { TYPE_MAIN_VARIANT (type), field_decl };
 

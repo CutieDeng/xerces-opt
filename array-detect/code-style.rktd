@@ -4,3 +4,4 @@
 "调试信息输出 API: AD_DEBUG_PRINT, 禁止直接使用 fprintf 操作 ctx 上的 FILE * 对象"
 "ctx.debug_file 在 init* 函数调用后为合法值，禁止检查其是否为空指针"
 "const 后置风格：使用 `char const *p` 而非 `const char *p`，使用 `int const x` 而非 `const int x`"
+"禁止使用 AD_RETURNE(OK) 处理空指针：必需参数使用 AD_ASSERT_GCC_LOGIC 断言；可选参数使用 RECOVERABLE_ERROR 或删除检查"

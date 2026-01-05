@@ -39,8 +39,10 @@ ArrayDetectErrorCode collectIntegerCandidates (
 
   *out_candidates = NULL;
 
-  if (!type || TREE_CODE (type) != RECORD_TYPE) {
-    AD_DEBUG_PRINT ("[collectIntegerCandidates] Skip: type is NULL or not RECORD_TYPE");
+  AD_ASSERT_GCC_LOGIC (type, "type must not be NULL");
+
+  if (TREE_CODE (type) != RECORD_TYPE) {
+    AD_DEBUG_PRINT ("[collectIntegerCandidates] Skip: type is not RECORD_TYPE");
     AD_RETURNE (OK);
   }
 
@@ -183,7 +185,9 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
   *out_references = false;
   *out_evidence = NULL;
 
-  if (!call_stmt || !is_gimple_call (call_stmt)) {
+  AD_ASSERT_GCC_LOGIC (call_stmt, "call_stmt must not be NULL");
+
+  if (!is_gimple_call (call_stmt)) {
     AD_RETURNE (OK);
   }
 
@@ -275,11 +279,15 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
 
 static ArrayDetectErrorCode extractBoundConditionEvidence (
   AD_FUNC_ARGS,
-  TypeFieldArrayAccesses* accesses,           // 该指针字段的所有访问
+  TypeFieldArrayAccesses* accesses,           // 该指针字段的所有访问（可选）
   tree candidate_field,                        // 候选容量字段
   CapacityCandidateAnalysis* analysis          // 输出：添加证据
 ) AD_FUNCTION_BEGIN {
-  if (!accesses || !accesses->accesses || !candidate_field || !analysis) {
+  AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
+  AD_ASSERT_GCC_LOGIC (analysis, "analysis must not be NULL");
+
+  // accesses 可为空（表示没有数组访问数据）
+  if (!accesses || !accesses->accesses) {
     AD_RETURNE (OK);
   }
 
@@ -363,9 +371,8 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   (void)detector;
   *out_analysis = NULL;
 
-  if (!pointer_field_data || !candidate_field) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (pointer_field_data, "pointer_field_data must not be NULL");
+  AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
 
   char const* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
   char const* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
@@ -491,10 +498,9 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   *out_result = NULL;
 
-  if (!pointer_field_data || !pointer_field_data->type || !pointer_field_data->field_decl) {
-    AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Invalid input: NULL data");
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (pointer_field_data, "pointer_field_data must not be NULL");
+  AD_ASSERT_GCC_LOGIC (pointer_field_data->type, "pointer_field_data->type must not be NULL");
+  AD_ASSERT_GCC_LOGIC (pointer_field_data->field_decl, "pointer_field_data->field_decl must not be NULL");
 
   // 创建结果结构
   PointerCapacityAssociation* result = ggc_alloc<PointerCapacityAssociation>();
@@ -623,7 +629,9 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
 
   *out_results = NULL;
 
-  if (!owned_conclusions || owned_conclusions->length () == 0) {
+  AD_ASSERT_GCC_LOGIC (owned_conclusions, "owned_conclusions must not be NULL");
+
+  if (owned_conclusions->length () == 0) {
     AD_RETURNE (OK);
   }
 
