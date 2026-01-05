@@ -3,6 +3,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "array-detector.hh"
+#include "field-source-variant.hh"
 
 namespace array_detect_ns {
 
@@ -17,6 +18,51 @@ enum OwnedConclusionVerdict {
   OWNED_YES,           // 可能是 owned 字段
   OWNED_NO,            // 不可能是 owned 字段
   OWNED_UNDETERMINED   // 无法确定（例如没有写入操作）
+};
+
+// ============================================================================
+// 拒绝原因枚举
+// ============================================================================
+
+enum RejectionReason {
+  REJECTION_NONE = 0,
+  REJECTION_INVALID_SOURCE_TYPE,    // 源类型不支持 owned
+  REJECTION_REJECTING_ESCAPE,       // 有拒绝性逃逸
+  REJECTION_SHARED_OWNERSHIP,       // 共享所有权 (TRANSFER_IMPOSSIBLE)
+  REJECTION_NO_SOURCE_INFO          // 无源信息
+};
+
+// ============================================================================
+// 源类型分类（细化）
+// ============================================================================
+
+enum SourceTypeCategory {
+  SRC_CAT_ALLOCATION,     // 分配类: malloc/new 返回值
+  SRC_CAT_TRANSFER,       // 转移类: 来自其他字段
+  SRC_CAT_NEUTRAL,        // 中性类: NULL 赋值（不影响判定）
+  SRC_CAT_UNSUPPORTED     // 不支持: PHI/计算/未知
+};
+
+// ============================================================================
+// 写操作分析结果分类
+// ============================================================================
+
+enum WriteCategory {
+  WRITE_CAT_UNKNOWN,      // 未知
+  WRITE_CAT_INVALID,      // 无效记录
+  WRITE_CAT_NEUTRAL,      // 中性 (NULL 赋值)
+  WRITE_CAT_SUPPORTING,   // 支持 owned
+  WRITE_CAT_REJECTING     // 拒绝 owned
+};
+
+// ============================================================================
+// 单次写操作分析结果（内部使用）
+// ============================================================================
+
+struct WriteOwnedAnalysisResult {
+  WriteCategory category;             // 分类
+  RejectionReason rejection_reason;   // 拒绝原因 (仅当 category == WRITE_CAT_REJECTING)
+  void* evidence;                     // 证据指针 (Supporting 或 Rejecting)
 };
 
 // 支持信息：记录一个支持 owned 的写入操作
@@ -86,7 +132,20 @@ struct FieldOwnedConclusion {
 };
 
 // ============================================================================
-// 函数声明
+// 辅助函数声明
+// ============================================================================
+
+// 源类型分类
+SourceTypeCategory categorizeSourceType (FieldSourceInfo* source_info);
+
+// 字符串转换函数
+char const* rejectionReasonToString (RejectionReason r);
+char const* verdictToString (OwnedConclusionVerdict v);
+char const* writeCategoryToString (WriteCategory c);
+char const* sourceTypeCategoryToString (SourceTypeCategory c);
+
+// ============================================================================
+// 核心函数声明
 // ============================================================================
 
 // 分析所有字段的 owned 结论
@@ -117,12 +176,7 @@ void printAllFieldOwnedConclusions (
   vec<FieldOwnedConclusion*, va_gc>* conclusions
 );
 
-// 将结论写入 Racket datum 格式的结果文件
-// 格式: ((type "TypeName")(field "FieldName")(result yes|no|maybe))
-// 使用原子性写入以避免多进程并发问题
-ArrayDetectErrorCode writeResultsToRacketDatum (
-  AD_FUNC_ARGS,
-  vec<FieldOwnedConclusion*, va_gc>* conclusions
-);
+// NOTE: writeResultsToRacketDatum() 已被删除
+// 请使用 result-aggregator.hh 中的 writeUnifiedResultsToRacketDatum()
 
 } // namespace array_detect_ns

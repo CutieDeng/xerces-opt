@@ -9,41 +9,11 @@
 #include "info-print.hh"
 #include "string-utils.hh"
 
-#include <fcntl.h>
-#include <unistd.h>
 #include <cstring>
 
 namespace array_detect_ns {
 
 using namespace ::array_detector;
-
-// ============================================================================
-// 辅助函数：判断源操作数类型是否支持 owned
-// ============================================================================
-
-static bool isSourceTypeSupportingOwned (FieldSourceType source_type) {
-  switch (source_type) {
-    case SOURCE_FUNCTION_CALL:
-      // 函数调用返回值：支持 owned（通常是分配新内存）
-      return true;
-
-    case SOURCE_FIELD_ACCESS:
-      // 字段访问：需要进一步检查所有权转移
-      // 这里返回 true，由所有权转移分析决定
-      return true;
-
-    case SOURCE_CONSTANT:
-      // 常量（如 NULL）：支持 owned
-      return true;
-
-    case SOURCE_COMPUTATION:
-    case SOURCE_PHI:
-    case SOURCE_UNKNOWN:
-    default:
-      // 计算、PHI、未知：不支持
-      return false;
-  }
-}
 
 // ============================================================================
 // 辅助函数：获取源类型的描述
@@ -59,6 +29,216 @@ static char const* getSourceTypeDescription (FieldSourceType source_type) {
     case SOURCE_UNKNOWN: return "unknown";
     default: return "unspecified";
   }
+}
+
+// ============================================================================
+// 源类型分类（细化）
+// ============================================================================
+
+SourceTypeCategory categorizeSourceType (FieldSourceInfo* source_info) {
+  if (!source_info) {
+    return SRC_CAT_UNSUPPORTED;
+  }
+
+  switch (source_info->source_type) {
+    case SOURCE_FUNCTION_CALL:
+      return SRC_CAT_ALLOCATION;
+
+    case SOURCE_FIELD_ACCESS:
+      return SRC_CAT_TRANSFER;
+
+    case SOURCE_CONSTANT:
+      // 区分 NULL 和其他常量
+      {
+        tree constant_value = source_info->data.constant.constant_value;
+        if (constant_value && integer_zerop (constant_value)) {
+          return SRC_CAT_NEUTRAL;  // NULL → 中性，不影响判定
+        }
+      }
+      return SRC_CAT_UNSUPPORTED;
+
+    case SOURCE_COMPUTATION:
+    case SOURCE_PHI:
+    case SOURCE_UNKNOWN:
+    default:
+      return SRC_CAT_UNSUPPORTED;
+  }
+}
+
+// ============================================================================
+// 字符串转换函数
+// ============================================================================
+
+char const* rejectionReasonToString (RejectionReason r) {
+  switch (r) {
+    case REJECTION_NONE: return "none";
+    case REJECTION_INVALID_SOURCE_TYPE: return "invalid source type";
+    case REJECTION_REJECTING_ESCAPE: return "rejecting escape";
+    case REJECTION_SHARED_OWNERSHIP: return "shared ownership";
+    case REJECTION_NO_SOURCE_INFO: return "no source info";
+    default: return "unknown";
+  }
+}
+
+char const* verdictToString (OwnedConclusionVerdict v) {
+  switch (v) {
+    case OWNED_YES: return "YES";
+    case OWNED_NO: return "NO";
+    case OWNED_UNDETERMINED: return "UNDETERMINED";
+    default: return "UNKNOWN";
+  }
+}
+
+char const* writeCategoryToString (WriteCategory c) {
+  switch (c) {
+    case WRITE_CAT_UNKNOWN: return "unknown";
+    case WRITE_CAT_INVALID: return "invalid";
+    case WRITE_CAT_NEUTRAL: return "neutral";
+    case WRITE_CAT_SUPPORTING: return "supporting";
+    case WRITE_CAT_REJECTING: return "rejecting";
+    default: return "unspecified";
+  }
+}
+
+char const* sourceTypeCategoryToString (SourceTypeCategory c) {
+  switch (c) {
+    case SRC_CAT_ALLOCATION: return "allocation";
+    case SRC_CAT_TRANSFER: return "transfer";
+    case SRC_CAT_NEUTRAL: return "neutral";
+    case SRC_CAT_UNSUPPORTED: return "unsupported";
+    default: return "unknown";
+  }
+}
+
+// ============================================================================
+// 证据工厂函数
+// ============================================================================
+
+static OwnedRejectingEvidence* createRejectingEvidence (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisRecord* record,
+  RejectionReason reason
+) {
+  (void)ctx;
+  (void)gcc_ctx;
+
+  OwnedRejectingEvidence* ev = ggc_alloc<OwnedRejectingEvidence>();
+  memset (ev, 0, sizeof (OwnedRejectingEvidence));
+
+  ev->location = gimple_location (record->write_capture->stmt);
+  ev->stmt = record->write_capture->stmt;
+  ev->rejection_reason = rejectionReasonToString (reason);
+
+  FieldSourceInfo* source_info = record->source_info;
+  EscapeEvidenceResult* escape_evidence = record->escape_evidence;
+
+  switch (reason) {
+    case REJECTION_INVALID_SOURCE_TYPE:
+      ev->has_invalid_source = true;
+      ev->source_description = getSourceTypeDescription (
+        source_info ? source_info->source_type : SOURCE_UNKNOWN);
+      break;
+
+    case REJECTION_REJECTING_ESCAPE:
+      ev->has_rejecting_escape = true;
+      if (escape_evidence) {
+        ev->rejecting_escapes = escape_evidence->rejecting_escapes;
+        ev->total_escapes = escape_evidence->total_escapes;
+      }
+      ev->source_description = getSourceTypeDescription (
+        source_info ? source_info->source_type : SOURCE_UNKNOWN);
+      break;
+
+    case REJECTION_SHARED_OWNERSHIP:
+      ev->has_transfer_issue = true;
+      ev->transfer_verdict_str = "IMPOSSIBLE (shared)";
+      ev->source_description = getSourceTypeDescription (
+        source_info ? source_info->source_type : SOURCE_UNKNOWN);
+      break;
+
+    case REJECTION_NO_SOURCE_INFO:
+      ev->has_invalid_source = true;
+      ev->source_description = "no source info";
+      break;
+
+    default:
+      break;
+  }
+
+  return ev;
+}
+
+static OwnedSupportingEvidence* createSupportingEvidence (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisRecord* record
+) {
+  (void)ctx;
+  (void)gcc_ctx;
+
+  OwnedSupportingEvidence* ev = ggc_alloc<OwnedSupportingEvidence>();
+  memset (ev, 0, sizeof (OwnedSupportingEvidence));
+
+  ev->location = gimple_location (record->write_capture->stmt);
+  ev->stmt = record->write_capture->stmt;
+
+  FieldSourceInfo* source_info = record->source_info;
+  EscapeEvidenceResult* escape_evidence = record->escape_evidence;
+  OwnershipTransferAnalysisResult* transfer = record->ownership_transfer;
+
+  ev->source_description = getSourceTypeDescription (
+    source_info ? source_info->source_type : SOURCE_UNKNOWN);
+
+  if (escape_evidence) {
+    ev->total_escapes = escape_evidence->total_escapes;
+    ev->safe_debug_escapes = escape_evidence->safe_debug_escapes;
+  }
+
+  if (transfer) {
+    ev->has_transfer_analysis = true;
+    char const* transfer_str = "UNKNOWN";
+    switch (transfer->verdict) {
+      case TRANSFER_CERTAIN: transfer_str = "CERTAIN"; break;
+      case TRANSFER_IMPOSSIBLE: transfer_str = "IMPOSSIBLE"; break;
+      case TRANSFER_CONDITIONAL: transfer_str = "CONDITIONAL"; break;
+      default: break;
+    }
+    ev->transfer_verdict_str = transfer_str;
+  }
+
+  return ev;
+}
+
+// ============================================================================
+// 聚合策略：计算最终判定
+// ============================================================================
+//
+// 新策略: 容错一票否决
+// - 如果 rejecting == 0 且 supporting > 0 → YES
+// - 如果 supporting >= 3 且 rejecting == 1 → YES (允许单个异常)
+// - 其他情况下 rejecting > 0 → NO
+// - 没有任何有效证据 → UNDETERMINED
+
+static OwnedConclusionVerdict computeVerdict (
+  unsigned int supporting,
+  unsigned int rejecting,
+  unsigned int neutral
+) {
+  (void)neutral;  // 中性不参与判定
+
+  if (supporting == 0 && rejecting == 0) {
+    return OWNED_UNDETERMINED;
+  }
+
+  if (rejecting == 0) {
+    return OWNED_YES;
+  }
+
+  // 容错一票否决: 允许单个异常
+  if (supporting >= 3 && rejecting == 1) {
+    return OWNED_YES;
+  }
+
+  return OWNED_NO;
 }
 
 // ============================================================================
@@ -92,131 +272,91 @@ static bool isTransferResultRejecting (OwnershipTransferAnalysisResult* transfer
 // ============================================================================
 // 核心函数：分析单个写入操作是否支持 owned
 // ============================================================================
+//
+// 重构后的简化版本：
+// 1. 使用 WriteOwnedAnalysisResult 返回结构化结果
+// 2. 使用 categorizeSourceType() 细化源类型分类
+// 3. 中性源 (NULL 赋值) 不产生证据，不影响判定
+// 4. 使用工厂函数创建证据对象
 
 static ArrayDetectErrorCode analyzeWriteForOwned (
   AD_FUNC_ARGS,
   FieldWriteAnalysisRecord* record,
-  bool& supports_owned,
-  OwnedSupportingEvidence** out_supporting,
-  OwnedRejectingEvidence** out_rejecting
+  WriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
-  supports_owned = true;
-  *out_supporting = NULL;
-  *out_rejecting = NULL;
+  result.category = WRITE_CAT_UNKNOWN;
+  result.rejection_reason = REJECTION_NONE;
+  result.evidence = NULL;
 
+  // Step 0: 基本有效性检查
   if (!record || !record->write_capture) {
-    supports_owned = false;
+    result.category = WRITE_CAT_INVALID;
     AD_RETURNE (OK);
   }
 
-  FieldWriteCapture* capture = record->write_capture;
   FieldSourceInfo* source_info = record->source_info;
   EscapeEvidenceResult* escape_evidence = record->escape_evidence;
   OwnershipTransferAnalysisResult* transfer = record->ownership_transfer;
 
-  location_t loc = gimple_location (capture->stmt);
-
-  // === 检查 1: 源操作数类型 ===
+  // Step 1: 检查源信息
   if (!source_info) {
-    // 没有源信息，保守拒绝
-    supports_owned = false;
-
-    OwnedRejectingEvidence* evidence = ggc_alloc<OwnedRejectingEvidence>();
-    memset (evidence, 0, sizeof (OwnedRejectingEvidence));
-    evidence->location = loc;
-    evidence->stmt = capture->stmt;
-    evidence->rejection_reason = "No source operand analysis available";
-    evidence->has_invalid_source = true;
-    evidence->source_description = "no source info";
-    *out_rejecting = evidence;
+    result.category = WRITE_CAT_REJECTING;
+    result.rejection_reason = REJECTION_NO_SOURCE_INFO;
+    result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_NO_SOURCE_INFO);
     AD_RETURNE (OK);
   }
 
-  FieldSourceType source_type = source_info->source_type;
-  bool source_supports = isSourceTypeSupportingOwned (source_type);
+  // Step 2: 分类源类型
+  SourceTypeCategory src_cat = categorizeSourceType (source_info);
 
-  // === 检查 2: 逃逸证据结果 ===
-  bool has_rejecting_escape = isEscapeEvidenceRejecting (escape_evidence);
-
-  // === 检查 3: 所有权转移（仅对字段访问源）===
-  bool has_transfer_issue = false;
-  if (source_type == SOURCE_FIELD_ACCESS) {
-    has_transfer_issue = isTransferResultRejecting (transfer);
+  // Step 3: 中性源直接跳过（不产生证据）
+  if (src_cat == SRC_CAT_NEUTRAL) {
+    result.category = WRITE_CAT_NEUTRAL;
+    AD_RETURNE (OK);
   }
 
-  // === 综合判断 ===
-  if (!source_supports || has_rejecting_escape || has_transfer_issue) {
-    // 拒绝 owned
-    supports_owned = false;
-
-    OwnedRejectingEvidence* evidence = ggc_alloc<OwnedRejectingEvidence>();
-    memset (evidence, 0, sizeof (OwnedRejectingEvidence));
-    evidence->location = loc;
-    evidence->stmt = capture->stmt;
-
-    // 确定拒绝原因
-    if (!source_supports) {
-      evidence->rejection_reason = "Source operand type does not support owned pointer";
-      evidence->has_invalid_source = true;
-      evidence->source_description = getSourceTypeDescription (source_type);
-    } else if (has_rejecting_escape) {
-      evidence->rejection_reason = "Source operand has rejecting escape";
-      evidence->has_rejecting_escape = true;
-      evidence->rejecting_escapes = escape_evidence ? escape_evidence->rejecting_escapes : 0;
-      evidence->total_escapes = escape_evidence ? escape_evidence->total_escapes : 0;
-      evidence->source_description = getSourceTypeDescription (source_type);
-    } else if (has_transfer_issue) {
-      evidence->rejection_reason = "Ownership transfer indicates shared ownership";
-      evidence->has_transfer_issue = true;
-      char const* transfer_str = "UNKNOWN";
-      switch (transfer->verdict) {
-        case TRANSFER_CERTAIN: transfer_str = "CERTAIN"; break;
-        case TRANSFER_IMPOSSIBLE: transfer_str = "IMPOSSIBLE (shared)"; break;
-        case TRANSFER_CONDITIONAL: transfer_str = "CONDITIONAL"; break;
-        default: break;
-      }
-      evidence->transfer_verdict_str = transfer_str;
-      evidence->source_description = getSourceTypeDescription (source_type);
-    }
-
-    *out_rejecting = evidence;
-  } else {
-    // 支持 owned
-    supports_owned = true;
-
-    OwnedSupportingEvidence* evidence = ggc_alloc<OwnedSupportingEvidence>();
-    memset (evidence, 0, sizeof (OwnedSupportingEvidence));
-    evidence->location = loc;
-    evidence->stmt = capture->stmt;
-
-    evidence->source_description = getSourceTypeDescription (source_type);
-
-    if (escape_evidence) {
-      evidence->total_escapes = escape_evidence->total_escapes;
-      evidence->safe_debug_escapes = escape_evidence->safe_debug_escapes;
-    }
-
-    if (transfer) {
-      evidence->has_transfer_analysis = true;
-      char const* transfer_str = "UNKNOWN";
-      switch (transfer->verdict) {
-        case TRANSFER_CERTAIN: transfer_str = "CERTAIN"; break;
-        case TRANSFER_IMPOSSIBLE: transfer_str = "IMPOSSIBLE"; break;
-        case TRANSFER_CONDITIONAL: transfer_str = "CONDITIONAL"; break;
-        default: break;
-      }
-      evidence->transfer_verdict_str = transfer_str;
-    }
-
-    *out_supporting = evidence;
+  // Step 4: 不支持的源类型 → 拒绝
+  if (src_cat == SRC_CAT_UNSUPPORTED) {
+    result.category = WRITE_CAT_REJECTING;
+    result.rejection_reason = REJECTION_INVALID_SOURCE_TYPE;
+    result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_INVALID_SOURCE_TYPE);
+    AD_RETURNE (OK);
   }
 
+  // Step 5: 检查逃逸证据
+  bool escape_ok = !isEscapeEvidenceRejecting (escape_evidence);
+  if (!escape_ok) {
+    result.category = WRITE_CAT_REJECTING;
+    result.rejection_reason = REJECTION_REJECTING_ESCAPE;
+    result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_REJECTING_ESCAPE);
+    AD_RETURNE (OK);
+  }
+
+  // Step 6: 检查所有权转移（仅对 TRANSFER 类）
+  if (src_cat == SRC_CAT_TRANSFER) {
+    bool transfer_ok = !isTransferResultRejecting (transfer);
+    if (!transfer_ok) {
+      result.category = WRITE_CAT_REJECTING;
+      result.rejection_reason = REJECTION_SHARED_OWNERSHIP;
+      result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_SHARED_OWNERSHIP);
+      AD_RETURNE (OK);
+    }
+  }
+
+  // Step 7: 全部通过 → 支持
+  result.category = WRITE_CAT_SUPPORTING;
+  result.evidence = createSupportingEvidence (AD_ARGS, record);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ============================================================================
 // 核心函数：分析单个字段的 owned 结论
 // ============================================================================
+//
+// 重构后版本：
+// 1. 使用 WriteOwnedAnalysisResult 结构化结果
+// 2. 区分中性/支持/拒绝三类证据
+// 3. 使用 computeVerdict() 计算最终判定（容错一票否决策略）
 
 ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   AD_FUNC_ARGS,
@@ -267,42 +407,73 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
 
   unsigned int supporting_count = 0;
   unsigned int rejecting_count = 0;
+  unsigned int neutral_count = 0;
 
   for (unsigned int i = 0; i < total_writes; i++) {
     FieldWriteAnalysisRecord* record = (*field_data->write_analysis_records)[i];
     if (!record) continue;
 
-    bool supports_owned = false;
-    OwnedSupportingEvidence* supporting = NULL;
-    OwnedRejectingEvidence* rejecting = NULL;
+    WriteOwnedAnalysisResult write_result;
+    AD_TRY (analyzeWriteForOwned (AD_ARGS, record, write_result));
 
-    AD_TRY (analyzeWriteForOwned (AD_ARGS, record, supports_owned, &supporting, &rejecting));
+    switch (write_result.category) {
+      case WRITE_CAT_SUPPORTING:
+        if (write_result.evidence) {
+          vec_safe_push (conclusion->supporting_evidences,
+                         static_cast<OwnedSupportingEvidence*>(write_result.evidence));
+        }
+        supporting_count++;
+        break;
 
-    if (supports_owned && supporting) {
-      vec_safe_push (conclusion->supporting_evidences, supporting);
-      supporting_count++;
-    } else if (!supports_owned && rejecting) {
-      vec_safe_push (conclusion->rejecting_evidences, rejecting);
-      rejecting_count++;
+      case WRITE_CAT_REJECTING:
+        if (write_result.evidence) {
+          vec_safe_push (conclusion->rejecting_evidences,
+                         static_cast<OwnedRejectingEvidence*>(write_result.evidence));
+        }
+        rejecting_count++;
+        break;
+
+      case WRITE_CAT_NEUTRAL:
+        // 中性不产生证据，仅计数
+        neutral_count++;
+        break;
+
+      case WRITE_CAT_INVALID:
+      case WRITE_CAT_UNKNOWN:
+      default:
+        // 无效/未知记录不计入
+        break;
     }
   }
 
   conclusion->supporting_writes_count = supporting_count;
   conclusion->rejecting_writes_count = rejecting_count;
 
-  // 确定最终判定
-  if (rejecting_count > 0) {
-    // 有任何拒绝证据，判定为 NO
-    conclusion->verdict = OWNED_NO;
-    conclusion->conclusion_description = "Field cannot be owned pointer (has rejecting evidence)";
-  } else if (supporting_count > 0) {
-    // 所有证据都支持，判定为 YES
-    conclusion->verdict = OWNED_YES;
-    conclusion->conclusion_description = "Field may be owned pointer (all evidence supports)";
-  } else {
-    // 没有有效证据
-    conclusion->verdict = OWNED_UNDETERMINED;
-    conclusion->conclusion_description = "Cannot determine (no valid evidence)";
+  // 使用新的聚合策略确定最终判定
+  conclusion->verdict = computeVerdict (supporting_count, rejecting_count, neutral_count);
+
+  // 生成结论描述
+  switch (conclusion->verdict) {
+    case OWNED_YES:
+      if (rejecting_count > 0) {
+        conclusion->conclusion_description = "Field may be owned pointer (fault-tolerant: single exception allowed)";
+      } else {
+        conclusion->conclusion_description = "Field may be owned pointer (all evidence supports)";
+      }
+      break;
+
+    case OWNED_NO:
+      conclusion->conclusion_description = "Field cannot be owned pointer (has rejecting evidence)";
+      break;
+
+    case OWNED_UNDETERMINED:
+    default:
+      if (neutral_count > 0) {
+        conclusion->conclusion_description = "Cannot determine (only neutral operations, e.g., NULL assignments)";
+      } else {
+        conclusion->conclusion_description = "Cannot determine (no valid evidence)";
+      }
+      break;
   }
 
   AD_RETURNO (conclusion);
@@ -518,118 +689,5 @@ void printAllFieldOwnedConclusions (
   fprintf (out, "================================================================================\n");
   fprintf (out, "\n");
 }
-
-// ============================================================================
-// 将结论写入 Racket datum 格式的结果文件
-// ============================================================================
-
-ArrayDetectErrorCode writeResultsToRacketDatum (
-  AD_FUNC_ARGS,
-  vec<FieldOwnedConclusion*, va_gc>* conclusions
-) AD_FUNCTION_BEGIN {
-  (void)gcc_ctx;
-
-  // 如果未设置结果文件路径，直接返回
-  if (!ctx.result_file_path) {
-    AD_RETURNE (OK);
-  }
-
-  // 如果没有结论，直接返回
-  if (!conclusions || conclusions->length () == 0) {
-    AD_RETURNE (OK);
-  }
-
-  AD_DEBUG_PRINT ("Writing results to Racket datum file: %s", ctx.result_file_path);
-
-  // 重置缓冲区使用量
-  ctx.result_datum_buffer_size = 0;
-
-  // 先转义 current_input_file（对所有结论相同）
-  // 使用 escaped_string_buffer 的前半部分，然后复制到 result_datum_buffer 开头临时保存
-  char const* current_file = ctx.current_input_file ? ctx.current_input_file : "";
-  escapeRacketString (ctx, current_file, 0);
-  char const* escaped_file_ptr = getEscapedString (ctx, 0);
-  size_t escaped_file_len = strlen (escaped_file_ptr);
-
-  // 将转义后的文件名保存到 result_datum_buffer 开头（临时存储）
-  if (!ensureResultBufferCapacity (ctx, escaped_file_len + 1)) {
-    AD_RETURNE (MEMORY_ERROR);
-  }
-  memcpy (ctx.result_datum_buffer, escaped_file_ptr, escaped_file_len + 1);
-  char const* escaped_current_file = ctx.result_datum_buffer;
-
-  // 重置写入位置到文件名之后
-  ctx.result_datum_buffer_size = escaped_file_len + 1;
-
-  // === 构建所有 datum 到缓冲区 ===
-  for (unsigned int i = 0; i < conclusions->length (); i++) {
-    FieldOwnedConclusion* conclusion = (*conclusions)[i];
-    if (!conclusion) continue;
-
-    // 转义类型名和字段名（分别使用缓冲区的前半和后半部分）
-    escapeRacketString (ctx, conclusion->type_name ? conclusion->type_name : "", 0);
-    escapeRacketString (ctx, conclusion->field_name ? conclusion->field_name : "", 1);
-
-    char const* escaped_type = getEscapedString (ctx, 0);
-    char const* escaped_field = getEscapedString (ctx, 1);
-
-    // 获取结果字符串
-    char const* result_str;
-    switch (conclusion->verdict) {
-      case OWNED_YES: result_str = "yes"; break;
-      case OWNED_NO: result_str = "no"; break;
-      case OWNED_UNDETERMINED:
-      default: result_str = "maybe"; break;
-    }
-
-    // 计算需要的空间
-    size_t needed = escaped_file_len + strlen (escaped_type) + strlen (escaped_field) + 128;
-    size_t required_capacity = ctx.result_datum_buffer_size + needed;
-
-    // 确保缓冲区容量足够
-    if (!ensureResultBufferCapacity (ctx, required_capacity)) {
-      AD_RETURNE (MEMORY_ERROR);
-    }
-
-    // 格式化当前条目（包含 current-file 字段）
-    int written = snprintf (
-      ctx.result_datum_buffer + ctx.result_datum_buffer_size,
-      ctx.result_datum_buffer_capacity - ctx.result_datum_buffer_size,
-      "((current-file \"%s\")(type \"%s\")(field \"%s\")(result %s))\n",
-      escaped_current_file, escaped_type, escaped_field, result_str
-    );
-
-    if (written > 0) {
-      ctx.result_datum_buffer_size += (size_t)written;
-    }
-  }
-
-  // === 原子性写入文件 ===
-  // 使用 O_APPEND 模式，单次 write() 调用保证原子性（POSIX）
-  // 注意：result_datum_buffer 开头存储了转义后的文件名，实际数据从 escaped_file_len + 1 开始
-  size_t data_offset = escaped_file_len + 1;
-  size_t data_size = ctx.result_datum_buffer_size - data_offset;
-
-  int fd = open (ctx.result_file_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-  if (fd < 0) {
-    AD_DEBUG_PRINT ("Failed to open result file: %s", ctx.result_file_path);
-    AD_RETURNE (RESOURCE_ERROR);
-  }
-
-  ssize_t bytes_written = write (fd, ctx.result_datum_buffer + data_offset, data_size);
-  if (bytes_written < 0 || (size_t)bytes_written != data_size) {
-    AD_DEBUG_PRINT ("Failed to write to result file (written %zd of %zu bytes)",
-                    bytes_written, data_size);
-    close (fd);
-    AD_RETURNE (RESOURCE_ERROR);
-  }
-
-  close (fd);
-
-  AD_DEBUG_PRINT ("Successfully wrote %zu bytes (%u conclusions) to result file",
-                  data_size, conclusions->length ());
-
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
 
 } // namespace array_detect_ns
