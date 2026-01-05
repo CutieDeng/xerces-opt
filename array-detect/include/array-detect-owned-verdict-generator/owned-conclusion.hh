@@ -44,24 +44,24 @@ enum SourceTypeCategory {
 };
 
 // ============================================================================
-// 写操作分析结果分类
+// 字段写操作分析结果分类
 // ============================================================================
 
-enum WriteCategory {
-  WRITE_CAT_UNKNOWN,      // 未知
-  WRITE_CAT_INVALID,      // 无效记录
-  WRITE_CAT_NEUTRAL,      // 中性 (NULL 赋值)
-  WRITE_CAT_SUPPORTING,   // 支持 owned
-  WRITE_CAT_REJECTING     // 拒绝 owned
+enum FieldWriteCategory {
+  FIELD_WRITE_CAT_UNKNOWN,      // 未知
+  FIELD_WRITE_CAT_INVALID,      // 无效记录
+  FIELD_WRITE_CAT_NEUTRAL,      // 中性 (NULL 赋值)
+  FIELD_WRITE_CAT_SUPPORTING,   // 支持 owned
+  FIELD_WRITE_CAT_REJECTING     // 拒绝 owned
 };
 
 // ============================================================================
-// 单次写操作分析结果（内部使用）
+// 单次字段写操作分析结果（内部使用）
 // ============================================================================
 
-struct WriteOwnedAnalysisResult {
-  WriteCategory category;             // 分类
-  RejectionReason rejection_reason;   // 拒绝原因 (仅当 category == WRITE_CAT_REJECTING)
+struct FieldWriteOwnedAnalysisResult {
+  FieldWriteCategory category;        // 分类
+  RejectionReason rejection_reason;   // 拒绝原因 (仅当 category == FIELD_WRITE_CAT_REJECTING)
   void* evidence;                     // 证据指针 (Supporting 或 Rejecting)
 };
 
@@ -119,9 +119,9 @@ struct FieldOwnedConclusion {
   OwnedConclusionVerdict verdict;               // 判定结果
 
   // === 统计信息 ===
-  unsigned int total_writes;                    // 总写入操作数
-  unsigned int supporting_writes_count;         // 支持 owned 的写入数
-  unsigned int rejecting_writes_count;          // 拒绝 owned 的写入数
+  unsigned int total_field_writes;              // 总字段写入操作数
+  unsigned int supporting_field_writes_count;   // 支持 owned 的字段写入数
+  unsigned int rejecting_field_writes_count;    // 拒绝 owned 的字段写入数
 
   // === 证据列表 ===
   vec<OwnedSupportingEvidence*, va_gc>* supporting_evidences;  // 支持证据列表
@@ -141,7 +141,7 @@ SourceTypeCategory categorizeSourceType (FieldSourceInfo* source_info);
 // 字符串转换函数
 char const* rejectionReasonToString (RejectionReason r);
 char const* verdictToString (OwnedConclusionVerdict v);
-char const* writeCategoryToString (WriteCategory c);
+char const* fieldWriteCategoryToString (FieldWriteCategory c);
 char const* sourceTypeCategoryToString (SourceTypeCategory c);
 
 // ============================================================================

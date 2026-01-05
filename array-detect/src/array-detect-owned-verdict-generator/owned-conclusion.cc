@@ -89,13 +89,13 @@ char const* verdictToString (OwnedConclusionVerdict v) {
   }
 }
 
-char const* writeCategoryToString (WriteCategory c) {
+char const* fieldWriteCategoryToString (FieldWriteCategory c) {
   switch (c) {
-    case WRITE_CAT_UNKNOWN: return "unknown";
-    case WRITE_CAT_INVALID: return "invalid";
-    case WRITE_CAT_NEUTRAL: return "neutral";
-    case WRITE_CAT_SUPPORTING: return "supporting";
-    case WRITE_CAT_REJECTING: return "rejecting";
+    case FIELD_WRITE_CAT_UNKNOWN: return "unknown";
+    case FIELD_WRITE_CAT_INVALID: return "invalid";
+    case FIELD_WRITE_CAT_NEUTRAL: return "neutral";
+    case FIELD_WRITE_CAT_SUPPORTING: return "supporting";
+    case FIELD_WRITE_CAT_REJECTING: return "rejecting";
     default: return "unspecified";
   }
 }
@@ -270,27 +270,27 @@ static bool isTransferResultRejecting (OwnershipTransferAnalysisResult* transfer
 }
 
 // ============================================================================
-// 核心函数：分析单个写入操作是否支持 owned
+// 核心函数：分析单个字段写入操作是否支持 owned
 // ============================================================================
 //
 // 重构后的简化版本：
-// 1. 使用 WriteOwnedAnalysisResult 返回结构化结果
+// 1. 使用 FieldWriteOwnedAnalysisResult 返回结构化结果
 // 2. 使用 categorizeSourceType() 细化源类型分类
 // 3. 中性源 (NULL 赋值) 不产生证据，不影响判定
 // 4. 使用工厂函数创建证据对象
 
-static ArrayDetectErrorCode analyzeWriteForOwned (
+static ArrayDetectErrorCode analyzeFieldWriteForOwned (
   AD_FUNC_ARGS,
   FieldWriteAnalysisRecord* record,
-  WriteOwnedAnalysisResult& result
+  FieldWriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
-  result.category = WRITE_CAT_UNKNOWN;
+  result.category = FIELD_WRITE_CAT_UNKNOWN;
   result.rejection_reason = REJECTION_NONE;
   result.evidence = NULL;
 
   // Step 0: 基本有效性检查
   if (!record || !record->write_capture) {
-    result.category = WRITE_CAT_INVALID;
+    result.category = FIELD_WRITE_CAT_INVALID;
     AD_RETURNE (OK);
   }
 
@@ -300,7 +300,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
   // Step 1: 检查源信息
   if (!source_info) {
-    result.category = WRITE_CAT_REJECTING;
+    result.category = FIELD_WRITE_CAT_REJECTING;
     result.rejection_reason = REJECTION_NO_SOURCE_INFO;
     result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_NO_SOURCE_INFO);
     AD_RETURNE (OK);
@@ -311,13 +311,13 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
   // Step 3: 中性源直接跳过（不产生证据）
   if (src_cat == SRC_CAT_NEUTRAL) {
-    result.category = WRITE_CAT_NEUTRAL;
+    result.category = FIELD_WRITE_CAT_NEUTRAL;
     AD_RETURNE (OK);
   }
 
   // Step 4: 不支持的源类型 → 拒绝
   if (src_cat == SRC_CAT_UNSUPPORTED) {
-    result.category = WRITE_CAT_REJECTING;
+    result.category = FIELD_WRITE_CAT_REJECTING;
     result.rejection_reason = REJECTION_INVALID_SOURCE_TYPE;
     result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_INVALID_SOURCE_TYPE);
     AD_RETURNE (OK);
@@ -326,7 +326,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
   // Step 5: 检查逃逸证据
   bool escape_ok = !isEscapeEvidenceRejecting (escape_evidence);
   if (!escape_ok) {
-    result.category = WRITE_CAT_REJECTING;
+    result.category = FIELD_WRITE_CAT_REJECTING;
     result.rejection_reason = REJECTION_REJECTING_ESCAPE;
     result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_REJECTING_ESCAPE);
     AD_RETURNE (OK);
@@ -336,7 +336,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
   if (src_cat == SRC_CAT_TRANSFER) {
     bool transfer_ok = !isTransferResultRejecting (transfer);
     if (!transfer_ok) {
-      result.category = WRITE_CAT_REJECTING;
+      result.category = FIELD_WRITE_CAT_REJECTING;
       result.rejection_reason = REJECTION_SHARED_OWNERSHIP;
       result.evidence = createRejectingEvidence (AD_ARGS, record, REJECTION_SHARED_OWNERSHIP);
       AD_RETURNE (OK);
@@ -344,7 +344,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
   }
 
   // Step 7: 全部通过 → 支持
-  result.category = WRITE_CAT_SUPPORTING;
+  result.category = FIELD_WRITE_CAT_SUPPORTING;
   result.evidence = createSupportingEvidence (AD_ARGS, record);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -354,7 +354,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 // ============================================================================
 //
 // 重构后版本：
-// 1. 使用 WriteOwnedAnalysisResult 结构化结果
+// 1. 使用 FieldWriteOwnedAnalysisResult 结构化结果
 // 2. 区分中性/支持/拒绝三类证据
 // 3. 使用 computeVerdict() 计算最终判定（容错一票否决策略）
 
@@ -395,59 +395,59 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   vec_alloc (conclusion->supporting_evidences, 4);
   vec_alloc (conclusion->rejecting_evidences, 4);
 
-  // 遍历所有写入操作
+  // 遍历所有字段写入操作
   if (!field_data->write_analysis_records) {
     conclusion->verdict = OWNED_UNDETERMINED;
-    conclusion->conclusion_description = "No write operations found";
+    conclusion->conclusion_description = "No field write operations found";
     AD_RETURNO (conclusion);
   }
 
-  unsigned int total_writes = field_data->write_analysis_records->length ();
-  conclusion->total_writes = total_writes;
+  unsigned int total_field_writes = field_data->write_analysis_records->length ();
+  conclusion->total_field_writes = total_field_writes;
 
   unsigned int supporting_count = 0;
   unsigned int rejecting_count = 0;
   unsigned int neutral_count = 0;
 
-  for (unsigned int i = 0; i < total_writes; i++) {
+  for (unsigned int i = 0; i < total_field_writes; i++) {
     FieldWriteAnalysisRecord* record = (*field_data->write_analysis_records)[i];
     if (!record) continue;
 
-    WriteOwnedAnalysisResult write_result;
-    AD_TRY (analyzeWriteForOwned (AD_ARGS, record, write_result));
+    FieldWriteOwnedAnalysisResult field_write_result;
+    AD_TRY (analyzeFieldWriteForOwned (AD_ARGS, record, field_write_result));
 
-    switch (write_result.category) {
-      case WRITE_CAT_SUPPORTING:
-        if (write_result.evidence) {
+    switch (field_write_result.category) {
+      case FIELD_WRITE_CAT_SUPPORTING:
+        if (field_write_result.evidence) {
           vec_safe_push (conclusion->supporting_evidences,
-                         static_cast<OwnedSupportingEvidence*>(write_result.evidence));
+                         static_cast<OwnedSupportingEvidence*>(field_write_result.evidence));
         }
         supporting_count++;
         break;
 
-      case WRITE_CAT_REJECTING:
-        if (write_result.evidence) {
+      case FIELD_WRITE_CAT_REJECTING:
+        if (field_write_result.evidence) {
           vec_safe_push (conclusion->rejecting_evidences,
-                         static_cast<OwnedRejectingEvidence*>(write_result.evidence));
+                         static_cast<OwnedRejectingEvidence*>(field_write_result.evidence));
         }
         rejecting_count++;
         break;
 
-      case WRITE_CAT_NEUTRAL:
+      case FIELD_WRITE_CAT_NEUTRAL:
         // 中性不产生证据，仅计数
         neutral_count++;
         break;
 
-      case WRITE_CAT_INVALID:
-      case WRITE_CAT_UNKNOWN:
+      case FIELD_WRITE_CAT_INVALID:
+      case FIELD_WRITE_CAT_UNKNOWN:
       default:
         // 无效/未知记录不计入
         break;
     }
   }
 
-  conclusion->supporting_writes_count = supporting_count;
-  conclusion->rejecting_writes_count = rejecting_count;
+  conclusion->supporting_field_writes_count = supporting_count;
+  conclusion->rejecting_field_writes_count = rejecting_count;
 
   // 使用新的聚合策略确定最终判定
   conclusion->verdict = computeVerdict (supporting_count, rejecting_count, neutral_count);
@@ -574,9 +574,9 @@ void printFieldOwnedConclusion (
   fprintf (out, "\n");
 
   fprintf (out, "Statistics:\n");
-  fprintf (out, "  Total writes: %u\n", conclusion->total_writes);
-  fprintf (out, "  Supporting writes: %u\n", conclusion->supporting_writes_count);
-  fprintf (out, "  Rejecting writes: %u\n", conclusion->rejecting_writes_count);
+  fprintf (out, "  Total field writes: %u\n", conclusion->total_field_writes);
+  fprintf (out, "  Supporting field writes: %u\n", conclusion->supporting_field_writes_count);
+  fprintf (out, "  Rejecting field writes: %u\n", conclusion->rejecting_field_writes_count);
   fprintf (out, "\n");
 
   // 打印支持证据

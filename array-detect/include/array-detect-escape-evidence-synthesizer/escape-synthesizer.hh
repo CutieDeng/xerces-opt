@@ -73,11 +73,11 @@ struct TypeFieldEscapeSummary {
   tree type;
   tree field_decl;
 
-  // === 写入操作统计 ===
-  unsigned int total_writes;              // 总写入操作数
-  unsigned int writes_with_escape;        // 有逃逸的写入操作数
-  unsigned int writes_with_rejecting;     // 有拒绝证据的写入操作数
-  unsigned int writes_without_analysis;   // 未分析的写入操作数
+  // === 字段写入操作统计 ===
+  unsigned int total_field_writes;              // 总字段写入操作数
+  unsigned int field_writes_with_escape;        // 有逃逸的字段写入操作数
+  unsigned int field_writes_with_rejecting;     // 有拒绝证据的字段写入操作数
+  unsigned int field_writes_without_analysis;   // 未分析的字段写入操作数
 
   // === 逃逸统计（聚合所有写入操作）===
   unsigned int total_escapes;             // 总逃逸数
@@ -94,7 +94,7 @@ struct TypeFieldEscapeSummary {
 
   // === 核心判定 ===
   bool has_rejecting_evidence;            // 是否存在拒绝证据
-  float rejection_ratio;                  // 拒绝比例 = writes_with_rejecting / total_writes
+  float rejection_ratio;                  // 拒绝比例 = field_writes_with_rejecting / total_field_writes
 
   // === 详细记录引用 ===
   vec<EscapeEvidenceResult*> * all_evidences;  // 所有写入操作的证据列表

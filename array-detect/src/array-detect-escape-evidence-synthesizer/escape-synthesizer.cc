@@ -198,14 +198,14 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
   summary->all_evidences = ggc_alloc<vec<EscapeEvidenceResult*>> ();
   summary->all_evidences->create (0);
 
-  // 遍历所有写入操作记录
+  // 遍历所有字段写入操作记录
   if (field_data->write_analysis_records) {
     for (unsigned int i = 0; i < field_data->write_analysis_records->length (); i++) {
       array_detector::FieldWriteAnalysisRecord * record =
         (*field_data->write_analysis_records)[i];
       if (!record) continue;
 
-      summary->total_writes++;
+      summary->total_field_writes++;
 
       // 统计来源类型分布
       if (record->source_info) {
@@ -231,7 +231,7 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
             break;
         }
       } else {
-        summary->writes_without_analysis++;
+        summary->field_writes_without_analysis++;
         summary->source_unknown++;
       }
 
@@ -244,24 +244,24 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
         summary->rejecting_escapes += evidence->rejecting_escapes;
 
         if (evidence->total_escapes > 0) {
-          summary->writes_with_escape++;
+          summary->field_writes_with_escape++;
         }
         if (evidence->has_rejecting_evidence) {
-          summary->writes_with_rejecting++;
+          summary->field_writes_with_rejecting++;
         }
 
         // 添加到证据引用列表
         summary->all_evidences->safe_push (evidence);
       } else {
-        summary->writes_without_analysis++;
+        summary->field_writes_without_analysis++;
       }
     }
   }
 
   // 计算核心判定
-  summary->has_rejecting_evidence = (summary->writes_with_rejecting > 0);
-  summary->rejection_ratio = (summary->total_writes > 0)
-    ? (float)summary->writes_with_rejecting / (float)summary->total_writes
+  summary->has_rejecting_evidence = (summary->field_writes_with_rejecting > 0);
+  summary->rejection_ratio = (summary->total_field_writes > 0)
+    ? (float)summary->field_writes_with_rejecting / (float)summary->total_field_writes
     : 0.0f;
 
   AD_RETURNO (summary);
