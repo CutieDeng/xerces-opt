@@ -66,9 +66,6 @@ ArrayDetectErrorCode traceBasePointerToField (
           *out_type = TYPE_MAIN_VARIANT (base_type);
           *out_field_decl = field;
 
-          AD_DEBUG_PRINT ("[traceBasePointerToField] Found field access: %s::%s",
-                          safeGetTypeName (AD_ARGS, *out_type),
-                          safeGetFieldName (AD_ARGS, *out_field_decl));
           AD_RETURNE (OK);
         }
       }
@@ -152,61 +149,19 @@ ArrayDetectErrorCode analyzeArrayAccess (
     base_pointer = TREE_OPERAND (expr, 0);
     offset_expr = TREE_OPERAND (expr, 1);
     access_type = ACCESS_ARRAY_REF;
-
-    AD_DEBUG_PRINT ("[analyzeArrayAccess] Found ARRAY_REF at %s:%d",
-                    LOCATION_FILE (gimple_location (stmt)) ? LOCATION_FILE (gimple_location (stmt)) : "<unknown>",
-                    LOCATION_LINE (gimple_location (stmt)));
   }
   // 检查 MEM_REF: *(ptr + offset) 或 *ptr
   else if (TREE_CODE (expr) == MEM_REF) {
     tree mem_base = TREE_OPERAND (expr, 0);
     tree mem_offset = TREE_OPERAND (expr, 1);
 
-    // 增强调试：打印 MEM_REF 详细信息
-    AD_DEBUG_PRINT ("[MEM_REF Analysis] Direction: %s",
-                    direction == ACCESS_READ ? "READ" : "WRITE");
-    AD_DEBUG_PRINT ("  Location: %s:%d",
-                    LOCATION_FILE (gimple_location (stmt)) ? LOCATION_FILE (gimple_location (stmt)) : "<unknown>",
-                    LOCATION_LINE (gimple_location (stmt)));
-    AD_DEBUG_PRINT ("  Base pointer tree code: %s",
-                    mem_base ? get_tree_code_name (TREE_CODE (mem_base)) : "<null>");
-    AD_DEBUG_PRINT ("  Offset tree code: %s",
-                    mem_offset ? get_tree_code_name (TREE_CODE (mem_offset)) : "<null>");
-
-    // 打印基指针的详细信息
-    if (mem_base && ctx.debug_file) {
-      fprintf (ctx.debug_file, "  Base pointer expression: ");
-      print_generic_expr (ctx.debug_file, mem_base, TDF_DETAILS);
-      fprintf (ctx.debug_file, "\n");
-    }
-
-    // 打印偏移量的详细信息
-    if (mem_offset && ctx.debug_file) {
-      fprintf (ctx.debug_file, "  Offset expression: ");
-      print_generic_expr (ctx.debug_file, mem_offset, TDF_DETAILS);
-      fprintf (ctx.debug_file, "\n");
-    }
-
-    // 打印完整的 GIMPLE 语句
-    if (ctx.debug_file) {
-      fprintf (ctx.debug_file, "  Statement context: ");
-      print_gimple_stmt (ctx.debug_file, stmt, 0, TDF_DETAILS);
-    }
-
     // 检查偏移量是否非零（表示数组访问）
     if (mem_offset && TREE_CODE (mem_offset) == INTEGER_CST) {
       HOST_WIDE_INT offset_val = TREE_INT_CST_LOW (mem_offset);
-      AD_DEBUG_PRINT ("  Constant offset value: %ld", (long)offset_val);
-
       if (offset_val != 0) {
-        // 常量偏移的 MEM_REF
         base_pointer = mem_base;
         offset_expr = mem_offset;
         access_type = ACCESS_MEM_REF;
-
-        AD_DEBUG_PRINT ("  => Recognized as array access (non-zero constant offset)");
-      } else {
-        AD_DEBUG_PRINT ("  => Zero offset, checking for POINTER_PLUS_EXPR base");
       }
     }
 
@@ -215,28 +170,12 @@ ArrayDetectErrorCode analyzeArrayAccess (
       gimple* def_stmt = SSA_NAME_DEF_STMT (mem_base);
       if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
         enum tree_code def_code = gimple_assign_rhs_code (def_stmt);
-        AD_DEBUG_PRINT ("  Base SSA_NAME definition code: %s", get_tree_code_name (def_code));
-
         if (def_code == POINTER_PLUS_EXPR) {
           base_pointer = gimple_assign_rhs1 (def_stmt);
           offset_expr = gimple_assign_rhs2 (def_stmt);
           access_type = ACCESS_MEM_REF;
-
-          AD_DEBUG_PRINT ("  => Recognized as array access (POINTER_PLUS_EXPR base)");
-          if (ctx.debug_file) {
-            fprintf (ctx.debug_file, "  Effective base: ");
-            print_generic_expr (ctx.debug_file, base_pointer, TDF_DETAILS);
-            fprintf (ctx.debug_file, "\n  Effective offset: ");
-            print_generic_expr (ctx.debug_file, offset_expr, TDF_DETAILS);
-            fprintf (ctx.debug_file, "\n");
-          }
         }
       }
-    }
-
-    // 如果仍未识别为数组访问，记录原因
-    if (!base_pointer) {
-      AD_DEBUG_PRINT ("  => Not recognized as array access (no variable offset pattern)");
     }
   }
 
@@ -288,15 +227,8 @@ ArrayDetectErrorCode analyzeArrayAccess (
     capture->is_field_based = true;
     capture->containing_type = containing_type;
     capture->pointer_field_decl = field_decl;
-
-    AD_DEBUG_PRINT ("[analyzeArrayAccess] Array access is field-based: %s::%s [%s]",
-                    safeGetTypeName (AD_ARGS, containing_type),
-                    safeGetFieldName (AD_ARGS, field_decl),
-                    direction == ACCESS_READ ? "READ" : "WRITE");
   } else {
     capture->is_field_based = false;
-    AD_DEBUG_PRINT ("[analyzeArrayAccess] Array access is NOT field-based [%s]",
-                    direction == ACCESS_READ ? "READ" : "WRITE");
   }
 
   *out_capture = capture;
@@ -408,9 +340,6 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
   map->put (key, entry);
   *out_entry = entry;
 
-  AD_DEBUG_PRINT ("[getOrCreateTypeFieldAccesses] Created entry for %s::%s",
-                  entry->type_name, entry->field_name);
-
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -422,8 +351,6 @@ ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
   AD_FUNC_ARGS,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>** out_map
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[collectAllArrayAccessesByTypeField] Starting array access collection");
-
   *out_map = NULL;
 
   // 创建 hash_map
@@ -473,8 +400,7 @@ ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
     pop_cfun ();
   }
 
-  AD_DEBUG_PRINT ("[collectAllArrayAccessesByTypeField] Collected %u total accesses, %u field-based",
-                  total_accesses, field_based_accesses);
+  AD_DEBUG_PRINT ("arrayAccess: %u total, %u field-based", total_accesses, field_based_accesses);
 
   *out_map = map;
   AD_RETURNE (OK);

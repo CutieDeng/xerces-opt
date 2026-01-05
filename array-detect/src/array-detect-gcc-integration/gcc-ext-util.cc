@@ -183,13 +183,8 @@ static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &h
     // 检查声明的汇编名称是否包含模版信息
     tree assembler_name = DECL_ASSEMBLER_NAME (type_decl);
     if (assembler_name && TREE_CODE (assembler_name) == IDENTIFIER_NODE) {
-      char const* asm_name = IDENTIFIER_POINTER (assembler_name);
-      if (asm_name) {
-        // C++ mangled name 通常包含模版参数的编码
-        // 格式类似于 "_ZN10namespace15ClassnameIiEE" 表示 namespace::Classname<int>
-        AD_DEBUG_PRINT ("[formatTemplateArgs] Assembler name: %s", asm_name);
-        // 我们不解码 mangled name，但记录其存在以供调试
-      }
+      (void)IDENTIFIER_POINTER (assembler_name);
+      // C++ mangled name contains template parameter encoding
     }
   }
 
@@ -207,9 +202,7 @@ static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &h
     }
   }
 #else
-  // C++ 前端头文件不可用，跳过模版参数提取
-  // 这是预期的行为 - 在纯插件环境中模版信息访问受限
-  AD_DEBUG_PRINT ("[formatTemplateArgs] C++ template info not available in plugin environment");
+  // C++ template info not available in plugin environment
 #endif
 
   AD_RETURNE (OK);
@@ -329,10 +322,7 @@ ArrayDetectErrorCode logFieldWriteCapture (AD_FUNC_ARGS, tree containing_type, t
   tree field_type = field_decl ? TREE_TYPE (field_decl) : NULL_TREE;
   AD_TRY (formatFieldTypeName (AD_ARGS, field_type, field_type_name));
   
-  // 统一输出调试信息
-  AD_DEBUG_PRINT ("  Captured field write: type=%s, field=%s, field_type=%s", 
-                 type_name, field_name, field_type_name);
-  
+  AD_DEBUG_PRINT ("fieldWrite: %s::%s (%s)", type_name, field_name, field_type_name);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -341,7 +331,6 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
     AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT ("  Analyzing assignment statement:");
   tree lhs = gimple_assign_lhs (stmt);
   tree rhs = gimple_assign_rhs1 (stmt);
 
@@ -350,7 +339,6 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
   bool is_field_access0;
   AD_TRY (is_field_access (AD_ARGS, lhs, &field_decl, &object, is_field_access0));
   if (!is_field_access0) {
-    AD_DEBUG_PRINT ("    Not a field access, skipping");
     AD_RETURNE (OK);
   }
 
@@ -365,10 +353,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
   tree object_type = TREE_TYPE (object);
   char const * object_type_name;
   AD_TRY (get_type_name (AD_ARGS, object_type, object_type_name));
-  
-  AD_DEBUG_PRINT ("    Field: %s", field_name);
-  AD_DEBUG_PRINT ("    Field type: %s", field_type_name);
-  AD_DEBUG_PRINT ("    Object type: %s", object_type_name);
+
   // 使用gimple_assign_rhs_code获取RHS的树节点类型，并手动转换为字符串
   enum tree_code rhs_code = gimple_assign_rhs_code (stmt);
   char const * rhs_code_str = "UNKNOWN";
@@ -390,15 +375,13 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
     case RDIV_EXPR: rhs_code_str = "RDIV_EXPR"; break;
     default: rhs_code_str = "UNKNOWN"; break;
   }
-  AD_DEBUG_PRINT ("    RHS code: %s", rhs_code_str);
+  (void)rhs_code_str;
 
   FieldInfo * field_info = NULL;
-  AD_DEBUG_PRINT ("    Looking for existing field info...");
 
   size_t field_count = 0;
   ArrayDetectErrorCode count_err = array_detector::getFieldCount (detector, AD_ARGS, &field_count);
   if (count_err != OK) {
-    AD_DEBUG_PRINT ("    Failed to get field count");
     ecode = count_err;
     AD_RETURN ();
   }
@@ -407,18 +390,15 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
     FieldInfo * fi = nullptr;
     ArrayDetectErrorCode field_err = array_detector::getField (detector, AD_ARGS, i, &fi);
     if (field_err != OK || !fi) {
-      AD_DEBUG_PRINT ("    Failed to get field, continuing...");
       continue;
     }
     if (fi->field_decl == field_decl) {
       field_info = fi;
-      AD_DEBUG_PRINT ("    Found existing field info");
       break;
     }
   }
 
   if (!field_info) {
-    AD_DEBUG_PRINT ("    Field info not found, trying to create...");
     tree object_type = TREE_TYPE (object);
     if (object_type) {
       if (TREE_CODE (object_type) == REFERENCE_TYPE) object_type = TREE_TYPE (object_type);
@@ -431,19 +411,15 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
         if (err == array_detect_ns::OK) {
             size_t new_field_count = 0;
             ArrayDetectErrorCode new_count_err = array_detector::getFieldCount (detector, AD_ARGS, &new_field_count);
-            if (new_count_err != OK) {
-                AD_DEBUG_PRINT ("    Failed to get new field count after processing type fields");
-            } else {
+            if (new_count_err == OK) {
                 for (size_t i = 0; i < new_field_count; i++) {
                    FieldInfo * fi = nullptr;
                    ArrayDetectErrorCode new_field_err = array_detector::getField (detector, AD_ARGS, i, &fi);
                    if (new_field_err != OK || !fi) {
-                       AD_DEBUG_PRINT ("    Failed to get new field, continuing...");
                        continue;
                    }
                    if (fi->field_decl == field_decl) {
                      field_info = fi;
-                     AD_DEBUG_PRINT ("    Created new field info");
                      break;
                    }
                 }
@@ -452,7 +428,6 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
       }
     }
     if (!field_info) {
-      AD_DEBUG_PRINT ("    Failed to find or create field info, skipping");
       AD_RETURNE (OK);
     }
   }
@@ -544,13 +519,7 @@ ArrayDetectErrorCode analyze_gimple_assignment (AD_FUNC_ARGS, gimple * stmt, ::a
       field_info->sources->create (0);
   }
   field_info->sources->safe_push (source);
-  
-  AD_DEBUG_PRINT ("    Assignment processed successfully:");
-  AD_DEBUG_PRINT ("      Field: %s::%s", field_info->containing_type, field_info->field_name);
-  AD_DEBUG_PRINT ("      Assignment source: %s (%s)", source, rhs_desc);
-  AD_DEBUG_PRINT ("      Location: %s", loc_str);
-  AD_DEBUG_PRINT ("      Source line: %s", source_line);
-  AD_DEBUG_PRINT ("      Total assignments for this field: %d", field_info->source_count);
+  (void)source_line;
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -576,8 +545,7 @@ ArrayDetectErrorCode process_type_fields (AD_FUNC_ARGS, tree type, ::array_detec
   
   char const * type_name;
   AD_TRY (gcc_ext_util::get_type_name (AD_ARGS, type, type_name));
-  AD_DEBUG_PRINT ("Processing type: %s", type_name);
-  
+
   // 遍历类型的所有字段
   tree field;
   for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field)) {
@@ -596,9 +564,7 @@ ArrayDetectErrorCode process_type_fields (AD_FUNC_ARGS, tree type, ::array_detec
     tree field_type = TREE_TYPE (field);
     bool is_ptr;
     AD_TRY (is_pointer_type (AD_ARGS, field_type, is_ptr));
-    
-    AD_DEBUG_PRINT ("  Field: %s, is_pointer: %d", field_name, is_ptr ? 1 : 0);
-    
+
     // 创建字段信息结构体（使用 GCC 垃圾回收分配）
     // 语义：分配 FieldInfo 结构体，由 GCC 自动管理生命周期
     FieldInfo * field_info = ggc_alloc<FieldInfo>();

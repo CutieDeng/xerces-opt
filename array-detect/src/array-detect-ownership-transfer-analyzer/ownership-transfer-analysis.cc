@@ -36,9 +36,6 @@ ArrayDetectErrorCode isInvalidationStatement (
   tree lhs = gimple_assign_lhs (stmt);
   tree rhs = gimple_assign_rhs1 (stmt);
 
-  AD_DEBUG_PRINT ("  [isInvalidationStatement] Checking stmt, lhs=%p, rhs=%p, source_field=%p, source_object=%p",
-                  (void*)lhs, (void*)rhs, (void*)source_field, (void*)source_object);
-
   // 检查是否为 clobber
   if (TREE_CODE (rhs) == CONSTRUCTOR && TREE_CLOBBER_P (rhs)) {
     // 检查是否是对源对象的 clobber
@@ -69,61 +66,32 @@ ArrayDetectErrorCode isInvalidationStatement (
     bool is_field_access = false;
     AD_TRY (gcc_ext_util::is_field_access (AD_ARGS, lhs, &field_decl, &object, is_field_access));
 
-    AD_DEBUG_PRINT ("  [isInvalidationStatement] lhs is field access: is_field_access=%d, field_decl=%p (source=%p), object=%p (source=%p)",
-                    is_field_access, (void*)field_decl, (void*)source_field, (void*)object, (void*)source_object);
-
     if (is_field_access && field_decl == source_field) {
-      // 关键修复：需要检查对象是否相同
-      // 在 SSA 形式中，对象可能是 SSA_NAME，需要比较基础变量
+      // Check if same object (SSA form may use different SSA_NAME versions)
       bool same_object = false;
 
       if (object == source_object) {
         same_object = true;
-        AD_DEBUG_PRINT ("  [isInvalidationStatement] Direct pointer match!");
       } else if (object && source_object) {
-        // 调试：输出 tree code 和 SSA 信息
-        char const* obj_code_name = get_tree_code_name (TREE_CODE (object));
-        char const* src_code_name = get_tree_code_name (TREE_CODE (source_object));
-        AD_DEBUG_PRINT ("  [isInvalidationStatement] Tree codes: object=%s, source=%s",
-                        obj_code_name, src_code_name);
-
         if (TREE_CODE (object) == SSA_NAME && TREE_CODE (source_object) == SSA_NAME) {
-          AD_DEBUG_PRINT ("  [isInvalidationStatement] SSA versions: object=%d, source=%d",
-                          SSA_NAME_VERSION (object), SSA_NAME_VERSION (source_object));
-
-          // 比较 SSA_NAME_VAR
           tree obj_var = SSA_NAME_VAR (object);
           tree src_var = SSA_NAME_VAR (source_object);
-          AD_DEBUG_PRINT ("  [isInvalidationStatement] SSA_NAME_VAR: obj_var=%p, src_var=%p",
-                          (void*)obj_var, (void*)src_var);
-
           if (obj_var && src_var && obj_var == src_var) {
             same_object = true;
-            AD_DEBUG_PRINT ("  [isInvalidationStatement] Matched via SSA_NAME_VAR!");
           }
         }
-
-        // 尝试使用 operand_equal_p
         if (!same_object && operand_equal_p (object, source_object, 0)) {
           same_object = true;
-          AD_DEBUG_PRINT ("  [isInvalidationStatement] Matched via operand_equal_p!");
         }
       }
 
       if (same_object) {
-        AD_DEBUG_PRINT ("  [isInvalidationStatement] MATCHED: Same object and field - this IS an invalidation");
-
-        // 检查是否赋值为 NULL
         if (integer_zerop (rhs)) {
           kind = INVALIDATION_NULL_ASSIGN;
           AD_RETURNE (OK);
         }
-
-        // 其他赋值（覆盖）
         kind = INVALIDATION_OTHER_ASSIGN;
         AD_RETURNE (OK);
-      } else {
-        AD_DEBUG_PRINT ("  [isInvalidationStatement] SKIPPED: Different object (lhs.field vs source_object.field)");
       }
     }
   }
@@ -193,8 +161,7 @@ ArrayDetectErrorCode findInvalidationPointsImpl (
       point->description = ggc_strdup (kind_str);
 
       vec_safe_push (invalidation_points, point);
-
-      AD_DEBUG_PRINT ("  Found invalidation point: kind=%s, bb=%d", kind_str, bb->index);
+      (void)kind_str;
     }
   }
 
@@ -219,8 +186,6 @@ ArrayDetectErrorCode findInvalidationPoints (
 ) AD_FUNCTION_BEGIN {
   (void)start_stmt;
 
-  AD_DEBUG_PRINT ("Finding invalidation points from bb=%d", start_bb ? start_bb->index : -1);
-
   if (!start_bb) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -233,8 +198,6 @@ ArrayDetectErrorCode findInvalidationPoints (
 
   // 从起始基本块开始搜索
   AD_TRY (findInvalidationPointsImpl (AD_ARGS, start_bb, source_field, source_object, visited, invalidation_points));
-
-  AD_DEBUG_PRINT ("Found %u invalidation points", invalidation_points ? invalidation_points->length () : 0);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -272,7 +235,6 @@ ArrayDetectErrorCode checkPathsImpl (
     // 到达出口，检查是否经过销毁点
     if (!has_invalidation) {
       has_path_without_invalidation = true;
-      AD_DEBUG_PRINT ("  Found path without invalidation to exit: bb=%d", bb->index);
     }
     AD_RETURNE (OK);
   }
@@ -301,8 +263,6 @@ ArrayDetectErrorCode analyzePathsToExit (
   unsigned int& paths_without_invalidation,
   unsigned int& total_paths
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing paths to exit from bb=%d", start_bb ? start_bb->index : -1);
-
   paths_with_invalidation = 0;
   paths_without_invalidation = 0;
   total_paths = 0;
@@ -342,9 +302,6 @@ ArrayDetectErrorCode analyzePathsToExit (
     total_paths = 1;
   }
 
-  AD_DEBUG_PRINT ("Path analysis: %u with invalidation, %u without, %u total",
-                  paths_with_invalidation, paths_without_invalidation, total_paths);
-
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -358,8 +315,6 @@ ArrayDetectErrorCode analyzeOwnershipTransfer (
   array_detector::FieldSourceInfo* source_info,
   OwnershipTransferAnalysisResult*& result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing ownership transfer");
-
   if (!write_capture || !source_info) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -431,10 +386,6 @@ ArrayDetectErrorCode analyzeOwnershipTransfer (
 
   result->is_analyzed = true;
 
-  AD_DEBUG_PRINT ("Transfer analysis complete: verdict=%d, invalidation_points=%u",
-                  result->verdict,
-                  result->invalidation_points ? result->invalidation_points->length () : 0);
-
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -448,8 +399,6 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
   unsigned int &total_analyzed,
   unsigned int &total_certain_transfers
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing all ownership transfers");
-
   total_analyzed = 0;
   total_certain_transfers = 0;
 
@@ -499,7 +448,7 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
     }
   }
 
-  AD_DEBUG_PRINT ("Transfer analysis complete: %u analyzed, %u certain transfers",
+  AD_DEBUG_PRINT ("ownershipTransfer: %u analyzed, %u certain",
                   total_analyzed, total_certain_transfers);
 
   AD_RETURNE (OK);

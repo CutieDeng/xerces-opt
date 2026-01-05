@@ -83,8 +83,6 @@ ArrayDetectErrorCode extractEscapes (
   SourceUseAnalysisResult * raw_result,
   EscapeExtractionResult * &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[extractEscapes] Extracting escapes from raw result");
-
   if (!raw_result) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -108,10 +106,7 @@ ArrayDetectErrorCode extractEscapes (
 
   // 从 all_uses 中提取逃逸使用
   if (raw_result->all_uses) {
-    unsigned int use_count = raw_result->all_uses->length ();
-    AD_DEBUG_PRINT ("[extractEscapes] Processing %u uses", use_count);
-
-    for (unsigned int i = 0; i < use_count; i++) {
+    for (unsigned int i = 0; i < raw_result->all_uses->length (); i++) {
       SourceUseInfo const &use = (*raw_result->all_uses)[i];
       if (use.is_escape()) {
         extraction->escapes->safe_push (&use);
@@ -120,7 +115,6 @@ ArrayDetectErrorCode extractEscapes (
     }
   }
 
-  AD_DEBUG_PRINT ("[extractEscapes] Extracted %u escapes", extraction->escape_count);
   AD_RETURNO (extraction);
 } AD_FUNCTION_END
 
@@ -136,8 +130,6 @@ ArrayDetectErrorCode generateEscapeEvidence (
   location_t write_location,
   EscapeEvidenceResult * &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[generateEscapeEvidence] Generating evidence");
-
   if (!extraction) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -175,10 +167,6 @@ ArrayDetectErrorCode generateEscapeEvidence (
   // 核心判定：存在非调试逃逸 => 拒绝 owned
   evidence->has_rejecting_evidence = (evidence->rejecting_escapes > 0);
 
-  AD_DEBUG_PRINT ("[generateEscapeEvidence] Evidence: total=%u, debug=%u, rejecting=%u, has_rejecting=%d",
-                  evidence->total_escapes, evidence->safe_debug_escapes,
-                  evidence->rejecting_escapes, evidence->has_rejecting_evidence);
-
   AD_RETURNO (evidence);
 } AD_FUNCTION_END
 
@@ -191,8 +179,6 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
   array_detector::TypeFieldAnalysisData * field_data,
   TypeFieldEscapeSummary * &result
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[summarizeTypeFieldEscapes] Summarizing escapes for (type, field)");
-
   if (!field_data) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -214,10 +200,7 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
 
   // 遍历所有写入操作记录
   if (field_data->write_analysis_records) {
-    unsigned int record_count = field_data->write_analysis_records->length ();
-    AD_DEBUG_PRINT ("  Processing %u write records", record_count);
-
-    for (unsigned int i = 0; i < record_count; i++) {
+    for (unsigned int i = 0; i < field_data->write_analysis_records->length (); i++) {
       array_detector::FieldWriteAnalysisRecord * record =
         (*field_data->write_analysis_records)[i];
       if (!record) continue;
@@ -281,18 +264,6 @@ ArrayDetectErrorCode summarizeTypeFieldEscapes (
     ? (float)summary->writes_with_rejecting / (float)summary->total_writes
     : 0.0f;
 
-  AD_DEBUG_PRINT ("  Summary: writes=%u, with_escape=%u, with_rejecting=%u, "
-                  "total_escapes=%u, debug=%u, rejecting=%u, ratio=%.2f",
-                  summary->total_writes, summary->writes_with_escape,
-                  summary->writes_with_rejecting, summary->total_escapes,
-                  summary->safe_debug_escapes, summary->rejecting_escapes,
-                  summary->rejection_ratio);
-  AD_DEBUG_PRINT ("  Source distribution: func=%u, field=%u, const=%u, "
-                  "comp=%u, phi=%u, unknown=%u",
-                  summary->source_function_call, summary->source_field_access,
-                  summary->source_constant, summary->source_computation,
-                  summary->source_phi, summary->source_unknown);
-
   AD_RETURNO (summary);
 } AD_FUNCTION_END
 
@@ -306,8 +277,6 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
   vec<EscapeEvidenceResult*> * &evidence_results,
   unsigned int &total_synthesized
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Synthesizing all field escapes (two-layer architecture)");
-
   total_synthesized = 0;
 
   if (!detector.m_type_field_writes) {
@@ -330,19 +299,6 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 
     if (!write_ops || !write_ops->write_analysis_records) continue;
 
-    // 获取类型名和字段名（用于调试输出）
-    char const * type_name = NULL;
-    AD_TRY (gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, key.type, type_name));
-    char const * field_name = NULL;
-    if (key.field_decl && DECL_NAME (key.field_decl)) {
-      field_name = IDENTIFIER_POINTER (DECL_NAME (key.field_decl));
-    }
-
-    AD_DEBUG_PRINT ("  Processing (type=%s, field=%s): %u write operations",
-                    type_name ? type_name : "<unknown>",
-                    field_name ? field_name : "<unknown>",
-                    write_ops->write_analysis_records->length ());
-
     // 字段级别是否存在拒绝证据
     bool field_has_rejecting = false;
 
@@ -354,7 +310,6 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       // 从 record->escape_analysis 读取逃逸分析结果
       SourceUseAnalysisResult * raw_result = record->escape_analysis;
       if (!raw_result) {
-        AD_DEBUG_PRINT ("    Write #%u: No escape analysis result", i);
         continue;
       }
 
@@ -366,7 +321,6 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       AD_TRY (extractEscapes (AD_ARGS, raw_result, extraction));
 
       if (!extraction) {
-        AD_DEBUG_PRINT ("    Write #%u: Extraction failed", i);
         continue;
       }
 
@@ -375,21 +329,13 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       AD_TRY (generateEscapeEvidence (AD_ARGS, extraction, key.type, key.field_decl, write_loc, evidence));
 
       if (evidence) {
-        // 填充到分析记录
         record->escape_evidence = evidence;
-
-        // 添加到全局结果列表
         evidence_results->safe_push (evidence);
         total_synthesized++;
 
-        // 更新字段级别拒绝标志
         if (evidence->has_rejecting_evidence) {
           field_has_rejecting = true;
         }
-
-        AD_DEBUG_PRINT ("    Write #%u: total=%u, debug=%u, rejecting=%u, has_rejecting=%d",
-                        i, evidence->total_escapes, evidence->safe_debug_escapes,
-                        evidence->rejecting_escapes, evidence->has_rejecting_evidence);
       }
     }
 
@@ -400,14 +346,9 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     TypeFieldEscapeSummary * summary = NULL;
     AD_TRY (summarizeTypeFieldEscapes (AD_ARGS, write_ops, summary));
     write_ops->escape_summary = summary;
-
-    AD_DEBUG_PRINT ("  (type=%s, field=%s): has_rejecting_evidence=%d",
-                    type_name ? type_name : "<unknown>",
-                    field_name ? field_name : "<unknown>",
-                    field_has_rejecting);
   }
 
-  AD_DEBUG_PRINT ("Synthesis complete: %u evidence results", total_synthesized);
+  AD_DEBUG_PRINT ("escapeSynth: %u evidence results", total_synthesized);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

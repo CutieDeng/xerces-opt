@@ -29,8 +29,7 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN 
   }
   // hash_map 构造后需要调用 create_ggc () 来初始化内部哈希表
   self.m_type_field_writes->create_ggc (0);
-  
-  AD_DEBUG_PRINT ("ArrayDetector initialized (eager)");
+
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -99,83 +98,50 @@ bool checkAllAssignmentsFromSameSource (ArrayDetector &self, AD_FUNC_ARGS, Field
 
 ArrayDetectErrorCode analyzeFieldUsage (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void )ctx;
-  AD_DEBUG_PRINT ("start analyze fields usage");
-  
+
   // 分析使用情况，判断是否是数组候选
   for (unsigned int i = 0; i < self.m_fields->length (); i++) {
     FieldInfo * field = (*self.m_fields)[i];
-    // TODO: if null, warning this situation
     if (!field) {
-      AD_DEBUG_PRINT ("Warning: NULL field at index %u", i);
       continue;
     }
 
-    // TODO: add field type/name log, if not null
-    AD_DEBUG_PRINT ("Analyzing field: %s::%s", field->containing_type, field->field_name);
-
-    // TODO: add log about non array candidate judge, with evidence: non pointer type
     if (!field->is_pointer) {
-      AD_DEBUG_PRINT ("  -> Not array candidate: Not a pointer type");
       field->is_array_candidate = false;
       continue;
     }
 
-    // TODO: add log
-    // 检查是否有冲突赋值（某个函数中有多个赋值）
+    // 检查是否有冲突赋值
     if (field->conflicting_assigns && field->conflicting_assigns->length () > 0) {
-      AD_DEBUG_PRINT ("  -> Not array candidate: Conflicting assignments found");
       field->is_array_candidate = false;
       continue;
     }
 
-    // TODO: add log
     // 基于函数级别的赋值信息判断
     if (!field->function_assignments || field->function_assignments->length () == 0) {
-      // 没有赋值信息，不是数组候选
-      // TODO: change the available set
-      // no assignment doesn't mean no array candidate! (just ignored, can set as unrelated, but not yes or no)
-      AD_DEBUG_PRINT ("  -> Ignored: No assignment information available");
       field->is_array_candidate = false;
       continue;
     }
 
-    // TODO: wrap in a new function to check the all src values
-    // 检查每个函数中的赋值是否都来自函数调用，且所有函数中的赋值来源相同（唯一来源）
+    // 检查每个函数中的赋值是否都来自函数调用
     char const * unique_source = NULL;
     bool all_from_function_call = checkAllAssignmentsFromSameSource (self, AD_ARGS, field, &unique_source);
-    
-    // 如果所有函数中的赋值都来自函数调用，且所有赋值来源相同，则是数组候选
-    if (all_from_function_call && unique_source) {
-      AD_DEBUG_PRINT ("  -> Is array candidate: Unique source '%s'", unique_source);
-      field->is_array_candidate = true;
-    } else {
-      AD_DEBUG_PRINT ("  -> Not array candidate: Assignments not consistent or not from function calls");
-      field->is_array_candidate = false;
-    }
+
+    field->is_array_candidate = all_from_function_call && unique_source;
   }
-  
+
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 void deinit (ArrayDetector &self, AD_FUNC_ARGS) {
   AD_ARGS_WARN_DENY;
-  // 显式清理资源，替代析构函数（遵循禁用RAII的规范）
+  // 显式清理资源
   if (self.m_fields != nullptr) {
     self.m_fields->release ();
-    // GCC的ggc_alloc分配的内存会自动管理，不需要显式释放
     self.m_fields = nullptr;
-    AD_DEBUG_PRINT ("ArrayDetector deinitialized: m_fields released");
   }
-  
   if (self.m_type_field_writes != nullptr) {
-    // hash_map 使用 ggc_alloc 分配，由 GCC 垃圾回收系统自动管理
-    // 不需要显式释放，只需要清空指针
     self.m_type_field_writes = nullptr;
-    AD_DEBUG_PRINT ("ArrayDetector deinitialized: m_type_field_writes cleared");
-  }
-  
-  if (self.m_fields == nullptr && self.m_type_field_writes == nullptr) {
-    AD_DEBUG_PRINT ("ArrayDetector already deinitialized or was never initialized");
   }
 }
 
@@ -184,42 +150,29 @@ ArrayDetectErrorCode addField (ArrayDetector &self, AD_FUNC_ARGS, FieldInfo * fi
   if (!field_info) {
     AD_RETURNE (OK);
   }
-  
-  // 添加字段信息
   self.m_fields->safe_push (field_info);
-  // 调试信息：输出字段添加情况
-  AD_DEBUG_PRINT ("[ArrayDetector] Added field: %s::%s (total: %u)",
-                  field_info->containing_type, field_info->field_name,
-                  (unsigned)self.m_fields->length ());
-
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode getFieldCount (ArrayDetector const &self, AD_FUNC_ARGS, size_t * out_count) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
   if (!out_count) {
-    AD_DEBUG_PRINT ("Error: out_count parameter is null");
     AD_RETURNE (INVALID_PARAMETER);
   }
-
   *out_count = self.m_fields->length ();
-  AD_DEBUG_PRINT ("ArrayDetector field count retrieved successfully");
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode getField (ArrayDetector const &self, AD_FUNC_ARGS, size_t index, FieldInfo** out_field) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
   if (!out_field) {
-    AD_DEBUG_PRINT ("Error: out_field parameter is null");
     AD_RETURNE (INVALID_PARAMETER);
   }
-
   if (index < self.m_fields->length ()) {
     *out_field = (*self.m_fields)[index];
-    AD_DEBUG_PRINT ("ArrayDetector field found successfully");
     AD_RETURNE (OK);
   }
-
   *out_field = nullptr;
-  AD_DEBUG_PRINT ("ArrayDetector index out of bounds");
   AD_RETURNE (INDEX_OUT_OF_BOUNDS);
 } AD_FUNCTION_END
 

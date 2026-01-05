@@ -216,14 +216,9 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
   AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
   AD_ASSERT_GCC_LOGIC (analysis, "analysis must not be NULL");
 
-  // accesses 可为空（表示没有数组访问数据）
   if (!accesses || !accesses->accesses) {
     AD_RETURNE (OK);
   }
-
-  char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
-  AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Checking %u accesses for field '%s'",
-                  vec_safe_length (accesses->accesses), candidate_name);
 
   for (unsigned int i = 0; i < vec_safe_length (accesses->accesses); i++) {
     ArrayAccessCapture* access = (*accesses->accesses)[i];
@@ -232,12 +227,10 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
     ArrayAccessBoundAnalysis* ba = (ArrayAccessBoundAnalysis*)access->bound_analysis;
     if (!ba->related_fields) continue;
 
-    // 检查边界条件是否引用了候选字段
     for (unsigned int j = 0; j < vec_safe_length (ba->related_fields); j++) {
       tree bound_field = (*ba->related_fields)[j];
 
       if (bound_field == candidate_field) {
-        // 创建证据
         CapacityAssociationEvidence* evidence = ggc_alloc<CapacityAssociationEvidence>();
         memset (evidence, 0, sizeof (CapacityAssociationEvidence));
 
@@ -248,19 +241,12 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
           evidence->evidence_type = CAP_EVID_READ_CONDITION;
           evidence->description = "Read access bounded by this field";
           analysis->evidence_bitmap |= CAP_EVID_READ_CONDITION;
-          AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Found READ_CONDITION evidence at %s:%d",
-                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
-                          LOCATION_LINE (access->location));
         } else {
           evidence->evidence_type = CAP_EVID_WRITE_CONDITION;
           evidence->description = "Write access bounded by this field";
           analysis->evidence_bitmap |= CAP_EVID_WRITE_CONDITION;
-          AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Found WRITE_CONDITION evidence at %s:%d",
-                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
-                          LOCATION_LINE (access->location));
         }
 
-        // 填充条件相关信息
         if (ba->primary_bound) {
           evidence->condition_expr = ba->primary_bound->condition_expr;
           evidence->comparison_code = ba->primary_bound->comparison_code;
@@ -268,16 +254,6 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
         evidence->access_stmt = (tree)access->stmt;
 
         vec_safe_push (analysis->evidences, evidence);
-
-        if (ctx.debug_file) {
-          fprintf (ctx.debug_file, "        -> BOUND EVIDENCE: %s access at %s:%d references '%s'\n",
-                   access->direction == ACCESS_READ ? "READ" : "WRITE",
-                   LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
-                   LOCATION_LINE (access->location),
-                   candidate_name);
-        }
-
-        // 对于同一个 access，只需要记录一次证据
         break;
       }
     }
@@ -294,7 +270,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
-  TypeFieldArrayAccesses* array_accesses,      // 新增参数：数组访问数据
+  TypeFieldArrayAccesses* array_accesses,
   tree candidate_field,
   CapacityCandidateAnalysis** out_analysis
 ) AD_FUNCTION_BEGIN {
@@ -304,20 +280,8 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_ASSERT_GCC_LOGIC (pointer_field_data, "pointer_field_data must not be NULL");
   AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
 
-  char const* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
-  char const* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
   char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
 
-  AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Analyzing candidate '%s' for pointer '%s::%s'",
-                  candidate_name, ptr_type_name, ptr_field_name);
-
-  // 输出到调试文件
-  if (ctx.debug_file) {
-    fprintf (ctx.debug_file, "    [CANDIDATE ANALYSIS] %s::%s <- candidate: %s\n",
-             ptr_type_name, ptr_field_name, candidate_name);
-  }
-
-  // 创建分析结果
   CapacityCandidateAnalysis* analysis = ggc_alloc<CapacityCandidateAnalysis>();
   memset (analysis, 0, sizeof (CapacityCandidateAnalysis));
 
@@ -329,43 +293,14 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
 
   vec_alloc (analysis->evidences, 4);
 
-  // 遍历指针字段的所有写入操作
-  unsigned int write_count = 0;
-  unsigned int malloc_source_count = 0;
-
   if (pointer_field_data->write_analysis_records) {
-    write_count = pointer_field_data->write_analysis_records->length ();
-    AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Checking %u write operations", write_count);
-
-    if (ctx.debug_file) {
-      fprintf (ctx.debug_file, "      Total write operations: %u\n", write_count);
-    }
+    unsigned int write_count = pointer_field_data->write_analysis_records->length ();
 
     for (unsigned int i = 0; i < write_count; i++) {
       FieldWriteAnalysisRecord* record = (*pointer_field_data->write_analysis_records)[i];
-      if (!record) {
-        AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Write[%u]: NULL record", i);
-        continue;
-      }
+      if (!record || !record->source_info) continue;
 
-      if (!record->source_info) {
-        AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Write[%u]: no source_info", i);
-        continue;
-      }
-
-      AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Write[%u]: source_type=%d",
-                      i, record->source_info->source_type);
-
-      // 检查是否为函数调用源（malloc 等）
       LET_SOURCE_FUNCTION_CALL (func_call, *record->source_info) {
-        malloc_source_count++;
-
-        if (ctx.debug_file) {
-          fprintf (ctx.debug_file, "      Write[%u]: function call '%s'\n",
-                   i, func_call.function_name ? func_call.function_name : "<unknown>");
-        }
-
-        // 方法1: 检查 malloc 参数是否直接引用候选字段
         bool references = false;
         CapacityAssociationEvidence* evidence = NULL;
 
@@ -375,38 +310,19 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
         if (references && evidence) {
           analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
           vec_safe_push (analysis->evidences, evidence);
-
-          if (ctx.debug_file) {
-            fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (direct ref): '%s' references '%s'\n",
-                     ptr_field_name, candidate_name);
-          }
         }
       } END_LET()
     }
   }
 
-  AD_DEBUG_PRINT ("[analyzeCandidateAssociation] %u/%u writes are function calls",
-                  malloc_source_count, write_count);
-
-  // 新增：从边界条件分析中提取 READ/WRITE_CONDITION 证据
   if (array_accesses) {
     AD_TRY (extractBoundConditionEvidence (AD_ARGS, array_accesses, candidate_field, analysis));
   }
 
-  // 判定结果
   if (analysis->evidence_bitmap != CAP_EVID_NONE) {
     analysis->verdict = CAP_ASSOC_RELATED;
-    AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Result: RELATED (bitmap=0x%x)",
-                    analysis->evidence_bitmap);
   } else {
     analysis->verdict = CAP_ASSOC_UNRELATED;
-    AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Result: UNRELATED");
-  }
-
-  if (ctx.debug_file) {
-    char const* verdict_str = (analysis->verdict == CAP_ASSOC_RELATED) ? "RELATED" : "UNRELATED";
-    fprintf (ctx.debug_file, "      Result: %s (evidence_bitmap=0x%x)\n",
-             verdict_str, analysis->evidence_bitmap);
   }
 
   *out_analysis = analysis;
@@ -443,9 +359,6 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   vec_alloc (result->candidate_analyses, 8);
 
-  AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Analyzing pointer field '%s::%s'",
-                  result->type_name, result->pointer_field_name);
-
   // 输出调试文件头
   if (ctx.debug_file) {
     fprintf (ctx.debug_file, "\n");
@@ -460,8 +373,6 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
   AD_TRY (collectIntegerCandidates (AD_ARGS, pointer_field_data->type, &candidates));
 
   if (!candidates || candidates->length () == 0) {
-    AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] No integer candidates found for type '%s'",
-                    result->type_name);
     if (ctx.debug_file) {
       fprintf (ctx.debug_file, "No integer candidate fields found in type '%s'\n",
                result->type_name);
@@ -469,9 +380,6 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
     *out_result = result;
     AD_RETURNE (OK);
   }
-
-  AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Found %u integer candidates",
-                  candidates->length ());
 
   if (ctx.debug_file) {
     fprintf (ctx.debug_file, "Integer candidates found: %u\n\n", candidates->length ());
@@ -483,10 +391,6 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   for (unsigned int i = 0; i < candidates->length (); i++) {
     tree candidate = (*candidates)[i];
-    char const* candidate_name = safeGetFieldName (AD_ARGS, candidate);
-
-    AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Processing candidate[%u]: '%s'",
-                    i, candidate_name);
 
     CapacityCandidateAnalysis* analysis = NULL;
     AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, array_accesses, candidate, &analysis));
@@ -518,12 +422,9 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   result->best_match = best_match;
 
-  AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Result for %s::%s: %u related, %u unrelated, %u undetermined",
-                  result->type_name,
-                  result->pointer_field_name,
-                  result->related_count,
-                  result->unrelated_count,
-                  result->undetermined_count);
+  AD_DEBUG_PRINT ("capAssoc %s::%s: related=%u, unrelated=%u",
+                  result->type_name, result->pointer_field_name,
+                  result->related_count, result->unrelated_count);
 
   // 输出结果摘要到调试文件
   if (ctx.debug_file) {
@@ -852,8 +753,6 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
     AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] Writing to: %s", ctx.result_file_path);
-
   // 重置缓冲区使用量
   ctx.result_datum_buffer_size = 0;
 
@@ -886,13 +785,6 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
     vec<char const*, va_gc>* read_fields = NULL;
     vec<char const*, va_gc>* write_fields = NULL;
     collectFieldsByEvidenceType (result, &malloc_fields, &read_fields, &write_fields);
-
-    // 统计各列表数量（用于调试输出）
-    unsigned int malloc_count = malloc_fields ? malloc_fields->length () : 0;
-    unsigned int read_count = read_fields ? read_fields->length () : 0;
-    unsigned int write_count = write_fields ? write_fields->length () : 0;
-
-    // 注意：即使所有列表为空，也要输出记录（用户要求）
 
     // 构建字段列表字符串
     buildFieldListString (ctx, malloc_fields, malloc_list, sizeof (malloc_list));
@@ -939,10 +831,6 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
     if (written > 0) {
       ctx.result_datum_buffer_size += (size_t)written;
     }
-
-    AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] Added entry for %s::%s: malloc=%u, read=%u, write=%u",
-                    result->type_name, result->pointer_field_name,
-                    malloc_count, read_count, write_count);
   }
 
   // 检查是否有数据要写入
@@ -950,29 +838,24 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
   size_t data_size = ctx.result_datum_buffer_size - data_offset;
 
   if (data_size == 0) {
-    AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] No capacity associations to write");
     AD_RETURNE (OK);
   }
 
   // 原子性写入文件
   int fd = open (ctx.result_file_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
   if (fd < 0) {
-    AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] Failed to open result file: %s", ctx.result_file_path);
+    AD_DEBUG_PRINT ("capAssocWrite: open failed: %s", ctx.result_file_path);
     AD_RETURNE (RESOURCE_ERROR);
   }
 
   ssize_t bytes_written = write (fd, ctx.result_datum_buffer + data_offset, data_size);
   if (bytes_written < 0 || (size_t)bytes_written != data_size) {
-    AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] Failed to write to result file (written %zd of %zu bytes)",
-                    bytes_written, data_size);
+    AD_DEBUG_PRINT ("capAssocWrite: write failed (%zd/%zu)", bytes_written, data_size);
     close (fd);
     AD_RETURNE (RESOURCE_ERROR);
   }
 
   close (fd);
-
-  AD_DEBUG_PRINT ("[writeCapacityAssociationsToRacketDatum] Successfully wrote %zu bytes to result file", data_size);
-
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
