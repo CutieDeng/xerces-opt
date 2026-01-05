@@ -192,7 +192,8 @@ static bool objectsAreSameOrAliased (AD_FUNC_ARGS, tree obj1, tree obj2) {
       // 类型相同，检查是否都是 PARM_DECL（函数参数，如 this）
       if (type1 == type2) {
         // 如果两者都是同一函数的参数（如 this 指针），认为同一
-        if ((TREE_CODE (var1) == PARM_DECL && TREE_CODE (var2) == PARM_DECL) ||
+        // 注意: var1/var2 可能为 NULL (当 SSA_NAME_VAR 返回 NULL 时)
+        if ((var1 && var2 && TREE_CODE (var1) == PARM_DECL && TREE_CODE (var2) == PARM_DECL) ||
             (TREE_CODE (base1) == PARM_DECL && TREE_CODE (base2) == PARM_DECL)) {
           return true;
         }
@@ -819,10 +820,24 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   *out_analysis = NULL;
 
   if (!access) {
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: access is NULL, skip");
     AD_RETURNE (OK);
   }
 
+  // 打印入口调试信息
+  char const* func_name = access->fn && access->fn->decl && DECL_NAME (access->fn->decl)
+    ? IDENTIFIER_POINTER (DECL_NAME (access->fn->decl)) : "<unknown>";
+  char const* type_name = access->containing_type
+    ? safeGetTypeName (AD_ARGS, access->containing_type) : "<null>";
+  char const* field_name = access->pointer_field_decl && DECL_NAME (access->pointer_field_decl)
+    ? IDENTIFIER_POINTER (DECL_NAME (access->pointer_field_decl)) : "<anon>";
+
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: ENTER func=%s type=%s field=%s dir=%s",
+    func_name, type_name, field_name,
+    access->direction == ACCESS_READ ? "READ" : "WRITE");
+
   // 创建分析结果
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: creating analysis struct");
   ArrayAccessBoundAnalysis *analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
   memset (analysis, 0, sizeof (ArrayAccessBoundAnalysis));
   analysis->access = access;
@@ -831,27 +846,41 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
 
   tree index_var = access->offset_expr;
   if (!index_var) {
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: no offset_expr, early return");
     access->bound_analysis = analysis;
     *out_analysis = analysis;
     AD_RETURNE (OK);
   }
 
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: offset_expr tree_code=%s",
+    get_tree_code_name (TREE_CODE (index_var)));
+
   // 提取目标对象用于过滤不同对象的边界字段
   tree target_base_object = NULL_TREE;
   if (access->is_field_based && access->base_pointer) {
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: extracting base object from base_pointer");
     target_base_object = extractBaseObject (access->base_pointer);
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: base_object=%s",
+      target_base_object ? get_tree_code_name (TREE_CODE (target_base_object)) : "NULL");
   }
 
   // 查找支配条件
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: finding dominating conditions...");
   vec<gimple*, va_gc> *conditions = NULL;
   AD_TRY (findDominatingConditions (AD_ARGS, access, &conditions));
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: found %u conditions",
+    (unsigned) vec_safe_length (conditions));
 
   if (!conditions || conditions->length () == 0) {
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: no conditions, trying index expression fallback");
     // 尝试从索引表达式中收集字段
     if (index_var) {
       vec<tree, va_gc> *index_fields = NULL;
       vec_alloc (index_fields, 4);
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collectBoundFieldsFromExpression (index fallback)");
       collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collected %u fields from index expr",
+        (unsigned) vec_safe_length (index_fields));
       for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
         vec_safe_push (analysis->related_fields, (*index_fields)[j]);
         analysis->field_bound_count++;
@@ -862,38 +891,77 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     }
     access->bound_analysis = analysis;
     *out_analysis = analysis;
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: EXIT (no conditions path)");
     AD_RETURNE (OK);
   }
 
   // 分析每个条件
   BoundConditionAssociation *best_field_bound = NULL;
   bool index_is_variable = (TREE_CODE (index_var) == SSA_NAME);
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: index_is_variable=%d, processing %u conditions",
+    (int) index_is_variable, (unsigned) conditions->length ());
 
   for (unsigned int i = 0; i < conditions->length (); i++) {
     gimple *cond = (*conditions)[i];
-    if (!cond || gimple_code (cond) != GIMPLE_COND) continue;
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: processing condition %u/%u",
+      i + 1, (unsigned) conditions->length ());
 
+    if (!cond) {
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: condition %u is NULL, skip", i);
+      continue;
+    }
+    if (gimple_code (cond) != GIMPLE_COND) {
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: condition %u is not GIMPLE_COND (code=%d), skip",
+        i, (int) gimple_code (cond));
+      continue;
+    }
+
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: getting cond lhs/rhs");
     tree lhs = gimple_cond_lhs (cond);
     tree rhs = gimple_cond_rhs (cond);
+
+    if (!lhs || !rhs) {
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: WARNING lhs=%p rhs=%p, skip",
+        (void*) lhs, (void*) rhs);
+      continue;
+    }
+
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: lhs=%s rhs=%s",
+      get_tree_code_name (TREE_CODE (lhs)),
+      get_tree_code_name (TREE_CODE (rhs)));
 
     vec<tree, va_gc> *cond_fields = NULL;
     vec_alloc (cond_fields, 4);
 
     if (index_is_variable) {
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: checking expression involves var");
       bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
       bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: lhs_involves=%d rhs_involves=%d",
+        (int) lhs_involves_index, (int) rhs_involves_index);
 
       if (lhs_involves_index || rhs_involves_index) {
-        if (!lhs_involves_index) collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
-        if (!rhs_involves_index) collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
+        if (!lhs_involves_index) {
+          AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collectBoundFields from lhs");
+          collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
+        }
+        if (!rhs_involves_index) {
+          AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collectBoundFields from rhs");
+          collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
+        }
       } else {
+        AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collectBoundFields from both (no index involvement)");
         collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
         collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
       }
     } else {
+      AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collectBoundFields from both (non-variable index)");
       collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
       collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
     }
+
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: collected %u cond_fields",
+      (unsigned) vec_safe_length (cond_fields));
 
     // 去重添加到 related_fields
     for (unsigned int j = 0; j < vec_safe_length (cond_fields); j++) {
@@ -908,8 +976,11 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
       }
     }
 
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: calling analyzeBoundCondition for cond %u", i);
     BoundConditionAssociation *assoc = NULL;
     AD_TRY (analyzeBoundCondition (AD_ARGS, cond, index_var, access, &assoc));
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: analyzeBoundCondition returned assoc=%p", (void*) assoc);
+
     if (assoc) {
       vec_safe_push (analysis->bounds, assoc);
       if (assoc->is_field_bound && (!best_field_bound || (assoc->description && !best_field_bound->description))) {
@@ -922,9 +993,12 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
 
   // 后备：从索引表达式收集
   if (analysis->field_bound_count == 0 && index_var) {
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: fallback - collecting from index expression");
     vec<tree, va_gc> *index_fields = NULL;
     vec_alloc (index_fields, 4);
     collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
+    AD_DEBUG_PRINT ("analyzeAccessBoundConditions: fallback collected %u fields",
+      (unsigned) vec_safe_length (index_fields));
     for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
       tree field = (*index_fields)[j];
       bool exists = false;
@@ -942,7 +1016,9 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   analysis->primary_bound = best_field_bound;
   access->bound_analysis = analysis;
 
-  AD_DEBUG_PRINT ("analyzeBoundConds: %u field, %u const bounds", analysis->field_bound_count, analysis->constant_bound_count);
+  AD_DEBUG_PRINT ("analyzeAccessBoundConditions: EXIT func=%s type=%s field=%s field_bounds=%u const_bounds=%u valid=%d",
+    func_name, type_name, field_name,
+    analysis->field_bound_count, analysis->constant_bound_count, (int) analysis->has_valid_bound);
   *out_analysis = analysis;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -976,16 +1052,41 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
     }
 
     unsigned int num_accesses = entry->accesses->length ();
+    char const* entry_type_name = entry->type
+      ? safeGetTypeName (AD_ARGS, entry->type) : "<null>";
+    char const* entry_field_name = entry->pointer_field_decl && DECL_NAME (entry->pointer_field_decl)
+      ? IDENTIFIER_POINTER (DECL_NAME (entry->pointer_field_decl)) : "<anon>";
+
+    AD_DEBUG_PRINT ("analyzeAllBoundConditions: processing type=%s field=%s accesses=%u",
+      entry_type_name, entry_field_name, num_accesses);
+
     for (unsigned int i = 0; i < num_accesses; i++) {
       ArrayAccessCapture* access = (*entry->accesses)[i];
-      if (!access || !access->fn) continue;
+      if (!access) {
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: access[%u] is NULL, skip", i);
+        continue;
+      }
+      if (!access->fn) {
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: access[%u] has no fn, skip", i);
+        continue;
+      }
 
       function* current_fn = access->fn;
+      char const* fn_name = current_fn->decl && DECL_NAME (current_fn->decl)
+        ? IDENTIFIER_POINTER (DECL_NAME (current_fn->decl)) : "<unknown>";
+
       if (current_fn && current_fn->cfg) {
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: [%u/%u] push_cfun(%s)",
+          i + 1, num_accesses, fn_name);
         push_cfun (current_fn);
+
         ArrayAccessBoundAnalysis* analysis = NULL;
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: calling analyzeAccessBoundConditions...");
         ArrayDetectErrorCode err = analyzeAccessBoundConditions (AD_ARGS, access, &analysis);
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: analyzeAccessBoundConditions returned err=%d", (int) err);
+
         pop_cfun ();
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: pop_cfun done");
 
         if (err == OK) {
           total_analyzed++;
@@ -993,10 +1094,13 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
             with_bounds++;
           }
         } else {
-          AD_DEBUG_PRINT ("ERROR: bound analysis failed, err=%d", (int)err);
+          AD_DEBUG_PRINT ("ERROR: bound analysis failed for %s::%s in %s, err=%d",
+            entry_type_name, entry_field_name, fn_name, (int) err);
         }
       } else {
         // 函数没有 CFG，创建一个空的分析结果
+        AD_DEBUG_PRINT ("analyzeAllBoundConditions: [%u/%u] fn=%s has no CFG, creating empty analysis",
+          i + 1, num_accesses, fn_name);
         ArrayAccessBoundAnalysis* analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
         memset (analysis, 0, sizeof (ArrayAccessBoundAnalysis));
         analysis->access = access;
