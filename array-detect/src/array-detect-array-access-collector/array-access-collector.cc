@@ -13,7 +13,7 @@ using namespace ::array_detector;
 // 辅助函数：获取访问类型名称
 // ============================================================================
 
-static const char* getAccessTypeName (ArrayAccessType type) {
+static char const* getAccessTypeName (ArrayAccessType type) {
   switch (type) {
     case ACCESS_ARRAY_REF: return "ARRAY_REF";
     case ACCESS_MEM_REF: return "MEM_REF";
@@ -26,7 +26,7 @@ static const char* getAccessTypeName (ArrayAccessType type) {
 // 辅助函数：获取访问方向名称
 // ============================================================================
 
-static const char* getAccessDirectionName (AccessDirection dir) {
+static char const* getAccessDirectionName (AccessDirection dir) {
   switch (dir) {
     case ACCESS_READ: return "READ";
     case ACCESS_WRITE: return "WRITE";
@@ -53,7 +53,7 @@ ArrayDetectErrorCode traceBasePointerToField (
 
   tree current = base_pointer;
   int depth = 0;
-  const int MAX_DEPTH = 10;
+  int const MAX_DEPTH = 10;
 
   while (current && depth < MAX_DEPTH) {
     depth++;

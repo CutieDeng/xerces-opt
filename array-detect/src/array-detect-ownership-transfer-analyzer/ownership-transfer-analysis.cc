@@ -82,8 +82,8 @@ ArrayDetectErrorCode isInvalidationStatement (
         AD_DEBUG_PRINT ("  [isInvalidationStatement] Direct pointer match!");
       } else if (object && source_object) {
         // 调试：输出 tree code 和 SSA 信息
-        const char* obj_code_name = get_tree_code_name (TREE_CODE (object));
-        const char* src_code_name = get_tree_code_name (TREE_CODE (source_object));
+        char const* obj_code_name = get_tree_code_name (TREE_CODE (object));
+        char const* src_code_name = get_tree_code_name (TREE_CODE (source_object));
         AD_DEBUG_PRINT ("  [isInvalidationStatement] Tree codes: object=%s, source=%s",
                         obj_code_name, src_code_name);
 

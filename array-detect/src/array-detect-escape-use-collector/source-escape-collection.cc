@@ -32,7 +32,7 @@ using namespace ::array_detector;
 // 辅助函数实现
 // ============================================================================
 
-const char * getEscapeKindString(SourceUseEscapeKind kind) {
+char const * getEscapeKindString(SourceUseEscapeKind kind) {
   switch (kind) {
     case SU_ESCAPE_NONE:          return "NONE";
     case SU_ESCAPE_RETURN:        return "RETURN";
@@ -48,7 +48,7 @@ const char * getEscapeKindString(SourceUseEscapeKind kind) {
   }
 }
 
-const char * getUseKindString(SourceUseKind kind) {
+char const * getUseKindString(SourceUseKind kind) {
   switch (kind) {
     case SU_USE_LOAD:         return "LOAD";
     case SU_USE_STORE:        return "STORE";

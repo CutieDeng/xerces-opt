@@ -608,7 +608,7 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
       struct MallocCallGroup {
         gimple* stmt;
         location_t loc;
-        vec<const char*, va_gc>* fields;
+        vec<char const*, va_gc>* fields;
       };
       vec<MallocCallGroup, va_gc>* malloc_groups = NULL;
       vec_alloc(malloc_groups, 4);
@@ -709,7 +709,7 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
           for (unsigned int k = 0; k < field_len; k++) {
             tree field_decl = (*ba->related_fields)[k];
             if (!field_decl) continue;
-            const char* field_name = DECL_NAME(field_decl) ?
+            char const* field_name = DECL_NAME(field_decl) ?
               IDENTIFIER_POINTER(DECL_NAME(field_decl)) : "<anon>";
             if (!first_field) APPEND_STR(" ");
             APPEND_FMT("\"%s\"", field_name);
@@ -742,7 +742,7 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
           for (unsigned int k = 0; k < field_len; k++) {
             tree field_decl = (*ba->related_fields)[k];
             if (!field_decl) continue;
-            const char* field_name = DECL_NAME(field_decl) ?
+            char const* field_name = DECL_NAME(field_decl) ?
               IDENTIFIER_POINTER(DECL_NAME(field_decl)) : "<anon>";
             if (!first_field) APPEND_STR(" ");
             APPEND_FMT("\"%s\"", field_name);

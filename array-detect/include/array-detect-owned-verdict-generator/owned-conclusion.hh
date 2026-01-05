@@ -26,7 +26,7 @@ struct OwnedSupportingEvidence {
   gimple* stmt;                                 // 写入语句
 
   // === 源操作数信息 ===
-  const char* source_description;               // 源描述信息
+  char const* source_description;               // 源描述信息
 
   // === 逃逸信息 ===
   unsigned int total_escapes;                   // 总逃逸次数
@@ -34,7 +34,7 @@ struct OwnedSupportingEvidence {
 
   // === 所有权转移信息（如果源是字段访问）===
   bool has_transfer_analysis;                   // 是否有所有权转移分析
-  const char* transfer_verdict_str;             // 转移判定描述
+  char const* transfer_verdict_str;             // 转移判定描述
 };
 
 // 拒绝信息：记录一个拒绝 owned 的写入操作
@@ -44,12 +44,12 @@ struct OwnedRejectingEvidence {
   gimple* stmt;                                 // 写入语句
 
   // === 拒绝原因 ===
-  const char* rejection_reason;                 // 拒绝原因描述
+  char const* rejection_reason;                 // 拒绝原因描述
 
   // === 详细信息 ===
   // 源操作数问题
   bool has_invalid_source;                      // 源操作数不支持 owned
-  const char* source_description;               // 源描述
+  char const* source_description;               // 源描述
 
   // 逃逸问题
   bool has_rejecting_escape;                    // 有拒绝性逃逸
@@ -58,7 +58,7 @@ struct OwnedRejectingEvidence {
 
   // 所有权转移问题
   bool has_transfer_issue;                      // 所有权转移问题
-  const char* transfer_verdict_str;             // 转移判定描述
+  char const* transfer_verdict_str;             // 转移判定描述
 };
 
 // 字段 owned 结论
@@ -66,8 +66,8 @@ struct FieldOwnedConclusion {
   // === 标识信息 ===
   tree type;                                    // 类型
   tree field_decl;                              // 字段声明
-  const char* type_name;                        // 类型名称
-  const char* field_name;                       // 字段名称
+  char const* type_name;                        // 类型名称
+  char const* field_name;                       // 字段名称
 
   // === 判定结果 ===
   OwnedConclusionVerdict verdict;               // 判定结果
@@ -82,7 +82,7 @@ struct FieldOwnedConclusion {
   vec<OwnedRejectingEvidence*, va_gc>* rejecting_evidences;    // 拒绝证据列表
 
   // === 结论描述 ===
-  const char* conclusion_description;           // 结论描述
+  char const* conclusion_description;           // 结论描述
 };
 
 // ============================================================================

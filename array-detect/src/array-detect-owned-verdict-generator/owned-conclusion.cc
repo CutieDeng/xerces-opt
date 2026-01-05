@@ -49,7 +49,7 @@ static bool isSourceTypeSupportingOwned (FieldSourceType source_type) {
 // 辅助函数：获取源类型的描述
 // ============================================================================
 
-static const char* getSourceTypeDescription (FieldSourceType source_type) {
+static char const* getSourceTypeDescription (FieldSourceType source_type) {
   switch (source_type) {
     case SOURCE_FUNCTION_CALL: return "function call";
     case SOURCE_FIELD_ACCESS: return "field access";
@@ -168,7 +168,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
     } else if (has_transfer_issue) {
       evidence->rejection_reason = "Ownership transfer indicates shared ownership";
       evidence->has_transfer_issue = true;
-      const char* transfer_str = "UNKNOWN";
+      char const* transfer_str = "UNKNOWN";
       switch (transfer->verdict) {
         case TRANSFER_CERTAIN: transfer_str = "CERTAIN"; break;
         case TRANSFER_IMPOSSIBLE: transfer_str = "IMPOSSIBLE (shared)"; break;
@@ -198,7 +198,7 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
     if (transfer) {
       evidence->has_transfer_analysis = true;
-      const char* transfer_str = "UNKNOWN";
+      char const* transfer_str = "UNKNOWN";
       switch (transfer->verdict) {
         case TRANSFER_CERTAIN: transfer_str = "CERTAIN"; break;
         case TRANSFER_IMPOSSIBLE: transfer_str = "IMPOSSIBLE"; break;
@@ -394,7 +394,7 @@ void printFieldOwnedConclusion (
   fprintf (out, "Field: %s\n", conclusion->field_name);
   fprintf (out, "\n");
 
-  const char* verdict_str = "UNDETERMINED";
+  char const* verdict_str = "UNDETERMINED";
   switch (conclusion->verdict) {
     case OWNED_YES: verdict_str = "YES (may be owned)"; break;
     case OWNED_NO: verdict_str = "NO (cannot be owned)"; break;
@@ -549,9 +549,9 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
 
   // 先转义 current_input_file（对所有结论相同）
   // 使用 escaped_string_buffer 的前半部分，然后复制到 result_datum_buffer 开头临时保存
-  const char* current_file = ctx.current_input_file ? ctx.current_input_file : "";
+  char const* current_file = ctx.current_input_file ? ctx.current_input_file : "";
   escapeRacketString (ctx, current_file, 0);
-  const char* escaped_file_ptr = getEscapedString (ctx, 0);
+  char const* escaped_file_ptr = getEscapedString (ctx, 0);
   size_t escaped_file_len = strlen (escaped_file_ptr);
 
   // 将转义后的文件名保存到 result_datum_buffer 开头（临时存储）
@@ -559,7 +559,7 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
     AD_RETURNE (MEMORY_ERROR);
   }
   memcpy (ctx.result_datum_buffer, escaped_file_ptr, escaped_file_len + 1);
-  const char* escaped_current_file = ctx.result_datum_buffer;
+  char const* escaped_current_file = ctx.result_datum_buffer;
 
   // 重置写入位置到文件名之后
   ctx.result_datum_buffer_size = escaped_file_len + 1;
@@ -573,11 +573,11 @@ ArrayDetectErrorCode writeResultsToRacketDatum (
     escapeRacketString (ctx, conclusion->type_name ? conclusion->type_name : "", 0);
     escapeRacketString (ctx, conclusion->field_name ? conclusion->field_name : "", 1);
 
-    const char* escaped_type = getEscapedString (ctx, 0);
-    const char* escaped_field = getEscapedString (ctx, 1);
+    char const* escaped_type = getEscapedString (ctx, 0);
+    char const* escaped_field = getEscapedString (ctx, 1);
 
     // 获取结果字符串
-    const char* result_str;
+    char const* result_str;
     switch (conclusion->verdict) {
       case OWNED_YES: result_str = "yes"; break;
       case OWNED_NO: result_str = "no"; break;

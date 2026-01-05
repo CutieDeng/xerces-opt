@@ -6,7 +6,7 @@ namespace array_detect_ns {
 // Safe Name Accessors
 // ============================================================================
 
-const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
+char const* safeGetTypeName (AD_FUNC_ARGS, tree type) {
   (void)ctx; (void)gcc_ctx;
 
   if (!type) {
@@ -18,7 +18,7 @@ const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
     return "<anonymous-type>";
   }
 
-  const char* id_ptr = IDENTIFIER_POINTER (type_id);
+  char const* id_ptr = IDENTIFIER_POINTER (type_id);
   if (!id_ptr) {
     return "<unnamed-type>";
   }
@@ -26,7 +26,7 @@ const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
   return identifier_to_locale (id_ptr);
 }
 
-const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
+char const* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
   (void)ctx; (void)gcc_ctx;
 
   if (!field_decl) {
@@ -38,7 +38,7 @@ const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
     return "<anonymous-field>";
   }
 
-  const char* id_ptr = IDENTIFIER_POINTER (decl_name);
+  char const* id_ptr = IDENTIFIER_POINTER (decl_name);
   if (!id_ptr) {
     return "<unnamed-field>";
   }
@@ -52,7 +52,7 @@ const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
 
 void escapeRacketString (
   ArrayDetectContext& ctx,
-  const char* input,
+  char const* input,
   size_t half_offset
 ) {
   size_t half_size = ctx.escaped_string_buffer_size / 2;

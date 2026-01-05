@@ -168,6 +168,6 @@ void printAllBoundAnalyses (
 );
 
 // 获取边界条件类型名称
-const char* getBoundConditionTypeName (BoundConditionType type);
+char const* getBoundConditionTypeName (BoundConditionType type);
 
 } // namespace array_detect_ns

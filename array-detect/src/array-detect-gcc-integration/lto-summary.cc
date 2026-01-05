@@ -183,7 +183,7 @@ void readArrayDetectLtoSummarySections () {
 
   for (unsigned fi = 0; files[fi]; fi++) {
     lto_file_decl_data* file_data = files[fi];
-    const char* data = nullptr;
+    char const* data = nullptr;
     size_t len = 0;
 
     lto_input_block* ib = lto_create_simple_input_block (file_data, LTO_section_lto, &data, &len);

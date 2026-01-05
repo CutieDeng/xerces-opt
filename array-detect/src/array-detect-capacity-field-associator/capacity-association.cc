@@ -44,7 +44,7 @@ ArrayDetectErrorCode collectIntegerCandidates (
     AD_RETURNE (OK);
   }
 
-  const char* type_name = safeGetTypeName (AD_ARGS, type);
+  char const* type_name = safeGetTypeName (AD_ARGS, type);
   AD_DEBUG_PRINT ("[collectIntegerCandidates] Scanning type '%s' for integer fields", type_name);
 
   vec<tree, va_gc>* candidates = NULL;
@@ -59,7 +59,7 @@ ArrayDetectErrorCode collectIntegerCandidates (
 
     field_count++;
     tree field_type = TREE_TYPE (field);
-    const char* field_name = safeGetFieldName (AD_ARGS, field);
+    char const* field_name = safeGetFieldName (AD_ARGS, field);
 
     if (isIntegerType (field_type)) {
       vec_safe_push (candidates, field);
@@ -189,7 +189,7 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
 
   // 获取函数名（仅用于调试输出）
   tree fndecl = gimple_call_fndecl (call_stmt);
-  const char* function_name = "<unknown>";
+  char const* function_name = "<unknown>";
 
   if (fndecl) {
     tree id = DECL_NAME (fndecl);
@@ -202,7 +202,7 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
   // 不再检查函数名是否在 malloc family 中
 
   location_t loc = gimple_location (call_stmt);
-  const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+  char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
 
   AD_DEBUG_PRINT ("[analyzeMallocSizeSource] Checking %s() call at %s:%d for field '%s'",
                   function_name,
@@ -283,7 +283,7 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
     AD_RETURNE (OK);
   }
 
-  const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+  char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
   AD_DEBUG_PRINT ("[extractBoundConditionEvidence] Checking %u accesses for field '%s'",
                   vec_safe_length (accesses->accesses), candidate_name);
 
@@ -367,9 +367,9 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
     AD_RETURNE (OK);
   }
 
-  const char* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
-  const char* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
-  const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+  char const* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
+  char const* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
+  char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
 
   AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Analyzing candidate '%s' for pointer '%s::%s'",
                   candidate_name, ptr_type_name, ptr_field_name);
@@ -467,7 +467,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   }
 
   if (ctx.debug_file) {
-    const char* verdict_str = (analysis->verdict == CAP_ASSOC_RELATED) ? "RELATED" : "UNRELATED";
+    char const* verdict_str = (analysis->verdict == CAP_ASSOC_RELATED) ? "RELATED" : "UNRELATED";
     fprintf (ctx.debug_file, "      Result: %s (evidence_bitmap=0x%x)\n",
              verdict_str, analysis->evidence_bitmap);
   }
@@ -547,7 +547,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   for (unsigned int i = 0; i < candidates->length (); i++) {
     tree candidate = (*candidates)[i];
-    const char* candidate_name = safeGetFieldName (AD_ARGS, candidate);
+    char const* candidate_name = safeGetFieldName (AD_ARGS, candidate);
 
     AD_DEBUG_PRINT ("[analyzePointerCapacityAssociation] Processing candidate[%u]: '%s'",
                     i, candidate_name);
@@ -722,7 +722,7 @@ void printPointerCapacityAssociation (
       CapacityCandidateAnalysis* analysis = (*result->candidate_analyses)[i];
       if (!analysis) continue;
 
-      const char* verdict_str = "UNDETERMINED";
+      char const* verdict_str = "UNDETERMINED";
       switch (analysis->verdict) {
         case CAP_ASSOC_RELATED: verdict_str = "RELATED"; break;
         case CAP_ASSOC_UNRELATED: verdict_str = "UNRELATED"; break;
@@ -809,13 +809,13 @@ void printAllPointerCapacityAssociations (
 
 static void collectFieldsByEvidenceType (
   PointerCapacityAssociation* result,
-  vec<const char*, va_gc>** out_malloc_fields,
-  vec<const char*, va_gc>** out_read_fields,
-  vec<const char*, va_gc>** out_write_fields
+  vec<char const*, va_gc>** out_malloc_fields,
+  vec<char const*, va_gc>** out_read_fields,
+  vec<char const*, va_gc>** out_write_fields
 ) {
-  vec<const char*, va_gc>* malloc_fields = NULL;
-  vec<const char*, va_gc>* read_fields = NULL;
-  vec<const char*, va_gc>* write_fields = NULL;
+  vec<char const*, va_gc>* malloc_fields = NULL;
+  vec<char const*, va_gc>* read_fields = NULL;
+  vec<char const*, va_gc>* write_fields = NULL;
 
   vec_alloc (malloc_fields, 4);
   vec_alloc (read_fields, 4);
@@ -826,7 +826,7 @@ static void collectFieldsByEvidenceType (
       CapacityCandidateAnalysis* analysis = (*result->candidate_analyses)[i];
       if (!analysis || analysis->verdict != CAP_ASSOC_RELATED) continue;
 
-      const char* field_name = analysis->field_name ? analysis->field_name : "<unknown>";
+      char const* field_name = analysis->field_name ? analysis->field_name : "<unknown>";
 
       if (analysis->evidence_bitmap & CAP_EVID_MALLOC_SIZE_ARG) {
         vec_safe_push (malloc_fields, field_name);
@@ -851,7 +851,7 @@ static void collectFieldsByEvidenceType (
 
 static size_t buildFieldListString (
   ArrayDetectContext& ctx,
-  vec<const char*, va_gc>* fields,
+  vec<char const*, va_gc>* fields,
   char* buffer,
   size_t buffer_size
 ) {
@@ -861,12 +861,12 @@ static size_t buildFieldListString (
 
   if (fields && fields->length () > 0) {
     for (unsigned int i = 0; i < fields->length (); i++) {
-      const char* field_name = (*fields)[i];
+      char const* field_name = (*fields)[i];
       if (!field_name) continue;
 
       // 转义字段名
       escapeRacketString (ctx, field_name, 0);
-      const char* escaped = getEscapedString (ctx, 0);
+      char const* escaped = getEscapedString (ctx, 0);
 
       // 添加空格分隔（除了第一个）
       if (i > 0 && pos < buffer_size) {
@@ -922,9 +922,9 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
   ctx.result_datum_buffer_size = 0;
 
   // 转义 current_input_file
-  const char* current_file = ctx.current_input_file ? ctx.current_input_file : "";
+  char const* current_file = ctx.current_input_file ? ctx.current_input_file : "";
   escapeRacketString (ctx, current_file, 0);
-  const char* escaped_file_ptr = getEscapedString (ctx, 0);
+  char const* escaped_file_ptr = getEscapedString (ctx, 0);
   size_t escaped_file_len = strlen (escaped_file_ptr);
 
   // 保存转义后的文件名到缓冲区开头（临时存储）
@@ -932,7 +932,7 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
     AD_RETURNE (MEMORY_ERROR);
   }
   memcpy (ctx.result_datum_buffer, escaped_file_ptr, escaped_file_len + 1);
-  const char* escaped_current_file = ctx.result_datum_buffer;
+  char const* escaped_current_file = ctx.result_datum_buffer;
   ctx.result_datum_buffer_size = escaped_file_len + 1;
 
   // 临时缓冲区用于字段列表
@@ -946,9 +946,9 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
     if (!result) continue;
 
     // 收集按证据类型分类的字段
-    vec<const char*, va_gc>* malloc_fields = NULL;
-    vec<const char*, va_gc>* read_fields = NULL;
-    vec<const char*, va_gc>* write_fields = NULL;
+    vec<char const*, va_gc>* malloc_fields = NULL;
+    vec<char const*, va_gc>* read_fields = NULL;
+    vec<char const*, va_gc>* write_fields = NULL;
     collectFieldsByEvidenceType (result, &malloc_fields, &read_fields, &write_fields);
 
     // 统计各列表数量（用于调试输出）
@@ -965,12 +965,12 @@ ArrayDetectErrorCode writeCapacityAssociationsToRacketDatum (
 
     // 转义类型名和字段名（使用缓冲区后半部分）
     escapeRacketString (ctx, result->type_name ? result->type_name : "", 1);
-    const char* escaped_type = getEscapedString (ctx, 1);
+    char const* escaped_type = getEscapedString (ctx, 1);
 
     // 需要单独转义 pointer_field_name
     char escaped_ptr_field[256];
     {
-      const char* ptr_name = result->pointer_field_name ? result->pointer_field_name : "";
+      char const* ptr_name = result->pointer_field_name ? result->pointer_field_name : "";
       size_t k = 0;
       for (size_t m = 0; ptr_name[m] != '\0' && k < 254; m++) {
         if (ptr_name[m] == '"' || ptr_name[m] == '\\') {

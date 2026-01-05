@@ -617,7 +617,7 @@ ArrayDetectErrorCode extractVirtualCallFunctionName (
                       }
 
                       if (fn_decl && TREE_CODE (fn_decl) == FUNCTION_DECL) {
-                        const char * fn_name = (DECL_NAME (fn_decl) ? IDENTIFIER_POINTER (DECL_NAME (fn_decl)) : "<anon>");
+                        char const * fn_name = (DECL_NAME (fn_decl) ? IDENTIFIER_POINTER (DECL_NAME (fn_decl)) : "<anon>");
                         AD_DEBUG_PRINT ("  BINFO_VIRTUALS[%d]: name=%s", virtuals_index, fn_name);
 
                         // 检查 vtable 索引是否匹配
@@ -645,8 +645,8 @@ ArrayDetectErrorCode extractVirtualCallFunctionName (
                   AD_DEBUG_PRINT ("[extractVirtualCallFunctionName] Scanning TYPE_FIELDS for virtual methods (object_type=%p)", (void*)object_type);
 
                   for (tree decl = TYPE_FIELDS (object_type); decl; decl = DECL_CHAIN (decl)) {
-                  const char * decl_code = get_tree_code_name (TREE_CODE (decl));
-                  const char * decl_name = (DECL_NAME (decl) ? IDENTIFIER_POINTER (DECL_NAME (decl)) : "<anon>");
+                  char const * decl_code = get_tree_code_name (TREE_CODE (decl));
+                  char const * decl_name = (DECL_NAME (decl) ? IDENTIFIER_POINTER (DECL_NAME (decl)) : "<anon>");
                   bool is_virtual = DECL_VIRTUAL_P (decl);
                   AD_DEBUG_PRINT ("  field_scan[%d]: tree=%s, name=%s, DECL_VIRTUAL_P=%d", field_scan_index, decl_code, decl_name, (int)is_virtual);
                   field_scan_index++;
@@ -763,7 +763,7 @@ ArrayDetectErrorCode extractVirtualCallFunctionName (
                 int methods_scan_index = 0;
                 for (tree method = TYPE_METHODS (object_type); method; method = DECL_CHAIN (method)) {
                   if (TREE_CODE (method) == FUNCTION_DECL && DECL_VIRTUAL_P (method)) {
-                    const char * method_name_str = (DECL_NAME (method) ? IDENTIFIER_POINTER (DECL_NAME (method)) : "<anon>");
+                    char const * method_name_str = (DECL_NAME (method) ? IDENTIFIER_POINTER (DECL_NAME (method)) : "<anon>");
                     AD_DEBUG_PRINT ("  TYPE_METHODS[%d]: name=%s, method_index=%d", methods_scan_index, method_name_str, method_index);
 
                     // 检查参数匹配（优先）

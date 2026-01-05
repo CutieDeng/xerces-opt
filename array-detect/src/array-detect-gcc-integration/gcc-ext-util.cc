@@ -183,7 +183,7 @@ static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &h
     // 检查声明的汇编名称是否包含模版信息
     tree assembler_name = DECL_ASSEMBLER_NAME (type_decl);
     if (assembler_name && TREE_CODE (assembler_name) == IDENTIFIER_NODE) {
-      const char* asm_name = IDENTIFIER_POINTER (assembler_name);
+      char const* asm_name = IDENTIFIER_POINTER (assembler_name);
       if (asm_name) {
         // C++ mangled name 通常包含模版参数的编码
         // 格式类似于 "_ZN10namespace15ClassnameIiEE" 表示 namespace::Classname<int>

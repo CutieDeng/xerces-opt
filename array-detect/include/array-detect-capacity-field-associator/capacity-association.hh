@@ -54,11 +54,11 @@ struct CapacityAssociationEvidence {
   gimple* stmt;                         // 相关语句
 
   // === 描述信息 ===
-  const char* description;              // 证据描述
+  char const* description;              // 证据描述
 
   // === 类型特定信息 ===
   // 对于 MALLOC_SIZE_ARG：
-  const char* function_name;            // 分配函数名（malloc/calloc/realloc）
+  char const* function_name;            // 分配函数名（malloc/calloc/realloc）
   tree size_expr;                       // size 表达式
 
   // 对于 READ_CONDITION / WRITE_CONDITION：
@@ -74,7 +74,7 @@ struct CapacityAssociationEvidence {
 struct CapacityCandidateAnalysis {
   // === 候选字段信息 ===
   tree field_decl;                      // 候选字段声明
-  const char* field_name;               // 候选字段名称
+  char const* field_name;               // 候选字段名称
   tree field_type;                      // 字段类型
 
   // === 判定结果 ===
@@ -93,8 +93,8 @@ struct PointerCapacityAssociation {
   // === 指针字段信息 ===
   tree type;                            // 所属类型
   tree pointer_field_decl;              // 指针字段声明
-  const char* type_name;                // 类型名称
-  const char* pointer_field_name;       // 指针字段名称
+  char const* type_name;                // 类型名称
+  char const* pointer_field_name;       // 指针字段名称
 
   // === 候选分析结果 ===
   vec<CapacityCandidateAnalysis*, va_gc>* candidate_analyses;

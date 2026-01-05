@@ -14,7 +14,7 @@ using namespace ::array_detector;
 // 获取边界条件类型名称
 // ============================================================================
 
-const char* getBoundConditionTypeName (BoundConditionType type) {
+char const* getBoundConditionTypeName (BoundConditionType type) {
   switch (type) {
     case BOUND_COND_NONE: return "NONE";
     case BOUND_COND_LT_FIELD: return "LT_FIELD";
@@ -42,7 +42,7 @@ static bool isCapacityField (tree field_decl) {
   if (!decl_name) {
     return false;
   }
-  const char* field_name = IDENTIFIER_POINTER (decl_name);
+  char const* field_name = IDENTIFIER_POINTER (decl_name);
   if (!field_name) {
     return false;
   }
@@ -638,7 +638,7 @@ ArrayDetectErrorCode traceExpressionToField (
 
   tree current = expr;
   int depth = 0;
-  const int MAX_DEPTH = 10;
+  int const MAX_DEPTH = 10;
 
   while (current && depth < MAX_DEPTH) {
     depth++;
@@ -771,7 +771,7 @@ ArrayDetectErrorCode findDominatingConditions (
   // 从当前块向上遍历支配者
   basic_block current_bb = access_bb;
   int depth = 0;
-  const int MAX_DEPTH = 20;
+  int const MAX_DEPTH = 20;
 
   AD_DEBUG_PRINT ("  Starting dominator traversal from bb%d, MAX_DEPTH=%d",
                   current_bb ? current_bb->index : -1, MAX_DEPTH);

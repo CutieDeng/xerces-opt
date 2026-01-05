@@ -69,7 +69,7 @@ struct default_hash_traits<WriteOperationFingerprint> {
   typedef WriteOperationFingerprint value_type;
   typedef WriteOperationFingerprint key_type;
   typedef WriteOperationFingerprint compare_type;
-  static const bool empty_zero_p = false;
+  static bool const empty_zero_p = false;
   
   static hashval_t hash (WriteOperationFingerprint const &fp) {
     return (hashval_t)hashWriteOperationFingerprint (&fp);

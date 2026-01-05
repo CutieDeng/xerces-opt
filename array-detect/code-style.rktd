@@ -3,3 +3,4 @@
 "禁止手动创建前向类型声明，只能使用头文件模式管理代码"
 "调试信息输出 API: AD_DEBUG_PRINT, 禁止直接使用 fprintf 操作 ctx 上的 FILE * 对象"
 "ctx.debug_file 在 init* 函数调用后为合法值，禁止检查其是否为空指针"
+"const 后置风格：使用 `char const *p` 而非 `const char *p`，使用 `int const x` 而非 `const int x`"
