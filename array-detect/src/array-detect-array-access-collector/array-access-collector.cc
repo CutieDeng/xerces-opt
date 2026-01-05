@@ -132,9 +132,9 @@ ArrayDetectErrorCode analyzeArrayAccess (
   gimple* stmt,
   function* fn,
   AccessDirection direction,
-  ArrayAccessCapture** out_capture
+  ArrayAccessCapture*& result
 ) AD_FUNCTION_BEGIN {
-  *out_capture = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (expr, "expr must not be NULL");
   AD_ASSERT_GCC_LOGIC (stmt, "stmt must not be NULL");
@@ -231,8 +231,7 @@ ArrayDetectErrorCode analyzeArrayAccess (
     capture->is_field_based = false;
   }
 
-  *out_capture = capture;
-  AD_RETURNE (OK);
+  AD_RETURNO (capture);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -242,9 +241,9 @@ ArrayDetectErrorCode analyzeArrayAccess (
 ArrayDetectErrorCode collectFunctionArrayAccesses (
   AD_FUNC_ARGS,
   function* fn,
-  vec<ArrayAccessCapture*, va_gc>** out_accesses
+  vec<ArrayAccessCapture*, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
-  *out_accesses = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (fn, "fn must not be NULL");
   AD_ASSERT_GCC_LOGIC (fn->cfg, "fn->cfg must not be NULL");
@@ -268,7 +267,7 @@ ArrayDetectErrorCode collectFunctionArrayAccesses (
       // 检查左值（写入）
       if (lhs) {
         ArrayAccessCapture* capture = NULL;
-        AD_TRY (analyzeArrayAccess (AD_ARGS, lhs, stmt, fn, ACCESS_WRITE, &capture));
+        AD_TRY (analyzeArrayAccess (AD_ARGS, lhs, stmt, fn, ACCESS_WRITE, capture));
         if (capture) {
           vec_safe_push (accesses, capture);
         }
@@ -277,7 +276,7 @@ ArrayDetectErrorCode collectFunctionArrayAccesses (
       // 检查右值（读取）
       if (rhs) {
         ArrayAccessCapture* capture = NULL;
-        AD_TRY (analyzeArrayAccess (AD_ARGS, rhs, stmt, fn, ACCESS_READ, &capture));
+        AD_TRY (analyzeArrayAccess (AD_ARGS, rhs, stmt, fn, ACCESS_READ, capture));
         if (capture) {
           vec_safe_push (accesses, capture);
         }
@@ -287,7 +286,7 @@ ArrayDetectErrorCode collectFunctionArrayAccesses (
       if (gimple_assign_rhs2 (stmt)) {
         tree rhs2 = gimple_assign_rhs2 (stmt);
         ArrayAccessCapture* capture = NULL;
-        AD_TRY (analyzeArrayAccess (AD_ARGS, rhs2, stmt, fn, ACCESS_READ, &capture));
+        AD_TRY (analyzeArrayAccess (AD_ARGS, rhs2, stmt, fn, ACCESS_READ, capture));
         if (capture) {
           vec_safe_push (accesses, capture);
         }
@@ -295,8 +294,7 @@ ArrayDetectErrorCode collectFunctionArrayAccesses (
     }
   }
 
-  *out_accesses = accesses;
-  AD_RETURNE (OK);
+  AD_RETURNO (accesses);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -308,9 +306,9 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* map,
   tree type,
   tree field_decl,
-  TypeFieldArrayAccesses** out_entry
+  TypeFieldArrayAccesses*& result
 ) AD_FUNCTION_BEGIN {
-  *out_entry = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (map, "map must not be NULL");
   AD_ASSERT_GCC_LOGIC (type, "type must not be NULL");
@@ -320,8 +318,7 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
 
   TypeFieldArrayAccesses** existing = map->get (key);
   if (existing && *existing) {
-    *out_entry = *existing;
-    AD_RETURNE (OK);
+    AD_RETURNO (*existing);
   }
 
   // 创建新条目
@@ -338,9 +335,7 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
   vec_alloc (entry->accesses, 8);
 
   map->put (key, entry);
-  *out_entry = entry;
-
-  AD_RETURNE (OK);
+  AD_RETURNO (entry);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -349,9 +344,9 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
 
 ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
   AD_FUNC_ARGS,
-  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>** out_map
+  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>*& result
 ) AD_FUNCTION_BEGIN {
-  *out_map = NULL;
+  result = NULL;
 
   // 创建 hash_map
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* map =
@@ -369,7 +364,7 @@ ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
     push_cfun (fn);
 
     vec<ArrayAccessCapture*, va_gc>* fn_accesses = NULL;
-    ArrayDetectErrorCode err = collectFunctionArrayAccesses (AD_ARGS, fn, &fn_accesses);
+    ArrayDetectErrorCode err = collectFunctionArrayAccesses (AD_ARGS, fn, fn_accesses);
 
     if (err == OK && fn_accesses) {
       for (unsigned int i = 0; i < fn_accesses->length (); i++) {
@@ -383,7 +378,7 @@ ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
 
           TypeFieldArrayAccesses* entry = NULL;
           AD_TRY (getOrCreateTypeFieldAccesses (AD_ARGS, map,
-                    capture->containing_type, capture->pointer_field_decl, &entry));
+                    capture->containing_type, capture->pointer_field_decl, entry));
 
           if (entry) {
             vec_safe_push (entry->accesses, capture);
@@ -402,8 +397,7 @@ ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
 
   AD_DEBUG_PRINT ("arrayAccess: %u total, %u field-based", total_accesses, field_based_accesses);
 
-  *out_map = map;
-  AD_RETURNE (OK);
+  AD_RETURNO (map);
 } AD_FUNCTION_END
 
 // ============================================================================

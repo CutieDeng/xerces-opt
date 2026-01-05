@@ -50,16 +50,16 @@ ArrayDetectErrorCode createUnifiedResult (
   AD_FUNC_ARGS,
   tree type,
   tree pointer_field_decl,
-  UnifiedFieldAnalysisResult** out_result
+  UnifiedFieldAnalysisResult*& result
 ) AD_FUNCTION_BEGIN {
   (void)gcc_ctx;
 
-  UnifiedFieldAnalysisResult* result =
+  UnifiedFieldAnalysisResult* unified =
     (UnifiedFieldAnalysisResult*)ggc_alloc_atomic(sizeof(UnifiedFieldAnalysisResult));
-  memset(result, 0, sizeof(UnifiedFieldAnalysisResult));
+  memset(unified, 0, sizeof(UnifiedFieldAnalysisResult));
 
-  result->type = type;
-  result->pointer_field_decl = pointer_field_decl;
+  unified->type = type;
+  unified->pointer_field_decl = pointer_field_decl;
 
   // 提取类型名和模板参数
   char const* base_type_name = NULL;
@@ -67,24 +67,23 @@ ArrayDetectErrorCode createUnifiedResult (
   ArrayDetectErrorCode err = gcc_ext_util::extractTemplateArgsFromType(
     AD_ARGS, type, &base_type_name, &template_args);
   if (err == OK && base_type_name) {
-    result->type_name = base_type_name;
-    result->template_args = template_args;
+    unified->type_name = base_type_name;
+    unified->template_args = template_args;
   } else {
     // 回退到简单类型名
-    result->type_name = duplicateString(getTypeName(type));
-    result->template_args = NULL;
+    unified->type_name = duplicateString(getTypeName(type));
+    unified->template_args = NULL;
   }
 
-  result->pointer_field_name = duplicateString(getFieldNameStr(pointer_field_decl));
+  unified->pointer_field_name = duplicateString(getFieldNameStr(pointer_field_decl));
 
-  result->owned_verdict = OWNED_UNDETERMINED;
+  unified->owned_verdict = OWNED_UNDETERMINED;
 
-  vec_alloc(result->array_accesses, 8);
-  vec_alloc(result->bound_analyses, 8);
-  vec_alloc(result->capacity_relations, 4);
+  vec_alloc(unified->array_accesses, 8);
+  vec_alloc(unified->bound_analyses, 8);
+  vec_alloc(unified->capacity_relations, 4);
 
-  *out_result = result;
-  AD_RETURNE(OK);
+  AD_RETURNO(unified);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -342,7 +341,7 @@ ArrayDetectErrorCode aggregateAllResults (
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
   vec<PointerCapacityAssociation*, va_gc>* capacity_results,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
-  vec<UnifiedFieldAnalysisResult*, va_gc>** out_results
+  vec<UnifiedFieldAnalysisResult*, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
 
@@ -362,15 +361,15 @@ ArrayDetectErrorCode aggregateAllResults (
       key.field_decl = oc->field_decl;
       UnifiedFieldAnalysisResult** existing = result_map->get(key);
 
-      UnifiedFieldAnalysisResult* result;
+      UnifiedFieldAnalysisResult* entry;
       if (existing) {
-        result = *existing;
+        entry = *existing;
       } else {
-        AD_TRY(createUnifiedResult(AD_ARGS, oc->type, oc->field_decl, &result));
-        result_map->put(key, result);
+        AD_TRY(createUnifiedResult(AD_ARGS, oc->type, oc->field_decl, entry));
+        result_map->put(key, entry);
       }
 
-      AD_TRY(mergeOwnedConclusion(AD_ARGS, result, oc));
+      AD_TRY(mergeOwnedConclusion(AD_ARGS, entry, oc));
     }
   }
 
@@ -386,15 +385,15 @@ ArrayDetectErrorCode aggregateAllResults (
       key.field_decl = cr->pointer_field_decl;
       UnifiedFieldAnalysisResult** existing = result_map->get(key);
 
-      UnifiedFieldAnalysisResult* result;
+      UnifiedFieldAnalysisResult* entry;
       if (existing) {
-        result = *existing;
+        entry = *existing;
       } else {
-        AD_TRY(createUnifiedResult(AD_ARGS, cr->type, cr->pointer_field_decl, &result));
-        result_map->put(key, result);
+        AD_TRY(createUnifiedResult(AD_ARGS, cr->type, cr->pointer_field_decl, entry));
+        result_map->put(key, entry);
       }
 
-      AD_TRY(mergeCapacityAssociation(AD_ARGS, result, cr));
+      AD_TRY(mergeCapacityAssociation(AD_ARGS, entry, cr));
     }
   }
 
@@ -409,15 +408,15 @@ ArrayDetectErrorCode aggregateAllResults (
       key.field_decl = aa->pointer_field_decl;
       UnifiedFieldAnalysisResult** existing = result_map->get(key);
 
-      UnifiedFieldAnalysisResult* result;
+      UnifiedFieldAnalysisResult* entry;
       if (existing) {
-        result = *existing;
+        entry = *existing;
       } else {
-        AD_TRY(createUnifiedResult(AD_ARGS, aa->type, aa->pointer_field_decl, &result));
-        result_map->put(key, result);
+        AD_TRY(createUnifiedResult(AD_ARGS, aa->type, aa->pointer_field_decl, entry));
+        result_map->put(key, entry);
       }
 
-      AD_TRY(mergeArrayAccesses(AD_ARGS, result, aa));
+      AD_TRY(mergeArrayAccesses(AD_ARGS, entry, aa));
     }
   }
 
@@ -426,17 +425,16 @@ ArrayDetectErrorCode aggregateAllResults (
   vec_alloc(results, result_map->elements());
 
   for (auto iter = result_map->begin(); iter != result_map->end(); ++iter) {
-    UnifiedFieldAnalysisResult* result = (*iter).second;
+    UnifiedFieldAnalysisResult* entry = (*iter).second;
 
-    result->overall_confidence = calculateOverallConfidence(AD_ARGS, result);
-    result->summary_description = generateSummaryDescription(AD_ARGS, result);
+    entry->overall_confidence = calculateOverallConfidence(AD_ARGS, entry);
+    entry->summary_description = generateSummaryDescription(AD_ARGS, entry);
 
-    vec_safe_push(results, result);
+    vec_safe_push(results, entry);
   }
 
   delete result_map;
-  *out_results = results;
-  AD_RETURNE(OK);
+  AD_RETURNO(results);
 } AD_FUNCTION_END
 
 // ============================================================================

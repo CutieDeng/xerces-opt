@@ -103,7 +103,7 @@ ArrayDetectErrorCode aggregateAllResults (
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
   vec<PointerCapacityAssociation*, va_gc>* capacity_results,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
-  vec<UnifiedFieldAnalysisResult*, va_gc>** out_results
+  vec<UnifiedFieldAnalysisResult*, va_gc>*& result
 );
 
 // 创建统一结果条目
@@ -111,7 +111,7 @@ ArrayDetectErrorCode createUnifiedResult (
   AD_FUNC_ARGS,
   tree type,
   tree pointer_field_decl,
-  UnifiedFieldAnalysisResult** out_result
+  UnifiedFieldAnalysisResult*& result
 );
 
 // 合并 owned conclusion 到统一结果

@@ -93,14 +93,14 @@ struct FieldOwnedConclusion {
 ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<FieldOwnedConclusion*, va_gc>** out_conclusions
+  vec<FieldOwnedConclusion*, va_gc>*& result
 );
 
 // 分析单个字段的 owned 结论
 ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   AD_FUNC_ARGS,
   TypeFieldAnalysisData* field_data,
-  FieldOwnedConclusion** out_conclusion
+  FieldOwnedConclusion*& result
 );
 
 // 打印字段 owned 结论

@@ -221,25 +221,25 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   AD_FUNC_ARGS,
   TypeFieldAnalysisData* field_data,
-  FieldOwnedConclusion** out_conclusion
+  FieldOwnedConclusion*& result
 ) AD_FUNCTION_BEGIN {
   if (!field_data) {
     AD_DEBUG_PRINT ("Warning: field_data is NULL in analyzeFieldOwnedConclusion");
-    *out_conclusion = NULL;
+    result = NULL;
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  *out_conclusion = NULL;
+  result = NULL;
 
-  // 验证必要的字段
+  // 验证必要的字段 - 这些字段为 NULL 是数据完整性错误
   if (!field_data->type) {
-    AD_DEBUG_PRINT ("Warning: field_data->type is NULL, skipping this field");
-    AD_RETURNE (OK);  // 跳过无效字段，不返回错误
+    AD_DEBUG_PRINT ("Error: field_data->type is NULL (data integrity violation)");
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   if (!field_data->field_decl) {
-    AD_DEBUG_PRINT ("Warning: field_data->field_decl is NULL, skipping this field");
-    AD_RETURNE (OK);  // 跳过无效字段，不返回错误
+    AD_DEBUG_PRINT ("Error: field_data->field_decl is NULL (data integrity violation)");
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // 创建结论结构
@@ -259,8 +259,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   if (!field_data->write_analysis_records) {
     conclusion->verdict = OWNED_UNDETERMINED;
     conclusion->conclusion_description = "No write operations found";
-    *out_conclusion = conclusion;
-    AD_RETURNE (OK);
+    AD_RETURNO (conclusion);
   }
 
   unsigned int total_writes = field_data->write_analysis_records->length ();
@@ -306,8 +305,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
     conclusion->conclusion_description = "Cannot determine (no valid evidence)";
   }
 
-  *out_conclusion = conclusion;
-  AD_RETURNE (OK);
+  AD_RETURNO (conclusion);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -317,11 +315,11 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
 ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<FieldOwnedConclusion*, va_gc>** out_conclusions
+  vec<FieldOwnedConclusion*, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Analyzing all field owned conclusions");
 
-  *out_conclusions = NULL;
+  result = NULL;
 
   if (!detector.m_type_field_writes) {
     AD_RETURNE (OK);
@@ -346,7 +344,7 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
     total_fields++;
 
     FieldOwnedConclusion* conclusion = NULL;
-    AD_TRY (analyzeFieldOwnedConclusion (AD_ARGS, tfwo, &conclusion));
+    AD_TRY (analyzeFieldOwnedConclusion (AD_ARGS, tfwo, conclusion));
 
     if (conclusion) {
       vec_safe_push (conclusions, conclusion);
@@ -368,8 +366,7 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
   AD_DEBUG_PRINT ("Field owned conclusion analysis complete: %u fields, %u YES, %u NO, %u undetermined",
                   total_fields, owned_yes, owned_no, undetermined);
 
-  *out_conclusions = conclusions;
-  AD_RETURNE (OK);
+  AD_RETURNO (conclusions);
 } AD_FUNCTION_END
 
 // ============================================================================

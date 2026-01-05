@@ -47,11 +47,11 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
 
   // Step 6: Analyze field owned conclusions
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions = NULL;
-  AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, &owned_conclusions));
+  AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, owned_conclusions));
 
   // Step 7: Collect array accesses
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses = NULL;
-  AD_TRY (collectAllArrayAccessesByTypeField (AD_ARGS, &array_accesses));
+  AD_TRY (collectAllArrayAccessesByTypeField (AD_ARGS, array_accesses));
 
   // Step 8: Analyze bound conditions
   if (array_accesses) {
@@ -60,12 +60,12 @@ ArrayDetectErrorCode runArrayDetectionPipeline (
 
   // Step 9: Analyze pointer-capacity associations
   vec<PointerCapacityAssociation*, va_gc>* capacity_results = NULL;
-  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, array_accesses, &capacity_results));
+  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, array_accesses, capacity_results));
 
   // Step 10: Aggregate results
   vec<UnifiedFieldAnalysisResult*, va_gc>* unified_results = NULL;
   AD_TRY (aggregateAllResults (AD_ARGS, detector, owned_conclusions,
-                               capacity_results, array_accesses, &unified_results));
+                               capacity_results, array_accesses, unified_results));
   AD_DEBUG_PRINT ("pipeline: %u unified results", (unsigned int)vec_safe_length(unified_results));
 
   // Store results in context for LTO serialization

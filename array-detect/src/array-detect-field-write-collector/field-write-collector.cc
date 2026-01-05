@@ -17,7 +17,7 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
   hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>** map_ptr,
   tree type,
   tree field_decl,
-  TypeFieldWriteOps** out_tfwo
+  TypeFieldWriteOps** result
 ) AD_FUNCTION_BEGIN {
   // 检查输入参数
   if (!map_ptr) {
@@ -74,7 +74,7 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
     // 键存在，检查值是否为 NULL
     if (*existing_ptr) {
       // 找到现有的映射
-      *out_tfwo = *existing_ptr;
+      *result = *existing_ptr;
       AD_RETURNE (OK);
     }
     // 键存在但值为 NULL，这种情况不应该发生（因为我们总是创建非 NULL 的值）
@@ -104,7 +104,7 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
   
   // 插入到 hash_map 中
   map->put (key, tfwo);
-  *out_tfwo = tfwo;
+  *result = tfwo;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

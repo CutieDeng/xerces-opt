@@ -5,3 +5,4 @@
 "ctx.debug_file 在 init* 函数调用后为合法值，禁止检查其是否为空指针"
 "const 后置风格：使用 `char const *p` 而非 `const char *p`，使用 `int const x` 而非 `const int x`"
 "禁止使用 AD_RETURNE(OK) 处理空指针：必需参数使用 AD_ASSERT_GCC_LOGIC 断言；可选参数使用 RECOVERABLE_ERROR 或删除检查"
+"单输出参数命名规范：使用 `result` 命名，使用引用形式 `Type*& result`，返回时使用 `AD_RETURNO(value)` 而非 `*result = value; AD_RETURNE(OK);`"

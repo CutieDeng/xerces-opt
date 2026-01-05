@@ -121,7 +121,7 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
   ArrayDetector &detector,
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
-  vec<PointerCapacityAssociation*, va_gc>** out_results
+  vec<PointerCapacityAssociation*, va_gc>*& result
 );
 
 // 分析单个指针字段的容量关联
@@ -130,14 +130,14 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
   TypeFieldArrayAccesses* array_accesses,  // 该指针字段的数组访问（可为 NULL）
-  PointerCapacityAssociation** out_result
+  PointerCapacityAssociation*& result
 );
 
 // 收集类型中的所有整数类型字段作为候选
 ArrayDetectErrorCode collectIntegerCandidates (
   AD_FUNC_ARGS,
   tree type,
-  vec<tree, va_gc>** out_candidates
+  vec<tree, va_gc>*& result
 );
 
 // 检查表达式是否引用了指定字段

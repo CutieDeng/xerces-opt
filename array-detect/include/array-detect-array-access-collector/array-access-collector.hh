@@ -95,7 +95,7 @@ struct TypeFieldArrayAccesses {
 ArrayDetectErrorCode collectFunctionArrayAccesses (
   AD_FUNC_ARGS,
   function* fn,
-  vec<ArrayAccessCapture*, va_gc>** out_accesses
+  vec<ArrayAccessCapture*, va_gc>*& result
 );
 
 // 判断表达式是否为数组访问，如果是则创建捕获
@@ -105,7 +105,7 @@ ArrayDetectErrorCode analyzeArrayAccess (
   gimple* stmt,
   function* fn,
   AccessDirection direction,
-  ArrayAccessCapture** out_capture
+  ArrayAccessCapture*& result
 );
 
 // 追溯基础指针到字段访问
@@ -119,7 +119,7 @@ ArrayDetectErrorCode traceBasePointerToField (
 // 收集所有函数的数组访问并按 (type, field) 聚合
 ArrayDetectErrorCode collectAllArrayAccessesByTypeField (
   AD_FUNC_ARGS,
-  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>** out_map
+  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>*& result
 );
 
 // 获取或创建 TypeFieldArrayAccesses 条目
@@ -128,7 +128,7 @@ ArrayDetectErrorCode getOrCreateTypeFieldAccesses (
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* map,
   tree type,
   tree field_decl,
-  TypeFieldArrayAccesses** out_entry
+  TypeFieldArrayAccesses*& result
 );
 
 // 调试输出

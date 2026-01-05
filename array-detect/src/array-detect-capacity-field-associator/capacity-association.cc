@@ -33,11 +33,11 @@ static bool isIntegerType (tree type) {
 ArrayDetectErrorCode collectIntegerCandidates (
   AD_FUNC_ARGS,
   tree type,
-  vec<tree, va_gc>** out_candidates
+  vec<tree, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
   (void)gcc_ctx;
 
-  *out_candidates = NULL;
+  result = NULL;
   AD_ASSERT_GCC_LOGIC (type, "type must not be NULL");
 
   if (TREE_CODE (type) != RECORD_TYPE) {
@@ -56,8 +56,7 @@ ArrayDetectErrorCode collectIntegerCandidates (
     }
   }
 
-  *out_candidates = candidates;
-  AD_RETURNE (OK);
+  AD_RETURNO (candidates);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -272,10 +271,10 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   TypeFieldAnalysisData* pointer_field_data,
   TypeFieldArrayAccesses* array_accesses,
   tree candidate_field,
-  CapacityCandidateAnalysis** out_analysis
+  CapacityCandidateAnalysis*& result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
-  *out_analysis = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (pointer_field_data, "pointer_field_data must not be NULL");
   AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
@@ -325,8 +324,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
     analysis->verdict = CAP_ASSOC_UNRELATED;
   }
 
-  *out_analysis = analysis;
-  AD_RETURNE (OK);
+  AD_RETURNO (analysis);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -338,47 +336,46 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
   ArrayDetector &detector,
   TypeFieldAnalysisData* pointer_field_data,
   TypeFieldArrayAccesses* array_accesses,      // 新增参数：数组访问数据
-  PointerCapacityAssociation** out_result
+  PointerCapacityAssociation*& result
 ) AD_FUNCTION_BEGIN {
   (void)detector;
 
-  *out_result = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (pointer_field_data, "pointer_field_data must not be NULL");
   AD_ASSERT_GCC_LOGIC (pointer_field_data->type, "pointer_field_data->type must not be NULL");
   AD_ASSERT_GCC_LOGIC (pointer_field_data->field_decl, "pointer_field_data->field_decl must not be NULL");
 
   // 创建结果结构
-  PointerCapacityAssociation* result = ggc_alloc<PointerCapacityAssociation>();
-  memset (result, 0, sizeof (PointerCapacityAssociation));
+  PointerCapacityAssociation* assoc = ggc_alloc<PointerCapacityAssociation>();
+  memset (assoc, 0, sizeof (PointerCapacityAssociation));
 
-  result->type = pointer_field_data->type;
-  result->pointer_field_decl = pointer_field_data->field_decl;
-  result->type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
-  result->pointer_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
+  assoc->type = pointer_field_data->type;
+  assoc->pointer_field_decl = pointer_field_data->field_decl;
+  assoc->type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
+  assoc->pointer_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
 
-  vec_alloc (result->candidate_analyses, 8);
+  vec_alloc (assoc->candidate_analyses, 8);
 
   // 输出调试文件头
   if (ctx.debug_file) {
     fprintf (ctx.debug_file, "\n");
     fprintf (ctx.debug_file, "=== CAPACITY ASSOCIATION ANALYSIS ===\n");
     fprintf (ctx.debug_file, "Pointer Field: %s::%s\n",
-             result->type_name, result->pointer_field_name);
+             assoc->type_name, assoc->pointer_field_name);
     fprintf (ctx.debug_file, "\n");
   }
 
   // 收集所有整数候选字段
   vec<tree, va_gc>* candidates = NULL;
-  AD_TRY (collectIntegerCandidates (AD_ARGS, pointer_field_data->type, &candidates));
+  AD_TRY (collectIntegerCandidates (AD_ARGS, pointer_field_data->type, candidates));
 
   if (!candidates || candidates->length () == 0) {
     if (ctx.debug_file) {
       fprintf (ctx.debug_file, "No integer candidate fields found in type '%s'\n",
-               result->type_name);
+               assoc->type_name);
     }
-    *out_result = result;
-    AD_RETURNE (OK);
+    AD_RETURNO (assoc);
   }
 
   if (ctx.debug_file) {
@@ -393,14 +390,14 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
     tree candidate = (*candidates)[i];
 
     CapacityCandidateAnalysis* analysis = NULL;
-    AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, array_accesses, candidate, &analysis));
+    AD_TRY (analyzeCandidateAssociation (AD_ARGS, detector, pointer_field_data, array_accesses, candidate, analysis));
 
     if (analysis) {
-      vec_safe_push (result->candidate_analyses, analysis);
+      vec_safe_push (assoc->candidate_analyses, analysis);
 
       switch (analysis->verdict) {
         case CAP_ASSOC_RELATED:
-          result->related_count++;
+          assoc->related_count++;
           // 选择最佳匹配（证据最多的）
           if (analysis->evidences) {
             unsigned int evidence_count = analysis->evidences->length ();
@@ -411,28 +408,28 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
           }
           break;
         case CAP_ASSOC_UNRELATED:
-          result->unrelated_count++;
+          assoc->unrelated_count++;
           break;
         case CAP_ASSOC_UNDETERMINED:
-          result->undetermined_count++;
+          assoc->undetermined_count++;
           break;
       }
     }
   }
 
-  result->best_match = best_match;
+  assoc->best_match = best_match;
 
   AD_DEBUG_PRINT ("capAssoc %s::%s: related=%u, unrelated=%u",
-                  result->type_name, result->pointer_field_name,
-                  result->related_count, result->unrelated_count);
+                  assoc->type_name, assoc->pointer_field_name,
+                  assoc->related_count, assoc->unrelated_count);
 
   // 输出结果摘要到调试文件
   if (ctx.debug_file) {
     fprintf (ctx.debug_file, "\n--- SUMMARY for %s::%s ---\n",
-             result->type_name, result->pointer_field_name);
-    fprintf (ctx.debug_file, "  Related fields: %u\n", result->related_count);
-    fprintf (ctx.debug_file, "  Unrelated fields: %u\n", result->unrelated_count);
-    fprintf (ctx.debug_file, "  Undetermined fields: %u\n", result->undetermined_count);
+             assoc->type_name, assoc->pointer_field_name);
+    fprintf (ctx.debug_file, "  Related fields: %u\n", assoc->related_count);
+    fprintf (ctx.debug_file, "  Unrelated fields: %u\n", assoc->unrelated_count);
+    fprintf (ctx.debug_file, "  Undetermined fields: %u\n", assoc->undetermined_count);
 
     if (best_match) {
       fprintf (ctx.debug_file, "  Best match: %s (evidence_count=%u)\n",
@@ -441,8 +438,7 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
     fprintf (ctx.debug_file, "===================================\n\n");
   }
 
-  *out_result = result;
-  AD_RETURNE (OK);
+  AD_RETURNO (assoc);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -454,9 +450,9 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
   ArrayDetector &detector,
   vec<FieldOwnedConclusion*, va_gc>* owned_conclusions,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
-  vec<PointerCapacityAssociation*, va_gc>** out_results
+  vec<PointerCapacityAssociation*, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
-  *out_results = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (owned_conclusions, "owned_conclusions must not be NULL");
 
@@ -495,14 +491,14 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
       }
     }
 
-    PointerCapacityAssociation* result = NULL;
-    AD_TRY (analyzePointerCapacityAssociation (AD_ARGS, detector, *data_ptr, field_accesses, &result));
+    PointerCapacityAssociation* assoc = NULL;
+    AD_TRY (analyzePointerCapacityAssociation (AD_ARGS, detector, *data_ptr, field_accesses, assoc));
 
-    if (result) {
-      vec_safe_push (results, result);
+    if (assoc) {
+      vec_safe_push (results, assoc);
       analyzed++;
 
-      if (result->related_count > 0) {
+      if (assoc->related_count > 0) {
         with_capacity++;
       }
     }
@@ -511,8 +507,7 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
   AD_DEBUG_PRINT ("Capacity association analysis complete: %u fields analyzed, %u with capacity fields",
                   analyzed, with_capacity);
 
-  *out_results = results;
-  AD_RETURNE (OK);
+  AD_RETURNO (results);
 } AD_FUNCTION_END
 
 // ============================================================================
