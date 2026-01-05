@@ -7,6 +7,7 @@
 #include "escape-synthesizer.hh"
 #include "ownership-transfer-analysis.hh"
 #include "info-print.hh"
+#include "string-utils.hh"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -72,16 +73,6 @@ static bool isEscapeEvidenceRejecting (EscapeEvidenceResult* evidence) {
     return false;
   }
   return evidence->has_rejecting_evidence;
-}
-
-// ============================================================================
-// 辅助函数：获取逃逸证据的描述
-// ============================================================================
-
-static const char* getEscapeEvidenceDescription (EscapeEvidenceResult* evidence) {
-  if (!evidence) return "no evidence";
-  if (!evidence->has_rejecting_evidence) return "no rejecting escape";
-  return "has rejecting escape";
 }
 
 // ============================================================================
@@ -222,60 +213,6 @@ static ArrayDetectErrorCode analyzeWriteForOwned (
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-
-// ============================================================================
-// 辅助函数：安全获取类型名
-// ============================================================================
-
-static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
-  (void)gcc_ctx;
-
-  if (!type) {
-    AD_DEBUG_PRINT ("Warning: type is NULL when getting type name");
-    return "<null-type>";
-  }
-
-  tree type_id = TYPE_IDENTIFIER (type);
-  if (!type_id) {
-    AD_DEBUG_PRINT ("Warning: TYPE_IDENTIFIER returned NULL for type %p", (void*)type);
-    return "<anonymous-type>";
-  }
-
-  const char* id_ptr = IDENTIFIER_POINTER (type_id);
-  if (!id_ptr) {
-    AD_DEBUG_PRINT ("Warning: IDENTIFIER_POINTER returned NULL for type identifier");
-    return "<unnamed-type>";
-  }
-
-  return identifier_to_locale (id_ptr);
-}
-
-// ============================================================================
-// 辅助函数：安全获取字段名
-// ============================================================================
-
-static const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
-  (void)gcc_ctx;
-
-  if (!field_decl) {
-    AD_DEBUG_PRINT ("Warning: field_decl is NULL when getting field name");
-    return "<null-field>";
-  }
-
-  tree decl_name = DECL_NAME (field_decl);
-  if (!decl_name) {
-    AD_DEBUG_PRINT ("Warning: DECL_NAME returned NULL for field_decl %p", (void*)field_decl);
-    return "<anonymous-field>";
-  }
-
-  const char* id_ptr = IDENTIFIER_POINTER (decl_name);
-  if (!id_ptr) {
-    AD_DEBUG_PRINT ("Warning: IDENTIFIER_POINTER returned NULL for field name");
-    return "<unnamed-field>";
-  }
-
-  return identifier_to_locale (id_ptr);
-}
 
 // ============================================================================
 // 核心函数：分析单个字段的 owned 结论
@@ -583,65 +520,6 @@ void printAllFieldOwnedConclusions (
   fprintf (out, "  UNDETERMINED: %u\n", undetermined_count);
   fprintf (out, "================================================================================\n");
   fprintf (out, "\n");
-}
-
-// ============================================================================
-// 辅助函数：转义 Racket 字符串中的特殊字符（使用 context 缓冲区）
-// ============================================================================
-
-static void escapeRacketString (
-  ArrayDetectContext& ctx,
-  const char* input,
-  size_t half_offset  // 0 = 使用前半部分，1 = 使用后半部分
-) {
-  // 使用 escaped_string_buffer 的前半或后半部分
-  size_t half_size = ctx.escaped_string_buffer_size / 2;
-  char* output = ctx.escaped_string_buffer + (half_offset * half_size);
-  size_t output_size = half_size;
-
-  size_t j = 0;
-  for (size_t i = 0; input[i] != '\0' && j < output_size - 1; i++) {
-    char c = input[i];
-    if (c == '"' || c == '\\') {
-      if (j + 2 >= output_size) break;
-      output[j++] = '\\';
-      output[j++] = c;
-    } else {
-      output[j++] = c;
-    }
-  }
-  output[j] = '\0';
-}
-
-// 获取转义后的字符串指针
-static inline char* getEscapedString (ArrayDetectContext& ctx, size_t half_offset) {
-  size_t half_size = ctx.escaped_string_buffer_size / 2;
-  return ctx.escaped_string_buffer + (half_offset * half_size);
-}
-
-// ============================================================================
-// 辅助函数：确保 result_datum_buffer 有足够容量
-// ============================================================================
-
-static bool ensureResultBufferCapacity (ArrayDetectContext& ctx, size_t required) {
-  if (ctx.result_datum_buffer_capacity >= required) {
-    return true;
-  }
-
-  // 扩展容量（至少翻倍，或满足需求）
-  size_t new_capacity = ctx.result_datum_buffer_capacity * 2;
-  while (new_capacity < required) {
-    new_capacity *= 2;
-  }
-
-  char* new_buffer = (char*) ggc_realloc (ctx.result_datum_buffer, new_capacity);
-  if (!new_buffer) {
-    return false;
-  }
-
-  ctx.result_datum_buffer = new_buffer;
-  ctx.result_datum_buffer_capacity = new_capacity;
-  return true;
 }
 
 // ============================================================================

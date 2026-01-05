@@ -5,6 +5,7 @@
 #include "field-source-variant.hh"
 #include "info-print.hh"
 #include "bound-condition-analyzer.hh"
+#include "string-utils.hh"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -15,54 +16,6 @@ namespace array_detect_ns {
 using namespace ::array_detector;
 
 // ============================================================================
-// 辅助函数：安全获取类型名
-// ============================================================================
-
-static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
-  (void)ctx; (void)gcc_ctx;
-
-  if (!type) {
-    return "<null-type>";
-  }
-
-  tree type_id = TYPE_IDENTIFIER (type);
-  if (!type_id) {
-    return "<anonymous-type>";
-  }
-
-  const char* id_ptr = IDENTIFIER_POINTER (type_id);
-  if (!id_ptr) {
-    return "<unnamed-type>";
-  }
-
-  return identifier_to_locale (id_ptr);
-}
-
-// ============================================================================
-// 辅助函数：安全获取字段名
-// ============================================================================
-
-static const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
-  (void)ctx; (void)gcc_ctx;
-
-  if (!field_decl) {
-    return "<null-field>";
-  }
-
-  tree decl_name = DECL_NAME (field_decl);
-  if (!decl_name) {
-    return "<anonymous-field>";
-  }
-
-  const char* id_ptr = IDENTIFIER_POINTER (decl_name);
-  if (!id_ptr) {
-    return "<unnamed-field>";
-  }
-
-  return identifier_to_locale (id_ptr);
-}
-
-// ============================================================================
 // 辅助函数：判断类型是否为整数类型
 // ============================================================================
 
@@ -71,133 +24,6 @@ static bool isIntegerType (tree type) {
 
   tree main_type = TYPE_MAIN_VARIANT (type);
   return INTEGRAL_TYPE_P (main_type);
-}
-
-// ============================================================================
-// 辅助函数：收集表达式中的所有基础源变量（参数、局部变量等）
-// ============================================================================
-// 对于复杂表达式如 n * sizeof(int)，会收集所有涉及的基础变量
-// 返回值：收集到的源变量数量
-
-static void collectExpressionBaseSources (tree expr, vec<tree, va_gc>** out_sources, int depth = 0) {
-  if (!expr || depth > 10 || !out_sources) return;
-
-  // PARM_DECL: 函数参数 - 这是终止条件
-  if (TREE_CODE (expr) == PARM_DECL) {
-    vec_safe_push (*out_sources, expr);
-    return;
-  }
-
-  // VAR_DECL: 局部变量 - 这是终止条件
-  if (TREE_CODE (expr) == VAR_DECL) {
-    vec_safe_push (*out_sources, expr);
-    return;
-  }
-
-  // SSA_NAME: 追溯到基变量或定义
-  if (TREE_CODE (expr) == SSA_NAME) {
-    tree base_var = SSA_NAME_VAR (expr);
-    if (base_var && (TREE_CODE (base_var) == PARM_DECL || TREE_CODE (base_var) == VAR_DECL)) {
-      vec_safe_push (*out_sources, base_var);
-      return;
-    }
-    // 如果没有基变量，尝试追溯定义语句
-    gimple* def_stmt = SSA_NAME_DEF_STMT (expr);
-    if (def_stmt && is_gimple_assign (def_stmt)) {
-      tree_code code = gimple_assign_rhs_code (def_stmt);
-      // 对于二元操作（如 MULT_EXPR），递归收集两个操作数的源
-      if (TREE_CODE_CLASS (code) == tcc_binary) {
-        collectExpressionBaseSources (gimple_assign_rhs1 (def_stmt), out_sources, depth + 1);
-        collectExpressionBaseSources (gimple_assign_rhs2 (def_stmt), out_sources, depth + 1);
-        return;
-      }
-      // 对于简单赋值或类型转换，追溯 RHS
-      if (code == SSA_NAME || code == NOP_EXPR || code == CONVERT_EXPR) {
-        collectExpressionBaseSources (gimple_assign_rhs1 (def_stmt), out_sources, depth + 1);
-        return;
-      }
-    }
-    return;
-  }
-
-  // 二元操作（树形式）
-  if (BINARY_CLASS_P (expr)) {
-    collectExpressionBaseSources (TREE_OPERAND (expr, 0), out_sources, depth + 1);
-    collectExpressionBaseSources (TREE_OPERAND (expr, 1), out_sources, depth + 1);
-    return;
-  }
-
-  // NOP_EXPR / CONVERT_EXPR: 类型转换 - 继续追溯
-  if (CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
-    collectExpressionBaseSources (TREE_OPERAND (expr, 0), out_sources, depth + 1);
-    return;
-  }
-}
-
-// 辅助函数：获取单个基础源（向后兼容）
-static tree getExpressionBaseSource (tree expr, int depth = 0) {
-  vec<tree, va_gc>* sources = NULL;
-  vec_alloc (sources, 4);
-  collectExpressionBaseSources (expr, &sources, depth);
-  if (sources && vec_safe_length (sources) > 0) {
-    return (*sources)[0];
-  }
-  return NULL_TREE;
-}
-
-// ============================================================================
-// 辅助函数：检查候选字段是否与 malloc 参数同源
-// ============================================================================
-// 检查候选字段的写入操作是否来自与 malloc size 参数相同的源变量
-
-static bool checkCoSourcedAssignment (
-  AD_FUNC_ARGS,
-  tree malloc_size_arg,
-  TypeFieldAnalysisData* candidate_field_data
-) {
-  (void)gcc_ctx;
-  if (!malloc_size_arg || !candidate_field_data) {
-    return false;
-  }
-
-  // 收集 malloc 参数的所有基础源（处理 n * sizeof(T) 等复杂表达式）
-  vec<tree, va_gc>* malloc_sources = NULL;
-  vec_alloc (malloc_sources, 4);
-  collectExpressionBaseSources (malloc_size_arg, &malloc_sources);
-
-  if (!malloc_sources || vec_safe_length (malloc_sources) == 0) {
-    AD_DEBUG_PRINT ("[checkCoSourcedAssignment] Cannot trace malloc arg to base source");
-    return false;
-  }
-
-  if (ctx.debug_file) {
-    fprintf (ctx.debug_file, "        Malloc arg base sources (%u):",
-             vec_safe_length (malloc_sources));
-    for (unsigned int i = 0; i < vec_safe_length (malloc_sources); i++) {
-      tree src = (*malloc_sources)[i];
-      const char* name = DECL_NAME (src) ? IDENTIFIER_POINTER (DECL_NAME (src)) : "<anon>";
-      fprintf (ctx.debug_file, " %s", name);
-    }
-    fprintf (ctx.debug_file, "\n");
-  }
-
-  // 遍历候选字段的所有写入操作
-  if (!candidate_field_data->write_analysis_records) {
-    return false;
-  }
-
-  unsigned int write_count = candidate_field_data->write_analysis_records->length ();
-  for (unsigned int i = 0; i < write_count; i++) {
-    FieldWriteAnalysisRecord* record = (*candidate_field_data->write_analysis_records)[i];
-    if (!record || !record->source_info) continue;
-
-    // 注意：SOURCE_VARIABLE 已移除（语义模糊：变量不是真正的来源）
-    // 字段值的真正来源是函数调用、常量、字段访问、计算或 PHI 节点
-    // 同源检查应基于 SSA 定义链追踪，而非简单的"变量"分类
-    // TODO: 如需同源检查，应在 source_info 中记录 SSA 定义链的基源
-  }
-
-  return false;
 }
 
 // ============================================================================
@@ -534,6 +360,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   tree candidate_field,
   CapacityCandidateAnalysis** out_analysis
 ) AD_FUNCTION_BEGIN {
+  (void)detector;
   *out_analysis = NULL;
 
   if (!pointer_field_data || !candidate_field) {
@@ -543,16 +370,6 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   const char* ptr_type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
   const char* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
   const char* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
-
-  // 从 detector 中获取候选字段的分析数据
-  TypeFieldAnalysisData* candidate_field_data = NULL;
-  if (detector.m_type_field_writes) {
-    TypeFieldKey key = { pointer_field_data->type, candidate_field };
-    TypeFieldAnalysisData** data_ptr = detector.m_type_field_writes->get (key);
-    if (data_ptr) {
-      candidate_field_data = *data_ptr;
-    }
-  }
 
   AD_DEBUG_PRINT ("[analyzeCandidateAssociation] Analyzing candidate '%s' for pointer '%s::%s'",
                   candidate_name, ptr_type_name, ptr_field_name);
@@ -625,42 +442,6 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
           if (ctx.debug_file) {
             fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (direct ref): '%s' references '%s'\n",
                      ptr_field_name, candidate_name);
-          }
-        }
-
-        // 方法2: 检查函数参数与候选字段是否同源（如都来自同一参数）
-        // 激进假设：任何返回指针的函数调用都可能是分配函数
-        if (!references && candidate_field_data && func_call.call_stmt) {
-          const char* function_name = func_call.function_name ? func_call.function_name : "<unknown>";
-          gimple* call_stmt = func_call.call_stmt;
-          unsigned int nargs = gimple_call_num_args (call_stmt);
-
-          // 检查每个函数参数
-          for (unsigned int arg_idx = 0; arg_idx < nargs && !references; arg_idx++) {
-            tree arg = gimple_call_arg (call_stmt, arg_idx);
-            if (checkCoSourcedAssignment (AD_ARGS, arg, candidate_field_data)) {
-              references = true;
-
-              // 创建证据
-              location_t loc = gimple_location (call_stmt);
-              CapacityAssociationEvidence* co_evidence = ggc_alloc<CapacityAssociationEvidence>();
-              memset (co_evidence, 0, sizeof (CapacityAssociationEvidence));
-
-              co_evidence->evidence_type = CAP_EVID_MALLOC_SIZE_ARG;
-              co_evidence->location = loc;
-              co_evidence->stmt = call_stmt;
-              co_evidence->description = "Allocation size and field assigned from same source";
-              co_evidence->function_name = ggc_strdup (function_name);
-              co_evidence->size_expr = arg;
-
-              analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
-              vec_safe_push (analysis->evidences, co_evidence);
-
-              if (ctx.debug_file) {
-                fprintf (ctx.debug_file, "      -> MALLOC RELATION FOUND (co-sourced): '%s' co-sourced with '%s'\n",
-                         ptr_field_name, candidate_name);
-              }
-            }
           }
         }
       } END_LET()
@@ -1020,62 +801,6 @@ void printAllPointerCapacityAssociations (
   fprintf (out, "  Without capacity association: %u\n", without_capacity);
   fprintf (out, "================================================================================\n");
   fprintf (out, "\n");
-}
-
-// ============================================================================
-// 辅助函数：转义 Racket 字符串（使用 context 缓冲区）
-// ============================================================================
-
-static void escapeRacketString (
-  ArrayDetectContext& ctx,
-  const char* input,
-  size_t half_offset
-) {
-  size_t half_size = ctx.escaped_string_buffer_size / 2;
-  char* output = ctx.escaped_string_buffer + (half_offset * half_size);
-  size_t output_size = half_size;
-
-  size_t j = 0;
-  for (size_t i = 0; input[i] != '\0' && j < output_size - 1; i++) {
-    char c = input[i];
-    if (c == '"' || c == '\\') {
-      if (j + 2 >= output_size) break;
-      output[j++] = '\\';
-      output[j++] = c;
-    } else {
-      output[j++] = c;
-    }
-  }
-  output[j] = '\0';
-}
-
-static inline char* getEscapedString (ArrayDetectContext& ctx, size_t half_offset) {
-  size_t half_size = ctx.escaped_string_buffer_size / 2;
-  return ctx.escaped_string_buffer + (half_offset * half_size);
-}
-
-// ============================================================================
-// 辅助函数：确保缓冲区容量
-// ============================================================================
-
-static bool ensureResultBufferCapacity (ArrayDetectContext& ctx, size_t required) {
-  if (ctx.result_datum_buffer_capacity >= required) {
-    return true;
-  }
-
-  size_t new_capacity = ctx.result_datum_buffer_capacity * 2;
-  while (new_capacity < required) {
-    new_capacity *= 2;
-  }
-
-  char* new_buffer = (char*) ggc_realloc (ctx.result_datum_buffer, new_capacity);
-  if (!new_buffer) {
-    return false;
-  }
-
-  ctx.result_datum_buffer = new_buffer;
-  ctx.result_datum_buffer_capacity = new_capacity;
-  return true;
 }
 
 // ============================================================================

@@ -2,50 +2,13 @@
 #include "gcc-ext-util.hh"
 #include "info-print.hh"
 #include "array-detect-context-gcc.hh"
+#include "string-utils.hh"
 
 #include <cstring>
 
 namespace array_detect_ns {
 
 using namespace ::array_detector;
-
-// ============================================================================
-// 辅助函数：安全获取类型名
-// ============================================================================
-
-static const char* safeGetTypeName (AD_FUNC_ARGS, tree type) {
-  (void)ctx;
-  (void)gcc_ctx;
-
-  if (!type) return "<null-type>";
-
-  tree type_id = TYPE_IDENTIFIER (type);
-  if (!type_id) return "<anonymous-type>";
-
-  const char* id_ptr = IDENTIFIER_POINTER (type_id);
-  if (!id_ptr) return "<unnamed-type>";
-
-  return identifier_to_locale (id_ptr);
-}
-
-// ============================================================================
-// 辅助函数：安全获取字段名
-// ============================================================================
-
-static const char* safeGetFieldName (AD_FUNC_ARGS, tree field_decl) {
-  (void)ctx;
-  (void)gcc_ctx;
-
-  if (!field_decl) return "<null-field>";
-
-  tree decl_name = DECL_NAME (field_decl);
-  if (!decl_name) return "<anonymous-field>";
-
-  const char* id_ptr = IDENTIFIER_POINTER (decl_name);
-  if (!id_ptr) return "<unnamed-field>";
-
-  return identifier_to_locale (id_ptr);
-}
 
 // ============================================================================
 // 获取边界条件类型名称
