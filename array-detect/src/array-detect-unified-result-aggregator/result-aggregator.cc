@@ -458,6 +458,7 @@ void printUnifiedResult (
   fprintf(out, "  Owned verdict: ");
   switch (result->owned_verdict) {
     case OWNED_YES: fprintf(out, "YES\n"); break;
+    case OWNED_PARTIAL_YES: fprintf(out, "PARTIAL_YES (debug)\n"); break;
     case OWNED_NO: fprintf(out, "NO\n"); break;
     case OWNED_UNDETERMINED: fprintf(out, "UNDETERMINED\n"); break;
   }
@@ -621,6 +622,7 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     APPEND_STR("(owned ");
     switch (result->owned_verdict) {
       case OWNED_YES: APPEND_STR("yes"); break;
+      case OWNED_PARTIAL_YES: APPEND_STR("partial-yes"); break;
       case OWNED_NO: APPEND_STR("no"); break;
       case OWNED_UNDETERMINED: APPEND_STR("maybe"); break;
     }

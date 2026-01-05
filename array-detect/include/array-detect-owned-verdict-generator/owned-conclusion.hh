@@ -15,7 +15,8 @@ using namespace ::array_detector;
 
 // 判定结果
 enum OwnedConclusionVerdict {
-  OWNED_YES,           // 可能是 owned 字段
+  OWNED_YES,           // 确定是 owned 字段（全部 supporting，无 rejecting）
+  OWNED_PARTIAL_YES,   // 可能是 owned 字段（supporting > rejecting，调试用）
   OWNED_NO,            // 不可能是 owned 字段
   OWNED_UNDETERMINED   // 无法确定（例如没有写入操作）
 };

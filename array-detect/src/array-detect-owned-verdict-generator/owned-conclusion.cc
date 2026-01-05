@@ -83,6 +83,7 @@ char const* rejectionReasonToString (RejectionReason r) {
 char const* verdictToString (OwnedConclusionVerdict v) {
   switch (v) {
     case OWNED_YES: return "YES";
+    case OWNED_PARTIAL_YES: return "PARTIAL_YES";
     case OWNED_NO: return "NO";
     case OWNED_UNDETERMINED: return "UNDETERMINED";
     default: return "UNKNOWN";
@@ -212,11 +213,11 @@ static OwnedSupportingEvidence* createSupportingEvidence (
 // 聚合策略：计算最终判定
 // ============================================================================
 //
-// 新策略: 容错一票否决
-// - 如果 rejecting == 0 且 supporting > 0 → YES
-// - 如果 supporting >= 3 且 rejecting == 1 → YES (允许单个异常)
-// - 其他情况下 rejecting > 0 → NO
-// - 没有任何有效证据 → UNDETERMINED
+// 判定策略:
+// - supporting > 0 且 rejecting == 0 → YES（确定 owned）
+// - supporting > rejecting → PARTIAL_YES（可能 owned，调试用）
+// - supporting <= rejecting 且 rejecting > 0 → NO（不是 owned）
+// - supporting == 0 且 rejecting == 0 → UNDETERMINED（无法判定）
 
 static OwnedConclusionVerdict computeVerdict (
   unsigned int supporting,
@@ -229,13 +230,12 @@ static OwnedConclusionVerdict computeVerdict (
     return OWNED_UNDETERMINED;
   }
 
-  if (rejecting == 0) {
+  if (rejecting == 0 && supporting > 0) {
     return OWNED_YES;
   }
 
-  // 容错一票否决: 允许单个异常
-  if (supporting >= 3 && rejecting == 1) {
-    return OWNED_YES;
+  if (supporting > rejecting) {
+    return OWNED_PARTIAL_YES;
   }
 
   return OWNED_NO;
@@ -455,15 +455,15 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   // 生成结论描述
   switch (conclusion->verdict) {
     case OWNED_YES:
-      if (rejecting_count > 0) {
-        conclusion->conclusion_description = "Field may be owned pointer (fault-tolerant: single exception allowed)";
-      } else {
-        conclusion->conclusion_description = "Field may be owned pointer (all evidence supports)";
-      }
+      conclusion->conclusion_description = "Field is owned pointer (all evidence supports, no rejection)";
+      break;
+
+    case OWNED_PARTIAL_YES:
+      conclusion->conclusion_description = "Field may be owned pointer (supporting > rejecting, for debugging)";
       break;
 
     case OWNED_NO:
-      conclusion->conclusion_description = "Field cannot be owned pointer (has rejecting evidence)";
+      conclusion->conclusion_description = "Field cannot be owned pointer (rejecting >= supporting)";
       break;
 
     case OWNED_UNDETERMINED:
@@ -503,6 +503,7 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
 
   unsigned int total_fields = 0;
   unsigned int owned_yes = 0;
+  unsigned int owned_partial_yes = 0;
   unsigned int owned_no = 0;
   unsigned int undetermined = 0;
 
@@ -524,6 +525,9 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
         case OWNED_YES:
           owned_yes++;
           break;
+        case OWNED_PARTIAL_YES:
+          owned_partial_yes++;
+          break;
         case OWNED_NO:
           owned_no++;
           break;
@@ -534,8 +538,8 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
     }
   }
 
-  AD_DEBUG_PRINT ("Field owned conclusion analysis complete: %u fields, %u YES, %u NO, %u undetermined",
-                  total_fields, owned_yes, owned_no, undetermined);
+  AD_DEBUG_PRINT ("Field owned conclusion analysis complete: %u fields, %u YES, %u PARTIAL_YES, %u NO, %u undetermined",
+                  total_fields, owned_yes, owned_partial_yes, owned_no, undetermined);
 
   AD_RETURNO (conclusions);
 } AD_FUNCTION_END
@@ -564,8 +568,9 @@ void printFieldOwnedConclusion (
 
   char const* verdict_str = "UNDETERMINED";
   switch (conclusion->verdict) {
-    case OWNED_YES: verdict_str = "YES (may be owned)"; break;
-    case OWNED_NO: verdict_str = "NO (cannot be owned)"; break;
+    case OWNED_YES: verdict_str = "YES (owned)"; break;
+    case OWNED_PARTIAL_YES: verdict_str = "PARTIAL_YES (maybe owned, for debugging)"; break;
+    case OWNED_NO: verdict_str = "NO (not owned)"; break;
     case OWNED_UNDETERMINED: verdict_str = "UNDETERMINED"; break;
   }
 
@@ -663,6 +668,7 @@ void printAllFieldOwnedConclusions (
   fprintf (out, "================================================================================\n");
 
   unsigned int yes_count = 0;
+  unsigned int partial_yes_count = 0;
   unsigned int no_count = 0;
   unsigned int undetermined_count = 0;
 
@@ -672,6 +678,7 @@ void printAllFieldOwnedConclusions (
 
     switch (conclusion->verdict) {
       case OWNED_YES: yes_count++; break;
+      case OWNED_PARTIAL_YES: partial_yes_count++; break;
       case OWNED_NO: no_count++; break;
       case OWNED_UNDETERMINED: undetermined_count++; break;
     }
@@ -683,8 +690,9 @@ void printAllFieldOwnedConclusions (
   fprintf (out, "================================================================================\n");
   fprintf (out, "Summary:\n");
   fprintf (out, "  Total fields analyzed: %u\n", conclusions->length ());
-  fprintf (out, "  YES (may be owned): %u\n", yes_count);
-  fprintf (out, "  NO (cannot be owned): %u\n", no_count);
+  fprintf (out, "  YES (owned): %u\n", yes_count);
+  fprintf (out, "  PARTIAL_YES (maybe owned): %u\n", partial_yes_count);
+  fprintf (out, "  NO (not owned): %u\n", no_count);
   fprintf (out, "  UNDETERMINED: %u\n", undetermined_count);
   fprintf (out, "================================================================================\n");
   fprintf (out, "\n");
