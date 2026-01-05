@@ -54,21 +54,21 @@
 ;; ============================================================================
 
 (define modules '("array-detect-core"
-                  "array-detect-collection"
+                  "array-detect-field-write-collector"
                   "array-detect-context"
-                  "array-detect-gcc"
+                  "array-detect-gcc-integration"
                   "array-detect-utils"
-                  "array-detect-field-analysis"
-                  "array-detect-pipeline"
-                  "array-detect-write-trace"
-                  "array-detect-source-escape-collection"
-                  "array-detect-escape-synthesizer"
-                  "array-detect-ownership-transfer"
-                  "array-detect-owned-conclusion"
-                  "array-detect-capacity-association"
-                  "array-detect-array-access"
-                  "array-detect-bound-analysis"
-                  "array-detect-result-aggregator"))
+                  "array-detect-field-analysis-coordinator"
+                  "array-detect-pipeline-orchestrator"
+                  "array-detect-field-source-tracer"
+                  "array-detect-escape-use-collector"
+                  "array-detect-escape-evidence-synthesizer"
+                  "array-detect-ownership-transfer-analyzer"
+                  "array-detect-owned-verdict-generator"
+                  "array-detect-capacity-field-associator"
+                  "array-detect-array-access-collector"
+                  "array-detect-bound-condition-analyzer"
+                  "array-detect-unified-result-aggregator"))
 
 (define s "src")
 (define i "include")
@@ -120,22 +120,22 @@
       "-I" ,(path->string (build-path plugin-path "include"))
       ;; Add include paths for each module
       "-I" ,(path->string (build-path "include/array-detect-core"))
-      "-I" ,(path->string (build-path "include/array-detect-collection"))
+      "-I" ,(path->string (build-path "include/array-detect-field-write-collector"))
       "-I" ,(path->string (build-path "include/array-detect-context"))
-      "-I" ,(path->string (build-path "include/array-detect-gcc"))
+      "-I" ,(path->string (build-path "include/array-detect-gcc-integration"))
       "-I" ,(path->string (build-path "include/array-detect-utils"))
       "-I" ,(path->string (build-path "include/array-detect-result"))
-      "-I" ,(path->string (build-path "include/array-detect-field-analysis"))
-      "-I" ,(path->string (build-path "include/array-detect-pipeline"))
-      "-I" ,(path->string (build-path "include/array-detect-write-trace"))
-      "-I" ,(path->string (build-path "include/array-detect-source-escape-collection"))
-      "-I" ,(path->string (build-path "include/array-detect-escape-synthesizer"))
-      "-I" ,(path->string (build-path "include/array-detect-ownership-transfer"))
-      "-I" ,(path->string (build-path "include/array-detect-owned-conclusion"))
-      "-I" ,(path->string (build-path "include/array-detect-capacity-association"))
-      "-I" ,(path->string (build-path "include/array-detect-array-access"))
-      "-I" ,(path->string (build-path "include/array-detect-bound-analysis"))
-      "-I" ,(path->string (build-path "include/array-detect-result-aggregator")))
+      "-I" ,(path->string (build-path "include/array-detect-field-analysis-coordinator"))
+      "-I" ,(path->string (build-path "include/array-detect-pipeline-orchestrator"))
+      "-I" ,(path->string (build-path "include/array-detect-field-source-tracer"))
+      "-I" ,(path->string (build-path "include/array-detect-escape-use-collector"))
+      "-I" ,(path->string (build-path "include/array-detect-escape-evidence-synthesizer"))
+      "-I" ,(path->string (build-path "include/array-detect-ownership-transfer-analyzer"))
+      "-I" ,(path->string (build-path "include/array-detect-owned-verdict-generator"))
+      "-I" ,(path->string (build-path "include/array-detect-capacity-field-associator"))
+      "-I" ,(path->string (build-path "include/array-detect-array-access-collector"))
+      "-I" ,(path->string (build-path "include/array-detect-bound-condition-analyzer"))
+      "-I" ,(path->string (build-path "include/array-detect-unified-result-aggregator")))
     platform-linker-flags
     '("-Wall"
       "-Wextra"
@@ -304,8 +304,6 @@
   (printf "prepare:~n")
   (for ([m modules])
     (printf "\tmkdir -p ~a~n" (build-path object-dir m)))
-  (printf "\tmkdir -p ~a~n" (build-path object-dir "array-detect-write-trace"))
-  (printf "\tmkdir -p ~a~n" (build-path object-dir "array-detect-source-escape-collection"))
   (printf "\tmkdir -p ~a~n" (build-path out-dir))
   (printf "~n"))
 
