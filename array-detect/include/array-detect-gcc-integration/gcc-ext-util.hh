@@ -36,6 +36,17 @@ ArrayDetectErrorCode logFieldWriteCapture (AD_FUNC_ARGS, tree containing_type, t
 // 返回：成功返回 OK，result 指向格式化的类型名字符串（GCC 内部管理，无需释放）
 ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char const *&result);
 
+// 从 GCC type tree 提取模板参数信息
+// 优先使用 cp-tree.h API，不可用时回退到 demangling
+// out_base_name: 基础类型名（不含模板参数）
+// out_template_args: 模板参数列表（可能为 NULL）
+ArrayDetectErrorCode extractTemplateArgsFromType (
+  AD_FUNC_ARGS,
+  tree type,
+  char const** out_base_name,
+  vec<char const*, va_gc>** out_template_args
+);
+
 // 子函数：获取字段名
 // 返回：成功返回 OK，result 指向字段名字符串（GCC 内部管理，无需释放）
 ArrayDetectErrorCode getFieldName (AD_FUNC_ARGS, tree field_decl, char const *&result);

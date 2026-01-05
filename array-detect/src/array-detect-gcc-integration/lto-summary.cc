@@ -10,7 +10,7 @@ namespace array_detect_ns {
 
 // Magic/version for forward compatibility.
 static constexpr unsigned HOST_WIDE_INT kMagic = 0x41525F4445544543ULL; // "AR_DETEC"
-static constexpr unsigned HOST_WIDE_INT kVersion = 1;
+static constexpr unsigned HOST_WIDE_INT kVersion = 2;  // v2: added template_args
 
 // Module-owned pointers (GC-managed allocations).
 static vec<LtoUnifiedResultSummary*, va_gc>* g_wpa_summaries = nullptr;
@@ -111,6 +111,34 @@ static inline void read_related_fields (
   *out_accesses = accesses;
 }
 
+// Serialize template_args (string list)
+static inline void write_string_list (
+  lto_output_stream* os,
+  vec<char const*, va_gc>* strings
+) {
+  unsigned HOST_WIDE_INT n = (unsigned HOST_WIDE_INT) vec_safe_length (strings);
+  streamer_write_uhwi_stream (os, n);
+  for (unsigned HOST_WIDE_INT i = 0; i < n; i++) {
+    write_raw_string (os, (*strings)[(unsigned)i]);
+  }
+}
+
+static inline void read_string_list (
+  lto_input_block* ib,
+  vec<char const*, va_gc>** out_strings
+) {
+  unsigned HOST_WIDE_INT n = streamer_read_uhwi (ib);
+  vec<char const*, va_gc>* strings = nullptr;
+  if (n) {
+    vec_alloc (strings, (unsigned) n);
+    for (unsigned HOST_WIDE_INT i = 0; i < n; i++) {
+      char const* s = read_raw_string (ib);
+      vec_safe_push (strings, s);
+    }
+  }
+  *out_strings = strings;
+}
+
 } // namespace
 
 void clearWpaLtoSummaries () { g_wpa_summaries = nullptr; }
@@ -155,6 +183,7 @@ void writeArrayDetectLtoSummarySection () {
     streamer_write_uhwi_stream (os, (unsigned HOST_WIDE_INT) e->type_uid);
     streamer_write_uhwi_stream (os, (unsigned HOST_WIDE_INT) e->ptr_field_uid);
     write_raw_string (os, e->type_name ? e->type_name : "");
+    write_string_list (os, e->template_args);  // v2: template_args
     write_raw_string (os, e->ptr_field_name ? e->ptr_field_name : "");
     streamer_write_uhwi_stream (os, (unsigned HOST_WIDE_INT) e->owned_verdict);
 
@@ -213,6 +242,7 @@ void readArrayDetectLtoSummarySections () {
       e->type_uid = (unsigned int) streamer_read_uhwi (ib);
       e->ptr_field_uid = (unsigned int) streamer_read_uhwi (ib);
       e->type_name = read_raw_string (ib);
+      read_string_list (ib, &e->template_args);  // v2: template_args
       e->ptr_field_name = read_raw_string (ib);
       e->owned_verdict = (OwnedConclusionVerdict) streamer_read_uhwi (ib);
 
@@ -264,6 +294,14 @@ LtoUnifiedResultSummary* convertToLtoSummary (
   // Cached names
   summary->type_name = dup_cstr (result->type_name);
   summary->ptr_field_name = dup_cstr (result->pointer_field_name);
+
+  // Copy template_args
+  if (result->template_args && result->template_args->length () > 0) {
+    vec_alloc (summary->template_args, result->template_args->length ());
+    for (unsigned i = 0; i < result->template_args->length (); i++) {
+      vec_safe_push (summary->template_args, dup_cstr ((*result->template_args)[i]));
+    }
+  }
 
   // Owned verdict
   summary->owned_verdict = result->owned_verdict;
@@ -447,10 +485,20 @@ void writeLtransResultsToRacketDatum (char const* output_path) {
     LtoUnifiedResultSummary* s = (*aggregated)[i];
     if (!s) continue;
 
-    // Format: ((file "...")(type "...")(field "...")(owned yes|no|undetermined)
+    // Format: ((file "...")(type "TypeName" ("arg1" ...))(field "...")(owned yes|no|undetermined)
     //          (malloc-size (...))(reads (...))(writes (...)))
     fprintf (f, "((file \"%s\")", s->tu_source_file ? s->tu_source_file : "");
-    fprintf (f, "(type \"%s\")", s->type_name ? s->type_name : "");
+
+    // type with template_args
+    fprintf (f, "(type \"%s\" (", s->type_name ? s->type_name : "");
+    if (s->template_args) {
+      for (unsigned j = 0; j < s->template_args->length (); j++) {
+        if (j > 0) fprintf (f, " ");
+        fprintf (f, "\"%s\"", (*s->template_args)[j] ? (*s->template_args)[j] : "");
+      }
+    }
+    fprintf (f, "))");
+
     fprintf (f, "(field \"%s\")", s->ptr_field_name ? s->ptr_field_name : "");
 
     // owned

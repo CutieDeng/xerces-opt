@@ -1,6 +1,7 @@
 #include "result-aggregator.hh"
 #include "state.hh"
 #include "array-detect-context-gcc.hh"
+#include "gcc-ext-util.hh"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -59,7 +60,21 @@ ArrayDetectErrorCode createUnifiedResult (
 
   result->type = type;
   result->pointer_field_decl = pointer_field_decl;
-  result->type_name = duplicateString(getTypeName(type));
+
+  // 提取类型名和模板参数
+  char const* base_type_name = NULL;
+  vec<char const*, va_gc>* template_args = NULL;
+  ArrayDetectErrorCode err = gcc_ext_util::extractTemplateArgsFromType(
+    AD_ARGS, type, &base_type_name, &template_args);
+  if (err == OK && base_type_name) {
+    result->type_name = base_type_name;
+    result->template_args = template_args;
+  } else {
+    // 回退到简单类型名
+    result->type_name = duplicateString(getTypeName(type));
+    result->template_args = NULL;
+  }
+
   result->pointer_field_name = duplicateString(getFieldNameStr(pointer_field_decl));
 
   result->owned_verdict = OWNED_UNDETERMINED;
@@ -586,7 +601,22 @@ ArrayDetectErrorCode writeUnifiedResultsToRacketDatum (
     APPEND_STR("(file \"");
     APPEND_STR(escaped_file_buffer);
     APPEND_STR("\")");
-    APPEND_FMT("(type \"%s\")", result->type_name ? result->type_name : "<unknown>");
+
+    // 类型名和模板参数
+    APPEND_STR("(type \"");
+    APPEND_STR(result->type_name ? result->type_name : "<unknown>");
+    APPEND_STR("\" (");
+    if (result->template_args) {
+      unsigned int targ_len = vec_safe_length(result->template_args);
+      for (unsigned int k = 0; k < targ_len; k++) {
+        if (k > 0) APPEND_STR(" ");
+        APPEND_STR("\"");
+        APPEND_STR((*result->template_args)[k] ? (*result->template_args)[k] : "<unknown>");
+        APPEND_STR("\"");
+      }
+    }
+    APPEND_STR("))");
+
     APPEND_FMT("(field \"%s\")", result->pointer_field_name ? result->pointer_field_name : "<unknown>");
 
     // Owned 结论

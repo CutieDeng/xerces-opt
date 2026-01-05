@@ -3,6 +3,9 @@
 #include "info.hh"
 #include "array-detector.hh"
 
+#include <cxxabi.h>
+#include <cstring>
+
 namespace gcc_ext_util {
 
 // 安全字符串复制函数，防止缓冲区溢出
@@ -205,6 +208,183 @@ static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &h
   // C++ template info not available in plugin environment
 #endif
 
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// ============================================================================
+// 模板参数提取函数
+// ============================================================================
+
+// 从 demangled name 解析模板参数
+// 输入: "Vector<int, float>" 或 "std::vector<int, std::allocator<int>>"
+// 输出: base_name, template_args 列表
+static ArrayDetectErrorCode parseTemplateArgsFromDemangled (
+  AD_FUNC_ARGS,
+  char const* demangled_name,
+  char const** out_base_name,
+  vec<char const*, va_gc>** out_template_args
+) AD_FUNCTION_BEGIN {
+  *out_base_name = NULL;
+  *out_template_args = NULL;
+
+  if (!demangled_name || demangled_name[0] == '\0') {
+    *out_base_name = "<unknown>";
+    AD_RETURNE (OK);
+  }
+
+  // 查找第一个 '<' 作为模板参数开始
+  char const* template_start = strchr (demangled_name, '<');
+  if (!template_start) {
+    // 非模板类型，直接返回原名
+    *out_base_name = ggc_strdup (demangled_name);
+    AD_RETURNE (OK);
+  }
+
+  // 提取基础类型名（'<' 之前的部分）
+  size_t base_len = template_start - demangled_name;
+  char* base_name = (char*)ggc_alloc_atomic (base_len + 1);
+  memcpy (base_name, demangled_name, base_len);
+  base_name[base_len] = '\0';
+  *out_base_name = base_name;
+
+  // 解析模板参数（处理嵌套的 '<' 和 '>'）
+  vec<char const*, va_gc>* args = NULL;
+  vec_alloc (args, 4);
+
+  char const* p = template_start + 1;  // 跳过 '<'
+  int depth = 1;
+  char const* arg_start = p;
+
+  while (*p && depth > 0) {
+    if (*p == '<') {
+      depth++;
+    } else if (*p == '>') {
+      depth--;
+      if (depth == 0) {
+        // 最后一个参数
+        size_t arg_len = p - arg_start;
+        if (arg_len > 0) {
+          // 去除前后空格
+          while (arg_len > 0 && arg_start[0] == ' ') { arg_start++; arg_len--; }
+          while (arg_len > 0 && arg_start[arg_len - 1] == ' ') { arg_len--; }
+
+          if (arg_len > 0) {
+            char* arg = (char*)ggc_alloc_atomic (arg_len + 1);
+            memcpy (arg, arg_start, arg_len);
+            arg[arg_len] = '\0';
+            vec_safe_push (args, (char const*)arg);
+          }
+        }
+      }
+    } else if (*p == ',' && depth == 1) {
+      // 参数分隔符（只在最外层有效）
+      size_t arg_len = p - arg_start;
+      if (arg_len > 0) {
+        // 去除前后空格
+        while (arg_len > 0 && arg_start[0] == ' ') { arg_start++; arg_len--; }
+        while (arg_len > 0 && arg_start[arg_len - 1] == ' ') { arg_len--; }
+
+        if (arg_len > 0) {
+          char* arg = (char*)ggc_alloc_atomic (arg_len + 1);
+          memcpy (arg, arg_start, arg_len);
+          arg[arg_len] = '\0';
+          vec_safe_push (args, (char const*)arg);
+        }
+      }
+      arg_start = p + 1;
+    }
+    p++;
+  }
+
+  *out_template_args = args;
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// 从 GCC type tree 提取模板参数信息
+// 优先使用 cp-tree.h API，不可用时回退到 demangling
+ArrayDetectErrorCode extractTemplateArgsFromType (
+  AD_FUNC_ARGS,
+  tree type,
+  char const** out_base_name,
+  vec<char const*, va_gc>** out_template_args
+) AD_FUNCTION_BEGIN {
+  *out_base_name = NULL;
+  *out_template_args = NULL;
+
+  if (!type) {
+    *out_base_name = "<null-type>";
+    AD_RETURNE (OK);
+  }
+
+  // 方案 1: 尝试使用 cp-tree.h API（条件编译）
+#if defined(TYPE_LANG_SPECIFIC) && defined(CLASSTYPE_TEMPLATE_INFO) && defined(TI_ARGS) && defined(TREE_VEC_LENGTH) && defined(TREE_VEC_ELT)
+  if (TYPE_LANG_SPECIFIC (type)) {
+    tree template_info = CLASSTYPE_TEMPLATE_INFO (type);
+    if (template_info) {
+      tree template_args_tree = TI_ARGS (template_info);
+      if (template_args_tree) {
+        // 获取基础类型名
+        char const* base_name = NULL;
+        AD_TRY (get_type_name (AD_ARGS, type, base_name));
+        *out_base_name = base_name ? ggc_strdup (base_name) : "<unknown>";
+
+        // 提取模板参数
+        int num_args = TREE_VEC_LENGTH (template_args_tree);
+        vec<char const*, va_gc>* args = NULL;
+        vec_alloc (args, num_args);
+
+        for (int i = 0; i < num_args; i++) {
+          tree arg = TREE_VEC_ELT (template_args_tree, i);
+          char const* arg_str = "<unknown>";
+
+          if (TYPE_P (arg)) {
+            // 类型参数
+            char const* arg_type_name = NULL;
+            AD_TRY (get_type_name (AD_ARGS, arg, arg_type_name));
+            arg_str = arg_type_name ? arg_type_name : "<unknown>";
+          } else if (TREE_CODE (arg) == INTEGER_CST) {
+            // 非类型模板参数（整数常量）
+            char buf[64];
+            snprintf (buf, sizeof(buf), "%lld", (long long)TREE_INT_CST_LOW (arg));
+            arg_str = ggc_strdup (buf);
+          }
+
+          vec_safe_push (args, ggc_strdup (arg_str));
+        }
+
+        *out_template_args = args;
+        AD_RETURNE (OK);
+      }
+    }
+  }
+#endif
+
+  // 方案 2: 从 mangled name 使用 demangling 回退
+  tree type_decl = TYPE_NAME (type);
+  if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
+    // 尝试获取 assembler name (mangled name)
+    tree assembler_name = DECL_ASSEMBLER_NAME_RAW (type_decl);
+    if (assembler_name && TREE_CODE (assembler_name) == IDENTIFIER_NODE) {
+      char const* mangled = IDENTIFIER_POINTER (assembler_name);
+      if (mangled && mangled[0] != '\0') {
+        // Demangle
+        int status = 0;
+        char* demangled = abi::__cxa_demangle (mangled, NULL, NULL, &status);
+        if (status == 0 && demangled) {
+          // 解析 demangled name
+          AD_TRY (parseTemplateArgsFromDemangled (AD_ARGS, demangled, out_base_name, out_template_args));
+          free (demangled);
+          AD_RETURNE (OK);
+        }
+        if (demangled) free (demangled);
+      }
+    }
+  }
+
+  // 都失败了，使用简单类型名
+  char const* simple_name = NULL;
+  AD_TRY (get_type_name (AD_ARGS, type, simple_name));
+  *out_base_name = simple_name ? simple_name : "<unknown>";
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

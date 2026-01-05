@@ -28,6 +28,7 @@ struct LtoUnifiedResultSummary {
 
   // Cached names (used for output; avoids needing tree reconstruction).
   char const* type_name;
+  vec<char const*, va_gc>* template_args; // 模板参数列表
   char const* ptr_field_name;
 
   // Owned verdict (matches existing datum semantics).

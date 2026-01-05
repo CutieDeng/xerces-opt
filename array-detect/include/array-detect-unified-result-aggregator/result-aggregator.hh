@@ -60,7 +60,8 @@ struct UnifiedFieldAnalysisResult {
   // === 标识信息 ===
   tree type;                              // 类型
   tree pointer_field_decl;                // 指针字段声明
-  char const* type_name;                  // 类型名（缓存）
+  char const* type_name;                  // 类型名（缓存，不含模板参数）
+  vec<char const*, va_gc>* template_args; // 模板参数列表（可能为 NULL）
   char const* pointer_field_name;         // 指针字段名（缓存）
 
   // === Owned 结论 ===
