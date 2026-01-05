@@ -596,13 +596,15 @@ ArrayDetectErrorCode process_type_fields (AD_FUNC_ARGS, tree type, ::array_detec
   for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field)) {
     if (TREE_CODE (field) != FIELD_DECL) continue;
     
-    char const * field_name;
-    AD_TRY (gcc_field_desc (AD_ARGS, field, field_name));
-    
-    // 跳过虚函数表指针（编译器生成的内部字段）
-    if (strstr (field_name, "_vptr") != NULL) {
+    // 跳过编译器生成的字段（如虚表指针）
+    bool is_compiler_generated;
+    AD_TRY (isCompilerGeneratedField (AD_ARGS, field, is_compiler_generated));
+    if (is_compiler_generated) {
       continue;
     }
+
+    char const *field_name;
+    AD_TRY (gcc_field_desc (AD_ARGS, field, field_name));
     
     tree field_type = TREE_TYPE (field);
     bool is_ptr;
@@ -671,12 +673,27 @@ ArrayDetectErrorCode is_pointer_type (AD_FUNC_ARGS, tree type, bool &result) AD_
 // 检查是否是字段访问（COMPONENT_REF）
 ArrayDetectErrorCode is_field_access (AD_FUNC_ARGS, tree expr, tree * field_decl_out, tree * object_out, bool &result) AD_FUNCTION_BEGIN {
   if (!expr) AD_RETURNO (false);
-  
+
   if (TREE_CODE (expr) == COMPONENT_REF) {
     *field_decl_out = TREE_OPERAND (expr, 1);
     *object_out = TREE_OPERAND (expr, 0);
     AD_RETURNO (true);
   }
   AD_RETURNO (false);
+} AD_FUNCTION_END
+
+// 检测是否是编译器生成的字段（如虚表指针 vptr）
+// 使用 DECL_ARTIFICIAL 检测，不依赖字段名硬编码
+ArrayDetectErrorCode isCompilerGeneratedField (AD_FUNC_ARGS, tree field_decl, bool &result) AD_FUNCTION_BEGIN {
+  AD_ARGS_WARN_DENY;
+
+  if (!field_decl) {
+    AD_RETURNO (false);
+  }
+
+  // DECL_ARTIFICIAL 标记由编译器自动生成的声明
+  // 包括虚表指针（vptr）、虚基类指针等
+  result = DECL_ARTIFICIAL (field_decl) != 0;
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 }

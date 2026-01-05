@@ -44,4 +44,9 @@ ArrayDetectErrorCode getFieldName (AD_FUNC_ARGS, tree field_decl, char const *&r
 // 返回：成功返回 OK，result 指向格式化的字段类型名字符串（GCC 内部管理，无需释放）
 ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char const *&result);
 
+// 检测是否是编译器生成的字段（如虚表指针 vptr）
+// 使用 DECL_ARTIFICIAL 检测，不依赖字段名硬编码
+// 返回：成功返回 OK，result 为 true 表示是编译器生成的字段
+ArrayDetectErrorCode isCompilerGeneratedField (AD_FUNC_ARGS, tree field_decl, bool &result);
+
 } // namespace gcc_ext_util

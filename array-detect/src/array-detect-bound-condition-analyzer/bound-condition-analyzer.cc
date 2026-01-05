@@ -37,18 +37,8 @@ static bool isCapacityField (tree field_decl) {
     return false;
   }
 
-  // 获取字段名
-  tree decl_name = DECL_NAME (field_decl);
-  if (!decl_name) {
-    return false;
-  }
-  char const* field_name = IDENTIFIER_POINTER (decl_name);
-  if (!field_name) {
-    return false;
-  }
-
-  // 排除 vptr 字段（虚表指针）
-  if (strstr (field_name, "_vptr") || strstr (field_name, "vptr")) {
+  // 排除编译器生成的字段（如虚表指针）
+  if (DECL_ARTIFICIAL (field_decl)) {
     return false;
   }
 
@@ -1395,9 +1385,9 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
       continue;
     }
 
-    // 跳过 vptr 字段（虚表指针不是真正的数组）
-    if (entry->field_name && strstr (entry->field_name, "_vptr")) {
-      AD_DEBUG_PRINT ("    Skipping vptr field");
+    // 跳过编译器生成的字段（如虚表指针）
+    if (entry->pointer_field_decl && DECL_ARTIFICIAL (entry->pointer_field_decl)) {
+      AD_DEBUG_PRINT ("    Skipping compiler-generated field");
       continue;
     }
 
