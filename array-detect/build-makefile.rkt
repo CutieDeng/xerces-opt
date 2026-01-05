@@ -58,7 +58,6 @@
                   "array-detect-context"
                   "array-detect-gcc-integration"
                   "array-detect-utils"
-                  "array-detect-field-analysis-coordinator"
                   "array-detect-pipeline-orchestrator"
                   "array-detect-field-source-tracer"
                   "array-detect-escape-use-collector"
@@ -125,7 +124,6 @@
       "-I" ,(path->string (build-path "include/array-detect-gcc-integration"))
       "-I" ,(path->string (build-path "include/array-detect-utils"))
       "-I" ,(path->string (build-path "include/array-detect-result"))
-      "-I" ,(path->string (build-path "include/array-detect-field-analysis-coordinator"))
       "-I" ,(path->string (build-path "include/array-detect-pipeline-orchestrator"))
       "-I" ,(path->string (build-path "include/array-detect-field-source-tracer"))
       "-I" ,(path->string (build-path "include/array-detect-escape-use-collector"))
