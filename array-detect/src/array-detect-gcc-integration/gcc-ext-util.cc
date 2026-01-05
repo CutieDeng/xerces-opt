@@ -219,22 +219,19 @@ static ArrayDetectErrorCode formatTemplateArgs (AD_FUNC_ARGS, tree type, bool &h
 // 返回：成功返回 OK，result 指向格式化的类型名字符串
 ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
   if (!type) {
-    result = "<unknown>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unknown>");
   }
 
-  char const * type_name = NULL;
+  char const *type_name = NULL;
   AD_TRY (get_type_name (AD_ARGS, type, type_name));
   if (!type_name) {
-    result = "<unknown>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unknown>");
   }
 
   // 确保缓冲区可用
   if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
     // 无缓冲区，回退到简单类型名
-    result = type_name;
-    AD_RETURNE (OK);
+    AD_RETURNO (type_name);
   }
 
   // 获取模版参数（如果有），结果存入 ctx.escaped_string_buffer
@@ -242,7 +239,7 @@ ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char 
   AD_TRY (formatTemplateArgs (AD_ARGS, type, has_template_args));
 
   // 尝试获取命名空间
-  char const * ns_name = NULL;
+  char const *ns_name = NULL;
   tree type_decl = TYPE_NAME (type);
   if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
     tree context = DECL_CONTEXT (type_decl);
@@ -263,12 +260,10 @@ ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char 
               type_name, ctx.escaped_string_buffer);
   } else {
     // 无命名空间和模版参数，直接返回类型名
-    result = type_name;
-    AD_RETURNE (OK);
+    AD_RETURNO (type_name);
   }
 
-  result = ctx.address_format_buffer;
-  AD_RETURNE (OK);
+  AD_RETURNO (ctx.address_format_buffer);
 } AD_FUNCTION_END
 
 // 子函数：获取字段名
@@ -276,42 +271,36 @@ ArrayDetectErrorCode formatTypeNameWithNamespace (AD_FUNC_ARGS, tree type, char 
 ArrayDetectErrorCode getFieldName (AD_FUNC_ARGS, tree field_decl, char const *&result) AD_FUNCTION_BEGIN {
   AD_ARGS_WARN_DENY;
   if (!field_decl) {
-    result = "<unnamed>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unnamed>");
   }
-  
+
   if (DECL_NAME (field_decl)) {
-    result = IDENTIFIER_POINTER (DECL_NAME (field_decl));
-  } else {
-    result = "<unnamed>";
+    AD_RETURNO (IDENTIFIER_POINTER (DECL_NAME (field_decl)));
   }
-  AD_RETURNE (OK);
+  AD_RETURNO ("<unnamed>");
 } AD_FUNCTION_END
 
 // 子函数：获取字段类型名（处理指针）
 // 返回：成功返回 OK，result 指向格式化的字段类型名字符串
 ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char const *&result) AD_FUNCTION_BEGIN {
   if (!field_type) {
-    result = "<unknown>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unknown>");
   }
-  
+
   // 检查是否是单层指针
   bool is_pointer = (TREE_CODE (field_type) == POINTER_TYPE);
   tree base_type = is_pointer ? TREE_TYPE (field_type) : field_type;
-  
+
   if (!base_type) {
-    result = "<unknown>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unknown>");
   }
-  
-  char const * base_type_name = NULL;
+
+  char const *base_type_name = NULL;
   AD_TRY (get_type_name (AD_ARGS, base_type, base_type_name));
   if (!base_type_name) {
-    result = "<unknown>";
-    AD_RETURNE (OK);
+    AD_RETURNO ("<unknown>");
   }
-  
+
   // 如果是指针，需要格式化输出（加上 *）
   if (is_pointer) {
     // 使用上下文缓冲区格式化指针类型名
@@ -319,11 +308,9 @@ ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char co
       AD_RETURNE (RESOURCE_ERROR);
     }
     snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s*", base_type_name);
-    result = ctx.address_format_buffer;
-  } else {
-    result = base_type_name;
+    AD_RETURNO (ctx.address_format_buffer);
   }
-  AD_RETURNE (OK);
+  AD_RETURNO (base_type_name);
 } AD_FUNCTION_END
 
 // 调试信息增强：打印字段写入捕获信息
@@ -693,7 +680,6 @@ ArrayDetectErrorCode isCompilerGeneratedField (AD_FUNC_ARGS, tree field_decl, bo
 
   // DECL_ARTIFICIAL 标记由编译器自动生成的声明
   // 包括虚表指针（vptr）、虚基类指针等
-  result = DECL_ARTIFICIAL (field_decl) != 0;
-  AD_RETURNE (OK);
+  AD_RETURNO (DECL_ARTIFICIAL (field_decl) != 0);
 } AD_FUNCTION_END
 }
