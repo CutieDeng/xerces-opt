@@ -269,152 +269,59 @@ static void collectBoundFieldsFromExpression (
   vec<tree, va_gc>** out_fields,
   int depth = 0
 ) {
-  // DEBUG: 只在 depth=0 时输出详细入口信息
-  if (depth == 0) {
-    AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] ENTRY: expr=%p, index_var=%p, target_base_object=%p",
-                    (void*)expr, (void*)index_var, (void*)target_base_object);
-    if (expr) {
-      AD_DEBUG_PRINT ("  expr TREE_CODE = %s", get_tree_code_name (TREE_CODE (expr)));
-    }
-  }
+  if (!expr || depth > 10) return;
 
-  if (!expr) {
-    if (depth == 0) AD_DEBUG_PRINT ("  expr is NULL, returning");
-    return;
-  }
-
-  if (depth > 10) {
-    AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] WARNING: depth > 10, stopping recursion");
-    return;
-  }
-
-  // 如果这个表达式涉及索引变量，不应从中收集字段
-  // （因为它是"索引侧"，不是"边界侧"）
-  if (expressionInvolvesVar (expr, index_var, 0)) {
-    if (depth == 0) AD_DEBUG_PRINT ("  Expression involves index_var, skipping");
-    return;
-  }
+  // 跳过涉及索引变量的表达式（是"索引侧"，不是"边界侧"）
+  if (expressionInvolvesVar (expr, index_var, 0)) return;
 
   enum tree_code expr_code = TREE_CODE (expr);
 
   // COMPONENT_REF: 直接的字段访问
   if (expr_code == COMPONENT_REF) {
-    if (depth <= 2) AD_DEBUG_PRINT ("  [depth=%d] COMPONENT_REF detected", depth);
     tree field = TREE_OPERAND (expr, 1);
     tree base_obj = TREE_OPERAND (expr, 0);
 
-    if (depth <= 2) {
-      AD_DEBUG_PRINT ("    field=%p, base_obj=%p", (void*)field, (void*)base_obj);
-    }
-
-    if (field && TREE_CODE (field) == FIELD_DECL) {
-      // 只收集可能作为容量的字段
-      if (isCapacityField (field)) {
-        // 检查字段所属对象是否与目标对象同一
-        bool same_object = true;  // 默认允许（向后兼容）
-        if (target_base_object) {
-          same_object = objectsAreSameOrAliased (AD_ARGS, base_obj, target_base_object);
-          if (!same_object) {
-            AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] Skipping field %s: different object",
-                            safeGetFieldName (AD_ARGS, field));
-          }
-        }
-
-        if (same_object) {
-          vec_safe_push (*out_fields, field);
-          AD_DEBUG_PRINT ("[collectBoundFieldsFromExpression] Collected field %s",
-                          safeGetFieldName (AD_ARGS, field));
-        }
-      } else {
-        if (depth <= 2) AD_DEBUG_PRINT ("    field is not a capacity field, skipping");
+    if (field && TREE_CODE (field) == FIELD_DECL && isCapacityField (field)) {
+      bool same_object = true;
+      if (target_base_object) {
+        same_object = objectsAreSameOrAliased (AD_ARGS, base_obj, target_base_object);
+      }
+      if (same_object) {
+        vec_safe_push (*out_fields, field);
+        AD_DEBUG_PRINT ("collectBoundFields: +field %s", safeGetFieldName (AD_ARGS, field));
       }
     }
-    // 继续检查基础对象（可能有嵌套字段访问）
     collectBoundFieldsFromExpression (AD_ARGS, base_obj, index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 
   // SSA_NAME: 追溯定义
   if (expr_code == SSA_NAME) {
-    if (depth <= 2) AD_DEBUG_PRINT ("  [depth=%d] SSA_NAME detected, tracing definition...", depth);
+    gimple *def = SSA_NAME_DEF_STMT (expr);
+    if (!def || !gimple_bb (def)) return;
 
-    gimple* def = SSA_NAME_DEF_STMT (expr);
-    if (!def) {
-      if (depth <= 2) AD_DEBUG_PRINT ("    SSA_NAME_DEF_STMT is NULL");
-      return;
-    }
-
-    // 获取定义语句的基本块
-    // 在 GCC 12 中，函数参数的 SSA_NAME 定义语句 (GIMPLE_NOP) 没有关联的基本块
-    // gimple_bb 返回 NULL 是正常行为，需要跳过这类定义
-    basic_block def_bb = gimple_bb (def);
     enum gimple_code def_code = gimple_code (def);
-
-    if (depth <= 2) {
-      AD_DEBUG_PRINT ("    def=%p, gimple_code=%s (%d), bb=%p (bb%d)",
-                      (void*)def, gimple_code_name[def_code], (int)def_code,
-                      (void*)def_bb, def_bb ? def_bb->index : -1);
-    }
-
-    // 如果定义语句不在任何基本块中（如 GIMPLE_NOP），跳过进一步处理
-    // 这不是错误情况，而是 GCC 对函数参数 SSA_NAME 的正常表示
-    if (!def_bb) {
-      if (depth <= 2) AD_DEBUG_PRINT ("    def has no basic block (parameter or special def), skipping");
-      return;
-    }
-
     if (def_code == GIMPLE_ASSIGN) {
-      if (depth <= 2) AD_DEBUG_PRINT ("    Processing GIMPLE_ASSIGN...");
       tree rhs1 = gimple_assign_rhs1 (def);
-      if (!rhs1) {
-        if (depth <= 2) AD_DEBUG_PRINT ("    rhs1 is NULL, skipping");
-        return;
-      }
-      if (depth <= 2) AD_DEBUG_PRINT ("    rhs1=%p, TREE_CODE=%s", (void*)rhs1, get_tree_code_name (TREE_CODE (rhs1)));
-      collectBoundFieldsFromExpression (AD_ARGS, rhs1, index_var, target_base_object, out_fields, depth + 1);
-
+      if (rhs1) collectBoundFieldsFromExpression (AD_ARGS, rhs1, index_var, target_base_object, out_fields, depth + 1);
       tree rhs2 = gimple_assign_rhs2 (def);
-      if (rhs2) {
-        if (depth <= 2) AD_DEBUG_PRINT ("    rhs2=%p, TREE_CODE=%s", (void*)rhs2, get_tree_code_name (TREE_CODE (rhs2)));
-        collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, target_base_object, out_fields, depth + 1);
-      }
-    }
-    else if (def_code == GIMPLE_PHI) {
-      // PHI 节点：从所有输入中收集字段（循环变量的情况）
-      AD_DEBUG_PRINT ("  [depth=%d] GIMPLE_PHI detected! def=%p", depth, (void*)def);
-
-      // 验证 PHI 节点有效性
-      AD_DEBUG_PRINT ("    Validating PHI node before as_a<gphi*>...");
+      if (rhs2) collectBoundFieldsFromExpression (AD_ARGS, rhs2, index_var, target_base_object, out_fields, depth + 1);
+    } else if (def_code == GIMPLE_PHI) {
       if (!is_a<gphi*>(def)) {
-        AD_DEBUG_PRINT ("    ERROR: def is not a valid gphi*! gimple_code=%s",
-                        gimple_code_name[gimple_code (def)]);
-        AD_DEBUG_PRINT ("    === CALL STACK AT PHI ERROR ===");
-        AD_GCC_DUMP_CALL_STACK ();
+        AD_DEBUG_PRINT ("ERROR: invalid gphi at %s", gimple_code_name[def_code]);
         return;
       }
-
-      gphi* phi = as_a<gphi*>(def);
-      unsigned num_args = gimple_phi_num_args (phi);
-      AD_DEBUG_PRINT ("    PHI node has %u arguments", num_args);
-
-      for (unsigned i = 0; i < num_args; i++) {
+      gphi *phi = as_a<gphi*>(def);
+      for (unsigned i = 0; i < gimple_phi_num_args (phi); i++) {
         tree arg = gimple_phi_arg_def (phi, i);
-        AD_DEBUG_PRINT ("    PHI arg[%u] = %p", i, (void*)arg);
-        if (arg) {
-          AD_DEBUG_PRINT ("      arg TREE_CODE = %s", get_tree_code_name (TREE_CODE (arg)));
-          collectBoundFieldsFromExpression (AD_ARGS, arg, index_var, target_base_object, out_fields, depth + 1);
-        }
+        if (arg) collectBoundFieldsFromExpression (AD_ARGS, arg, index_var, target_base_object, out_fields, depth + 1);
       }
-    }
-    else {
-      if (depth <= 2) AD_DEBUG_PRINT ("    Unhandled gimple_code: %s", gimple_code_name[def_code]);
     }
     return;
   }
 
   // 二元操作
   if (BINARY_CLASS_P (expr)) {
-    if (depth <= 2) AD_DEBUG_PRINT ("  [depth=%d] BINARY expression", depth);
     collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
     collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 1), index_var, target_base_object, out_fields, depth + 1);
     return;
@@ -422,20 +329,14 @@ static void collectBoundFieldsFromExpression (
 
   // 一元操作或类型转换
   if (UNARY_CLASS_P (expr) || CONVERT_EXPR_P (expr) || expr_code == NOP_EXPR) {
-    if (depth <= 2) AD_DEBUG_PRINT ("  [depth=%d] UNARY/CONVERT expression", depth);
     collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
     return;
   }
 
   // MEM_REF: 内存引用
   if (expr_code == MEM_REF) {
-    if (depth <= 2) AD_DEBUG_PRINT ("  [depth=%d] MEM_REF expression", depth);
     collectBoundFieldsFromExpression (AD_ARGS, TREE_OPERAND (expr, 0), index_var, target_base_object, out_fields, depth + 1);
     return;
-  }
-
-  if (depth <= 2) {
-    AD_DEBUG_PRINT ("  [depth=%d] Unhandled TREE_CODE: %s", depth, get_tree_code_name (expr_code));
   }
 }
 
@@ -641,9 +542,7 @@ ArrayDetectErrorCode traceExpressionToField (
           *out_type = TYPE_MAIN_VARIANT (base_type);
           *out_field_decl = field;
 
-          AD_DEBUG_PRINT ("[traceExpressionToField] Found field: %s::%s",
-                          safeGetTypeName (AD_ARGS, *out_type),
-                          safeGetFieldName (AD_ARGS, *out_field_decl));
+          AD_DEBUG_PRINT ("traceToField: %s::%s", safeGetTypeName (AD_ARGS, *out_type), safeGetFieldName (AD_ARGS, *out_field_decl));
           AD_RETURNE (OK);
         }
       }
@@ -698,117 +597,50 @@ ArrayDetectErrorCode traceExpressionToField (
 
 ArrayDetectErrorCode findDominatingConditions (
   AD_FUNC_ARGS,
-  ArrayAccessCapture* access,
-  vec<gimple*, va_gc>** out_conditions
+  ArrayAccessCapture *access,
+  vec<gimple*, va_gc> **out_conditions
 ) AD_FUNCTION_BEGIN {
   *out_conditions = NULL;
 
-  // ========== DEBUG: 函数入口 ==========
-  AD_DEBUG_PRINT ("========== [findDominatingConditions] ENTRY ==========");
-  AD_DEBUG_PRINT ("  access=%p, out_conditions=%p", (void*)access, (void*)out_conditions);
-
   AD_ASSERT_GCC_LOGIC (access, "access must not be NULL");
-
-  AD_DEBUG_PRINT ("  access->bb=%p, access->fn=%p", (void*)access->bb, (void*)access->fn);
-
   AD_ASSERT_GCC_LOGIC (access->bb, "access->bb must not be NULL");
   AD_ASSERT_GCC_LOGIC (access->fn, "access->fn must not be NULL");
 
-  // 确保在正确的函数上下文中
-  AD_DEBUG_PRINT ("  Checking function context: cfun=%p, access->fn=%p", (void*)cfun, (void*)access->fn);
   if (!cfun || cfun != access->fn) {
-    AD_DEBUG_PRINT ("[findDominatingConditions] Wrong function context, skipping");
-    AD_DEBUG_PRINT ("  cfun=%p != access->fn=%p", (void*)cfun, (void*)access->fn);
     AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT ("  Function context OK, allocating conditions vector...");
-  vec<gimple*, va_gc>* conditions = NULL;
+  vec<gimple*, va_gc> *conditions = NULL;
   vec_alloc (conditions, 8);
-  AD_DEBUG_PRINT ("  conditions=%p allocated", (void*)conditions);
 
-  basic_block access_bb = access->bb;
-  AD_DEBUG_PRINT ("  access_bb=%p (bb%d)", (void*)access_bb, access_bb ? access_bb->index : -1);
-
-  // 检查 CFG 是否可用
-  AD_DEBUG_PRINT ("  Checking CFG availability: access->fn->cfg=%p", (void*)access->fn->cfg);
   if (!access->fn->cfg) {
-    AD_DEBUG_PRINT ("[findDominatingConditions] No CFG available");
     *out_conditions = conditions;
     AD_RETURNE (OK);
   }
 
-  // 使用 GCC 的支配树
-  // 注意：需要先计算支配树
-  AD_DEBUG_PRINT ("  Checking dominator info availability...");
-  bool dom_available = dom_info_available_p (CDI_DOMINATORS);
-  AD_DEBUG_PRINT ("  dom_info_available_p(CDI_DOMINATORS) = %d", dom_available);
-
-  if (!dom_available) {
-    AD_DEBUG_PRINT ("  Calculating dominance info...");
+  if (!dom_info_available_p (CDI_DOMINATORS)) {
     calculate_dominance_info (CDI_DOMINATORS);
-    AD_DEBUG_PRINT ("  Dominance info calculated");
   }
 
-  // 从当前块向上遍历支配者
-  basic_block current_bb = access_bb;
-  int depth = 0;
+  basic_block current_bb = access->bb;
   int const MAX_DEPTH = 20;
 
-  AD_DEBUG_PRINT ("  Starting dominator traversal from bb%d, MAX_DEPTH=%d",
-                  current_bb ? current_bb->index : -1, MAX_DEPTH);
-
-  while (current_bb && depth < MAX_DEPTH) {
-    depth++;
-    AD_DEBUG_PRINT ("  [depth=%d] current_bb=bb%d", depth, current_bb->index);
-
-    // 获取支配者
-    AD_DEBUG_PRINT ("    Calling get_immediate_dominator...");
+  for (int depth = 0; current_bb && depth < MAX_DEPTH; depth++) {
     basic_block dominator = get_immediate_dominator (CDI_DOMINATORS, current_bb);
-    AD_DEBUG_PRINT ("    dominator=%p (bb%d)", (void*)dominator, dominator ? dominator->index : -1);
+    if (!dominator || dominator == current_bb) break;
 
-    if (!dominator) {
-      AD_DEBUG_PRINT ("    dominator is NULL, stopping");
-      break;
-    }
-    if (dominator == current_bb) {
-      AD_DEBUG_PRINT ("    dominator == current_bb, stopping");
-      break;
-    }
-
-    // 检查支配者的最后一条语句
-    AD_DEBUG_PRINT ("    Getting last statement in dominator block...");
     gimple_stmt_iterator gsi = gsi_last_bb (dominator);
-    bool gsi_valid = !gsi_end_p (gsi);
-    AD_DEBUG_PRINT ("    gsi_end_p(gsi) = %d", !gsi_valid);
-
-    if (gsi_valid) {
-      gimple* last_stmt = gsi_stmt (gsi);
-      AD_DEBUG_PRINT ("    last_stmt=%p", (void*)last_stmt);
-
-      if (last_stmt) {
-        enum gimple_code stmt_code = gimple_code (last_stmt);
-        AD_DEBUG_PRINT ("    gimple_code=%s (%d)", gimple_code_name[stmt_code], (int)stmt_code);
-
-        if (stmt_code == GIMPLE_COND) {
-          AD_DEBUG_PRINT ("    Found GIMPLE_COND, adding to conditions");
-          vec_safe_push (conditions, last_stmt);
-
-          AD_DEBUG_PRINT ("[findDominatingConditions] Found condition at bb%d -> %s:%d",
-                          dominator->index,
-                          LOCATION_FILE (gimple_location (last_stmt)) ?
-                            LOCATION_FILE (gimple_location (last_stmt)) : "<unknown>",
-                          LOCATION_LINE (gimple_location (last_stmt)));
-        }
+    if (!gsi_end_p (gsi)) {
+      gimple *last_stmt = gsi_stmt (gsi);
+      if (last_stmt && gimple_code (last_stmt) == GIMPLE_COND) {
+        vec_safe_push (conditions, last_stmt);
       }
     }
-
     current_bb = dominator;
   }
 
-  AD_DEBUG_PRINT ("  Traversal complete, found %u conditions", vec_safe_length (conditions));
+  AD_DEBUG_PRINT ("findDomConds: bb%d -> %u conditions", access->bb->index, vec_safe_length (conditions));
   *out_conditions = conditions;
-  AD_DEBUG_PRINT ("========== [findDominatingConditions] EXIT ==========");
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -959,10 +791,8 @@ ArrayDetectErrorCode analyzeBoundCondition (
   // 设置条件类型
   assoc->condition_type = BOUND_COND_LT_FIELD;  // 简化：统一标记为字段边界
 
-  AD_DEBUG_PRINT ("[analyzeBoundCondition] Found %u fields in condition at %s:%d",
-                  vec_safe_length (fields),
-                  LOCATION_FILE (gimple_location (cond_stmt)) ?
-                    LOCATION_FILE (gimple_location (cond_stmt)) : "<unknown>",
+  AD_DEBUG_PRINT ("boundCond: %u fields at %s:%d", vec_safe_length (fields),
+                  LOCATION_FILE (gimple_location (cond_stmt)) ? LOCATION_FILE (gimple_location (cond_stmt)) : "?",
                   LOCATION_LINE (gimple_location (cond_stmt)));
 
   // 检查是否与访问的指针字段属于同一类型
@@ -988,352 +818,131 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
 ) AD_FUNCTION_BEGIN {
   *out_analysis = NULL;
 
-  // ========== DEBUG: 函数入口详细信息 ==========
-  AD_DEBUG_PRINT ("========== [analyzeAccessBoundConditions] ENTRY ==========");
-  AD_DEBUG_PRINT ("  access=%p, out_analysis=%p", (void*)access, (void*)out_analysis);
-
   if (!access) {
-    AD_DEBUG_PRINT ("  access is NULL, returning OK");
     AD_RETURNE (OK);
-  }
-
-  // DEBUG: 输出 access 结构的详细信息
-  AD_DEBUG_PRINT ("  access->access_type=%d, access->direction=%d",
-                  access->access_type, access->direction);
-  AD_DEBUG_PRINT ("  access->base_pointer=%p, access->offset_expr=%p",
-                  (void*)access->base_pointer, (void*)access->offset_expr);
-  AD_DEBUG_PRINT ("  access->is_field_based=%d, access->fn=%p, access->bb=%p",
-                  access->is_field_based, (void*)access->fn, (void*)access->bb);
-
-  if (access->stmt) {
-    AD_DEBUG_PRINT ("  access->stmt=%p, gimple_code=%s",
-                    (void*)access->stmt,
-                    gimple_code_name[gimple_code (access->stmt)]);
-  } else {
-    AD_DEBUG_PRINT ("  access->stmt=NULL");
-  }
-
-  if (access->location != UNKNOWN_LOCATION) {
-    AD_DEBUG_PRINT ("  access->location: %s:%d",
-                    LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>",
-                    LOCATION_LINE (access->location));
   }
 
   // 创建分析结果
-  AD_DEBUG_PRINT ("  Allocating ArrayAccessBoundAnalysis...");
-  ArrayAccessBoundAnalysis* analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
+  ArrayAccessBoundAnalysis *analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
   memset (analysis, 0, sizeof (ArrayAccessBoundAnalysis));
-
   analysis->access = access;
   vec_alloc (analysis->bounds, 4);
   vec_alloc (analysis->related_fields, 4);
-  AD_DEBUG_PRINT ("  analysis=%p allocated successfully", (void*)analysis);
 
-  // 获取偏移量表达式作为索引变量
   tree index_var = access->offset_expr;
-  AD_DEBUG_PRINT ("  index_var (offset_expr) = %p", (void*)index_var);
-
   if (!index_var) {
-    // 没有索引变量，无法分析边界
-    AD_DEBUG_PRINT ("  index_var is NULL, no boundary analysis possible");
     access->bound_analysis = analysis;
     *out_analysis = analysis;
     AD_RETURNE (OK);
   }
 
-  // DEBUG: 验证 index_var 的有效性
-  AD_DEBUG_PRINT ("  Validating index_var tree node...");
-  enum tree_code index_var_code = TREE_CODE (index_var);
-  AD_DEBUG_PRINT ("  index_var TREE_CODE = %s (%d)",
-                  get_tree_code_name (index_var_code), (int)index_var_code);
-
-  if (TREE_TYPE (index_var)) {
-    tree idx_type = TREE_TYPE (index_var);
-    AD_DEBUG_PRINT ("  index_var type: %s",
-                    get_tree_code_name (TREE_CODE (idx_type)));
-  } else {
-    AD_DEBUG_PRINT ("  index_var has no type (TREE_TYPE is NULL)");
-  }
-
-  // 提取目标对象（待分析指针字段的基础对象）
-  // 用于过滤不属于同一对象的边界字段
+  // 提取目标对象用于过滤不同对象的边界字段
   tree target_base_object = NULL_TREE;
   if (access->is_field_based && access->base_pointer) {
-    AD_DEBUG_PRINT ("  Extracting target_base_object from base_pointer...");
     target_base_object = extractBaseObject (access->base_pointer);
-    AD_DEBUG_PRINT ("  target_base_object = %p", (void*)target_base_object);
-    if (target_base_object) {
-      AD_DEBUG_PRINT ("  target_base_object TREE_CODE = %s",
-                      get_tree_code_name (TREE_CODE (target_base_object)));
-    }
-  } else {
-    AD_DEBUG_PRINT ("  Skipping target_base_object extraction (is_field_based=%d, base_pointer=%p)",
-                    access->is_field_based, (void*)access->base_pointer);
   }
 
   // 查找支配条件
-  AD_DEBUG_PRINT ("  Calling findDominatingConditions...");
-  vec<gimple*, va_gc>* conditions = NULL;
+  vec<gimple*, va_gc> *conditions = NULL;
   AD_TRY (findDominatingConditions (AD_ARGS, access, &conditions));
-  AD_DEBUG_PRINT ("  findDominatingConditions returned, conditions=%p", (void*)conditions);
 
   if (!conditions || conditions->length () == 0) {
-    AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] No dominating conditions found");
-
-    // 即使没有支配条件，也检查索引表达式是否引用了容量字段
-    // 例如 fElemList[fCurCount] 中，fCurCount 本身就是边界字段
+    // 尝试从索引表达式中收集字段
     if (index_var) {
-      vec<tree, va_gc>* index_fields = NULL;
+      vec<tree, va_gc> *index_fields = NULL;
       vec_alloc (index_fields, 4);
       collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
-
-      // 将索引表达式中的字段添加到 related_fields
       for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
-        tree field = (*index_fields)[j];
-        vec_safe_push (analysis->related_fields, field);
+        vec_safe_push (analysis->related_fields, (*index_fields)[j]);
         analysis->field_bound_count++;
       }
-
       if (analysis->field_bound_count > 0) {
         analysis->has_valid_bound = true;
-        AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Found %u fields from index expression",
-                        analysis->field_bound_count);
       }
     }
-
     access->bound_analysis = analysis;
     *out_analysis = analysis;
     AD_RETURNE (OK);
   }
 
-  AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Found %u dominating conditions",
-                  conditions->length ());
-
-  // ========== DEBUG: 输出调用栈 ==========
-  AD_DEBUG_PRINT ("  === Call Stack at condition processing start ===");
-  AD_GCC_DUMP_CALL_STACK ();
-
-  // 分析每个条件，收集所有引用的字段
-  BoundConditionAssociation* best_field_bound = NULL;
-
-  // ========== DEBUG: 检查 index_var 前的详细验证 ==========
-  AD_DEBUG_PRINT ("  About to check index_var for SSA_NAME...");
-  AD_DEBUG_PRINT ("  index_var=%p", (void*)index_var);
-
-  // 检查 index_var 是否是变量（SSA_NAME）还是常量
-  // 如果是常量，则采用宽松策略，从所有条件中收集边界字段
-  AD_DEBUG_PRINT ("  Calling TREE_CODE(index_var)...");
-  enum tree_code idx_code_check = TREE_CODE (index_var);
-  AD_DEBUG_PRINT ("  TREE_CODE(index_var) = %s (%d)",
-                  get_tree_code_name (idx_code_check), (int)idx_code_check);
-
-  bool index_is_variable = (index_var && idx_code_check == SSA_NAME);
-  AD_DEBUG_PRINT ("  index_is_variable = %d", index_is_variable);
-
-  if (ctx.debug_file) {
-    fprintf (ctx.debug_file, "    index_var code=%s, is_variable=%d\n",
-             index_var ? get_tree_code_name (TREE_CODE (index_var)) : "NULL",
-             index_is_variable);
-  }
-
-  // ========== DEBUG: 开始循环处理条件 ==========
-  AD_DEBUG_PRINT ("  Starting condition loop, total conditions=%u", conditions->length ());
+  // 分析每个条件
+  BoundConditionAssociation *best_field_bound = NULL;
+  bool index_is_variable = (TREE_CODE (index_var) == SSA_NAME);
 
   for (unsigned int i = 0; i < conditions->length (); i++) {
-    AD_DEBUG_PRINT ("  --- Processing condition %u/%u ---", i, conditions->length ());
+    gimple *cond = (*conditions)[i];
+    if (!cond || gimple_code (cond) != GIMPLE_COND) continue;
 
-    gimple* cond = (*conditions)[i];
-    AD_DEBUG_PRINT ("    cond=%p", (void*)cond);
-
-    if (!cond) {
-      AD_DEBUG_PRINT ("    cond is NULL, skipping");
-      continue;
-    }
-
-    enum gimple_code cond_gcode = gimple_code (cond);
-    AD_DEBUG_PRINT ("    gimple_code(cond) = %s (%d)",
-                    gimple_code_name[cond_gcode], (int)cond_gcode);
-
-    if (cond_gcode != GIMPLE_COND) {
-      AD_DEBUG_PRINT ("    Not GIMPLE_COND, skipping");
-      continue;
-    }
-
-    AD_DEBUG_PRINT ("    Extracting lhs and rhs from GIMPLE_COND...");
     tree lhs = gimple_cond_lhs (cond);
     tree rhs = gimple_cond_rhs (cond);
-    AD_DEBUG_PRINT ("    lhs=%p, rhs=%p", (void*)lhs, (void*)rhs);
 
-    if (lhs) {
-      AD_DEBUG_PRINT ("    lhs TREE_CODE = %s", get_tree_code_name (TREE_CODE (lhs)));
-    }
-    if (rhs) {
-      AD_DEBUG_PRINT ("    rhs TREE_CODE = %s", get_tree_code_name (TREE_CODE (rhs)));
-    }
-
-    // 收集边界字段
-    AD_DEBUG_PRINT ("    Allocating cond_fields vector...");
-    vec<tree, va_gc>* cond_fields = NULL;
+    vec<tree, va_gc> *cond_fields = NULL;
     vec_alloc (cond_fields, 4);
-    AD_DEBUG_PRINT ("    cond_fields=%p allocated", (void*)cond_fields);
 
     if (index_is_variable) {
-      // 索引是变量：尝试严格模式
-      AD_DEBUG_PRINT ("    [STRICT MODE] Checking if lhs/rhs involves index...");
-      AD_DEBUG_PRINT ("    Calling expressionInvolvesVar(lhs, index_var)...");
       bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
-      AD_DEBUG_PRINT ("    lhs_involves_index = %d", lhs_involves_index);
-
-      AD_DEBUG_PRINT ("    Calling expressionInvolvesVar(rhs, index_var)...");
       bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
-      AD_DEBUG_PRINT ("    rhs_involves_index = %d", rhs_involves_index);
-
-      if (ctx.debug_file) {
-        fprintf (ctx.debug_file, "    [COND %u] code=%s, lhs_involves=%d, rhs_involves=%d\n",
-                 i, get_tree_code_name (gimple_cond_code (cond)),
-                 lhs_involves_index, rhs_involves_index);
-      }
 
       if (lhs_involves_index || rhs_involves_index) {
-        // 严格模式成功：只从不涉及索引的一侧收集字段
-        AD_DEBUG_PRINT ("    Strict mode: collecting from non-index side(s)");
-        if (!lhs_involves_index) {
-          AD_DEBUG_PRINT ("    Collecting from lhs...");
-          collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
-          AD_DEBUG_PRINT ("    After lhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
-        }
-        if (!rhs_involves_index) {
-          AD_DEBUG_PRINT ("    Collecting from rhs...");
-          collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
-          AD_DEBUG_PRINT ("    After rhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
-        }
+        if (!lhs_involves_index) collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
+        if (!rhs_involves_index) collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
       } else {
-        // 严格模式失败（SSA 版本不匹配）：回退到宽松模式
-        AD_DEBUG_PRINT ("    Strict mode failed (SSA mismatch), falling back to relaxed mode");
-        // 从两侧收集整数类型字段，依赖 isCapacityField 过滤
-        AD_DEBUG_PRINT ("    Collecting from lhs (relaxed)...");
         collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
-        AD_DEBUG_PRINT ("    After lhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
-
-        AD_DEBUG_PRINT ("    Collecting from rhs (relaxed)...");
         collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
-        AD_DEBUG_PRINT ("    After rhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
       }
     } else {
-      // 索引是常量：宽松模式 - 从所有比较条件中收集整数类型字段
-      // 仍然过滤非容量字段（vptr、布尔等）
-      AD_DEBUG_PRINT ("    [RELAXED MODE] index is constant");
-      if (ctx.debug_file) {
-        fprintf (ctx.debug_file, "    [COND %u] code=%s (relaxed mode)\n",
-                 i, get_tree_code_name (gimple_cond_code (cond)));
-      }
-
-      // 从两侧都收集字段（因为我们不知道哪边是"索引侧"）
-      AD_DEBUG_PRINT ("    Collecting from lhs...");
       collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
-      AD_DEBUG_PRINT ("    After lhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
-
-      AD_DEBUG_PRINT ("    Collecting from rhs...");
       collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
-      AD_DEBUG_PRINT ("    After rhs collection, cond_fields length=%u", vec_safe_length (cond_fields));
     }
 
-    // 将所有字段添加到 related_fields（去重）
-    AD_DEBUG_PRINT ("    Adding %u fields to related_fields (with dedup)...",
-                    vec_safe_length (cond_fields));
+    // 去重添加到 related_fields
     for (unsigned int j = 0; j < vec_safe_length (cond_fields); j++) {
       tree field = (*cond_fields)[j];
-      AD_DEBUG_PRINT ("      field[%u]=%p", j, (void*)field);
-      if (field) {
-        AD_DEBUG_PRINT ("        TREE_CODE=%s", get_tree_code_name (TREE_CODE (field)));
-      }
-
-      bool already_exists = false;
+      bool exists = false;
       for (unsigned int k = 0; k < vec_safe_length (analysis->related_fields); k++) {
-        if ((*analysis->related_fields)[k] == field) {
-          already_exists = true;
-          break;
-        }
+        if ((*analysis->related_fields)[k] == field) { exists = true; break; }
       }
-      if (!already_exists) {
-        AD_DEBUG_PRINT ("        Adding to related_fields");
+      if (!exists) {
         vec_safe_push (analysis->related_fields, field);
         analysis->field_bound_count++;
-      } else {
-        AD_DEBUG_PRINT ("        Already exists, skipping");
       }
     }
-    AD_DEBUG_PRINT ("    After dedup: field_bound_count=%u", analysis->field_bound_count);
 
-    // 也调用 analyzeBoundCondition 来获取更多信息（用于 debug）
-    AD_DEBUG_PRINT ("    Calling analyzeBoundCondition...");
-    BoundConditionAssociation* assoc = NULL;
+    BoundConditionAssociation *assoc = NULL;
     AD_TRY (analyzeBoundCondition (AD_ARGS, cond, index_var, access, &assoc));
-    AD_DEBUG_PRINT ("    analyzeBoundCondition returned, assoc=%p", (void*)assoc);
-
     if (assoc) {
-      AD_DEBUG_PRINT ("    assoc->condition_type=%d, is_field_bound=%d",
-                      assoc->condition_type, assoc->is_field_bound);
       vec_safe_push (analysis->bounds, assoc);
-
-      if (assoc->is_field_bound) {
-        if (!best_field_bound) {
-          best_field_bound = assoc;
-          AD_DEBUG_PRINT ("    Set as best_field_bound");
-        }
-        else if (assoc->description && !best_field_bound->description) {
-          best_field_bound = assoc;
-          AD_DEBUG_PRINT ("    Updated best_field_bound (has description)");
-        }
-      }
-      else if (assoc->condition_type == BOUND_COND_LT_CONSTANT ||
-               assoc->condition_type == BOUND_COND_LE_CONSTANT) {
+      if (assoc->is_field_bound && (!best_field_bound || (assoc->description && !best_field_bound->description))) {
+        best_field_bound = assoc;
+      } else if (assoc->condition_type == BOUND_COND_LT_CONSTANT || assoc->condition_type == BOUND_COND_LE_CONSTANT) {
         analysis->constant_bound_count++;
-        AD_DEBUG_PRINT ("    Incremented constant_bound_count to %u", analysis->constant_bound_count);
       }
     }
   }
 
-  // 后备检查：如果从支配条件中没有收集到任何字段，尝试从索引表达式中收集
-  // 例如析构函数中 for (i = fMaxCount - 1; i >= 0; i--) 的情况
-  // 条件 i >= 0 没有字段引用，但索引 i 的初始值引用了 fMaxCount
+  // 后备：从索引表达式收集
   if (analysis->field_bound_count == 0 && index_var) {
-    vec<tree, va_gc>* index_fields = NULL;
+    vec<tree, va_gc> *index_fields = NULL;
     vec_alloc (index_fields, 4);
     collectBoundFieldsFromExpression (AD_ARGS, index_var, NULL_TREE, target_base_object, &index_fields);
-
     for (unsigned int j = 0; j < vec_safe_length (index_fields); j++) {
       tree field = (*index_fields)[j];
-      bool already_exists = false;
+      bool exists = false;
       for (unsigned int k = 0; k < vec_safe_length (analysis->related_fields); k++) {
-        if ((*analysis->related_fields)[k] == field) {
-          already_exists = true;
-          break;
-        }
+        if ((*analysis->related_fields)[k] == field) { exists = true; break; }
       }
-      if (!already_exists) {
+      if (!exists) {
         vec_safe_push (analysis->related_fields, field);
         analysis->field_bound_count++;
       }
     }
-
-    if (analysis->field_bound_count > 0) {
-      AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Fallback: found %u fields from index expression",
-                      analysis->field_bound_count);
-    }
   }
 
-  // 设置分析结果
-  analysis->has_valid_bound = (analysis->field_bound_count > 0 ||
-                               analysis->constant_bound_count > 0);
+  analysis->has_valid_bound = (analysis->field_bound_count > 0 || analysis->constant_bound_count > 0);
   analysis->primary_bound = best_field_bound;
-
-  // 关联到访问捕获
   access->bound_analysis = analysis;
 
-  AD_DEBUG_PRINT ("[analyzeAccessBoundConditions] Result: %u field bounds, %u constant bounds",
-                  analysis->field_bound_count, analysis->constant_bound_count);
-
+  AD_DEBUG_PRINT ("analyzeBoundConds: %u field, %u const bounds", analysis->field_bound_count, analysis->constant_bound_count);
   *out_analysis = analysis;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -1346,11 +955,7 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
   AD_FUNC_ARGS,
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("########## [analyzeAllBoundConditions] ENTRY ##########");
-  AD_DEBUG_PRINT ("  array_accesses=%p", (void*)array_accesses);
-
   if (!array_accesses) {
-    AD_DEBUG_PRINT ("  array_accesses is NULL, returning OK");
     AD_RETURNE (OK);
   }
 
@@ -1358,93 +963,40 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
 
   unsigned int total_analyzed = 0;
   unsigned int with_bounds = 0;
-  unsigned int entry_count = 0;
 
-  // 按函数分组分析，确保正确的函数上下文
-  AD_DEBUG_PRINT ("  Iterating over array_accesses map...");
   for (MapType::iterator iter = array_accesses->begin ();
        iter != array_accesses->end ();
        ++iter) {
-    entry_count++;
     TypeFieldArrayAccesses* entry = (*iter).second;
-
-    AD_DEBUG_PRINT ("  [Entry %u] entry=%p", entry_count, (void*)entry);
-
-    if (!entry) {
-      AD_DEBUG_PRINT ("    entry is NULL, skipping");
-      continue;
-    }
-
-    AD_DEBUG_PRINT ("    type_name=%s, field_name=%s, accesses=%p",
-                    entry->type_name ? entry->type_name : "<null>",
-                    entry->field_name ? entry->field_name : "<null>",
-                    (void*)entry->accesses);
-
-    if (!entry->accesses) {
-      AD_DEBUG_PRINT ("    entry->accesses is NULL, skipping");
-      continue;
-    }
+    if (!entry || !entry->accesses) continue;
 
     // 跳过编译器生成的字段（如虚表指针）
     if (entry->pointer_field_decl && DECL_ARTIFICIAL (entry->pointer_field_decl)) {
-      AD_DEBUG_PRINT ("    Skipping compiler-generated field");
       continue;
     }
 
     unsigned int num_accesses = entry->accesses->length ();
-    AD_DEBUG_PRINT ("    Processing %u accesses for this entry...", num_accesses);
-
     for (unsigned int i = 0; i < num_accesses; i++) {
       ArrayAccessCapture* access = (*entry->accesses)[i];
-      AD_DEBUG_PRINT ("    [Access %u/%u] access=%p", i, num_accesses, (void*)access);
+      if (!access || !access->fn) continue;
 
-      if (!access) {
-        AD_DEBUG_PRINT ("      access is NULL, skipping");
-        continue;
-      }
-
-      AD_DEBUG_PRINT ("      access->fn=%p, access->location=%s:%d",
-                      (void*)access->fn,
-                      access->location != UNKNOWN_LOCATION ?
-                        (LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "<unknown>") : "<unknown>",
-                      access->location != UNKNOWN_LOCATION ? LOCATION_LINE (access->location) : 0);
-
-      if (!access->fn) {
-        AD_DEBUG_PRINT ("      access->fn is NULL, skipping");
-        continue;
-      }
-
-      // 设置正确的函数上下文
       function* current_fn = access->fn;
-      AD_DEBUG_PRINT ("      current_fn=%p, current_fn->cfg=%p", (void*)current_fn, (void*)(current_fn ? current_fn->cfg : NULL));
-
       if (current_fn && current_fn->cfg) {
-        AD_DEBUG_PRINT ("      Calling push_cfun(current_fn)...");
         push_cfun (current_fn);
-        AD_DEBUG_PRINT ("      push_cfun done, cfun=%p", (void*)cfun);
-
-        AD_DEBUG_PRINT ("      Calling analyzeAccessBoundConditions...");
         ArrayAccessBoundAnalysis* analysis = NULL;
         ArrayDetectErrorCode err = analyzeAccessBoundConditions (AD_ARGS, access, &analysis);
-        AD_DEBUG_PRINT ("      analyzeAccessBoundConditions returned, err=%d, analysis=%p",
-                        (int)err, (void*)analysis);
-
-        AD_DEBUG_PRINT ("      Calling pop_cfun()...");
         pop_cfun ();
-        AD_DEBUG_PRINT ("      pop_cfun done");
 
         if (err == OK) {
           total_analyzed++;
           if (analysis && analysis->has_valid_bound) {
             with_bounds++;
-            AD_DEBUG_PRINT ("      Access has valid bound");
           }
         } else {
-          AD_DEBUG_PRINT ("      ERROR: analyzeAccessBoundConditions failed with code %d", (int)err);
+          AD_DEBUG_PRINT ("ERROR: bound analysis failed, err=%d", (int)err);
         }
       } else {
         // 函数没有 CFG，创建一个空的分析结果
-        AD_DEBUG_PRINT ("      No CFG, creating empty analysis");
         ArrayAccessBoundAnalysis* analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
         memset (analysis, 0, sizeof (ArrayAccessBoundAnalysis));
         analysis->access = access;
@@ -1454,9 +1006,7 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
     }
   }
 
-  AD_DEBUG_PRINT ("[analyzeAllBoundConditions] Analyzed %u accesses, %u with bounds",
-                  total_analyzed, with_bounds);
-  AD_DEBUG_PRINT ("########## [analyzeAllBoundConditions] EXIT ##########");
+  AD_DEBUG_PRINT ("analyzeAllBounds: %u accesses, %u with bounds", total_analyzed, with_bounds);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

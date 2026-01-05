@@ -38,53 +38,23 @@ ArrayDetectErrorCode collectIntegerCandidates (
   (void)gcc_ctx;
 
   *out_candidates = NULL;
-
   AD_ASSERT_GCC_LOGIC (type, "type must not be NULL");
 
   if (TREE_CODE (type) != RECORD_TYPE) {
-    AD_DEBUG_PRINT ("[collectIntegerCandidates] Skip: type is not RECORD_TYPE");
     AD_RETURNE (OK);
   }
-
-  char const* type_name = safeGetTypeName (AD_ARGS, type);
-  AD_DEBUG_PRINT ("[collectIntegerCandidates] Scanning type '%s' for integer fields", type_name);
 
   vec<tree, va_gc>* candidates = NULL;
   vec_alloc (candidates, 8);
 
-  unsigned int field_count = 0;
-  unsigned int integer_count = 0;
-
-  // 遍历类型的所有字段
   for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field)) {
     if (TREE_CODE (field) != FIELD_DECL) continue;
 
-    field_count++;
     tree field_type = TREE_TYPE (field);
-    char const* field_name = safeGetFieldName (AD_ARGS, field);
-
     if (isIntegerType (field_type)) {
       vec_safe_push (candidates, field);
-      integer_count++;
-
-      // 输出详细的字段信息到调试文件
-      if (ctx.debug_file) {
-        fprintf (ctx.debug_file, "    [INTEGER CANDIDATE] %s::%s (type code: %s)\n",
-                 type_name, field_name,
-                 get_tree_code_name (TREE_CODE (field_type)));
-      }
-
-      AD_DEBUG_PRINT ("[collectIntegerCandidates] Found integer candidate: %s::%s",
-                      type_name, field_name);
-    } else {
-      AD_DEBUG_PRINT ("[collectIntegerCandidates] Skip non-integer field: %s::%s (type code: %s)",
-                      type_name, field_name,
-                      get_tree_code_name (TREE_CODE (field_type)));
     }
   }
-
-  AD_DEBUG_PRINT ("[collectIntegerCandidates] Type '%s': %u total fields, %u integer candidates",
-                  type_name, field_count, integer_count);
 
   *out_candidates = candidates;
   AD_RETURNE (OK);
@@ -202,46 +172,19 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
     }
   }
 
-  // 激进假设：任何返回指针的函数调用都可能是分配函数
-  // 不再检查函数名是否在 malloc family 中
-
   location_t loc = gimple_location (call_stmt);
-  char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
 
-  AD_DEBUG_PRINT ("[analyzeMallocSizeSource] Checking %s() call at %s:%d for field '%s'",
-                  function_name,
-                  LOCATION_FILE (loc) ? LOCATION_FILE (loc) : "<unknown>",
-                  LOCATION_LINE (loc),
-                  candidate_name);
-
-  // 输出调试文件详细信息
-  if (ctx.debug_file) {
-    fprintf (ctx.debug_file, "      [MALLOC CHECK] %s() at %s:%d\n",
-             function_name,
-             LOCATION_FILE (loc) ? LOCATION_FILE (loc) : "<unknown>",
-             LOCATION_LINE (loc));
-  }
-
-  // 获取 size 参数（通常是第一个参数，calloc 是前两个参数的乘积）
   unsigned int nargs = gimple_call_num_args (call_stmt);
   if (nargs == 0) {
-    AD_DEBUG_PRINT ("[analyzeMallocSizeSource] No arguments in call");
     AD_RETURNE (OK);
   }
 
-  // 检查所有参数
   for (unsigned int i = 0; i < nargs; i++) {
     tree arg = gimple_call_arg (call_stmt, i);
-
-    if (ctx.debug_file) {
-      fprintf (ctx.debug_file, "        arg[%u]: checking for reference to '%s'...\n",
-               i, candidate_name);
-    }
 
     if (expressionReferencesField (AD_ARGS, arg, candidate_field)) {
       *out_references = true;
 
-      // 创建证据
       CapacityAssociationEvidence* evidence = ggc_alloc<CapacityAssociationEvidence>();
       memset (evidence, 0, sizeof (CapacityAssociationEvidence));
 
@@ -253,22 +196,9 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
       evidence->size_expr = arg;
 
       *out_evidence = evidence;
-
-      AD_DEBUG_PRINT ("[analyzeMallocSizeSource] FOUND: %s() arg[%u] references field '%s'",
-                      function_name, i, candidate_name);
-
-      // 输出到调试文件
-      if (ctx.debug_file) {
-        fprintf (ctx.debug_file, "        -> MATCH! arg[%u] references '%s'\n",
-                 i, candidate_name);
-      }
-
       AD_RETURNE (OK);
     }
   }
-
-  AD_DEBUG_PRINT ("[analyzeMallocSizeSource] No reference found to '%s' in %s() args",
-                  candidate_name, function_name);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -625,8 +555,6 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
   hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses,
   vec<PointerCapacityAssociation*, va_gc>** out_results
 ) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("Analyzing capacity associations for owned pointer fields");
-
   *out_results = NULL;
 
   AD_ASSERT_GCC_LOGIC (owned_conclusions, "owned_conclusions must not be NULL");
