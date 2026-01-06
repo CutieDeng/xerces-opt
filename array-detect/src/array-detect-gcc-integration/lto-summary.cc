@@ -384,13 +384,34 @@ vec<LtoUnifiedResultSummary*, va_gc>* convertAllToLtoSummaries (
 // LTRANS aggregation: merge summaries from multiple TUs
 // ============================================================================
 
+// 合并两个 owned verdict，规则：no > partial_yes > yes > undetermined
+static OwnedConclusionVerdict mergeOwnedVerdicts (
+  OwnedConclusionVerdict a,
+  OwnedConclusionVerdict b
+) {
+  // 优先级：OWNED_NO > OWNED_PARTIAL_YES > OWNED_YES > OWNED_UNDETERMINED
+  // 存在 no -> no
+  if (a == OWNED_NO || b == OWNED_NO) {
+    return OWNED_NO;
+  }
+  // 存在 partial_yes -> partial_yes
+  if (a == OWNED_PARTIAL_YES || b == OWNED_PARTIAL_YES) {
+    return OWNED_PARTIAL_YES;
+  }
+  // 存在 yes -> yes
+  if (a == OWNED_YES || b == OWNED_YES) {
+    return OWNED_YES;
+  }
+  // 否则 undetermined
+  return OWNED_UNDETERMINED;
+}
+
 vec<LtoUnifiedResultSummary*, va_gc>* aggregateLtransSummaries () {
   vec<LtoUnifiedResultSummary*, va_gc>* all = g_ltrans_summaries;
   if (!all || all->is_empty ()) return nullptr;
 
   // Group by (type_name, field_name)
-  // For now, simple approach: keep first occurrence, merge accesses
-  // A more sophisticated approach would merge owned verdicts, etc.
+  // Merge owned verdicts using priority: no > partial_yes > yes > undetermined
 
   vec<LtoUnifiedResultSummary*, va_gc>* result = nullptr;
   vec_alloc (result, all->length ());
@@ -414,10 +435,8 @@ vec<LtoUnifiedResultSummary*, va_gc>* aggregateLtransSummaries () {
       if (type_match && field_match) {
         found = true;
 
-        // Merge: upgrade owned verdict if needed
-        if (s->owned_verdict == OWNED_YES && existing->owned_verdict != OWNED_YES) {
-          existing->owned_verdict = OWNED_YES;
-        }
+        // Merge owned verdict using priority rules
+        existing->owned_verdict = mergeOwnedVerdicts (existing->owned_verdict, s->owned_verdict);
 
         // Merge malloc-size fields
         if (s->malloc_size_field_names) {
@@ -504,6 +523,7 @@ void writeLtransResultsToRacketDatum (char const* output_path) {
     // owned
     char const* owned_str = "undetermined";
     if (s->owned_verdict == OWNED_YES) owned_str = "yes";
+    else if (s->owned_verdict == OWNED_PARTIAL_YES) owned_str = "partial-yes";
     else if (s->owned_verdict == OWNED_NO) owned_str = "no";
     fprintf (f, "(owned %s)", owned_str);
 
