@@ -255,6 +255,7 @@ obj/array-detect-gcc-integration/lto-summary.o: \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh \
   include/array-detect-unified-result-aggregator/result-aggregator.hh \
   include/array-detect-capacity-field-associator/capacity-association.hh \
   include/array-detect-array-access-collector/array-access-collector.hh \
@@ -280,6 +281,7 @@ obj/array-detect-gcc-integration/plugin-top.o: \
   include/array-detect-pipeline-orchestrator/pipeline.hh \
   include/array-detect-gcc-integration/lto-summary.hh \
   include/array-detect-owned-verdict-generator/owned-conclusion.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh \
   include/array-detect-utils/info-print.hh \
 
@@ -464,8 +466,8 @@ obj/array-detect-owned-verdict-generator/owned-conclusion.o: \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
-  include/array-detect-gcc-integration/gcc-ext-util.hh \
   include/array-detect-field-source-tracer/field-source-variant.hh \
+  include/array-detect-gcc-integration/gcc-ext-util.hh \
   include/array-detect-escape-use-collector/source-escape-collection.hh \
   include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/address-resolver.hh \
@@ -490,9 +492,9 @@ obj/array-detect-capacity-field-associator/capacity-association.o: \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-owned-verdict-generator/owned-conclusion.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh \
   include/array-detect-array-access-collector/array-access-collector.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh \
-  include/array-detect-field-source-tracer/field-source-variant.hh \
   include/array-detect-utils/info-print.hh \
   include/array-detect-bound-condition-analyzer/bound-condition-analyzer.hh \
   include/array-detect-utils/string-utils.hh \
@@ -554,6 +556,7 @@ obj/array-detect-unified-result-aggregator/result-aggregator.o: \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-owned-verdict-generator/owned-conclusion.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh \
   include/array-detect-capacity-field-associator/capacity-association.hh \
   include/array-detect-array-access-collector/array-access-collector.hh \
   include/array-detect-bound-condition-analyzer/bound-condition-analyzer.hh \
@@ -599,6 +602,9 @@ test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
 
 test-bound-check: out/plugin-array-detect.dylib
 	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+
+test-bound-read: out/plugin-array-detect.dylib
+	@(cd ../test/test-bound-read && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-lto: out/plugin-array-detect.dylib
 	@(cd ../test/test-lto && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\" \"-flto\"))" | racket build.rkt)

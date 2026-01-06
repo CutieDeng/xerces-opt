@@ -309,6 +309,7 @@
                   "test-simple-virtual-call"
                   "test-simple-ptr-copy-escape"
                   "test-bound-check"
+                  "test-bound-read"
                   ))
 
 (define (write-test name)

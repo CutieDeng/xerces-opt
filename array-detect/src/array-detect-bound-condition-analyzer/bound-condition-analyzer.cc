@@ -869,10 +869,12 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     vec_alloc (cond_fields, 4);
 
     if (index_is_variable) {
-      bool lhs_involves_index = expressionInvolvesVar (lhs, index_var, 0);
-      bool rhs_involves_index = expressionInvolvesVar (rhs, index_var, 0);
+      // 使用 expressionInvolvesIndex 进行更强健的 SSA 变量匹配
+      bool lhs_involves_index = expressionInvolvesIndex (AD_ARGS, lhs, index_var);
+      bool rhs_involves_index = expressionInvolvesIndex (AD_ARGS, rhs, index_var);
 
       if (lhs_involves_index || rhs_involves_index) {
+        // 条件涉及索引变量，从非索引侧收集边界字段
         if (!lhs_involves_index) {
           collectBoundFieldsFromExpression (AD_ARGS, lhs, index_var, target_base_object, &cond_fields);
         }
@@ -880,12 +882,12 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
           collectBoundFieldsFromExpression (AD_ARGS, rhs, index_var, target_base_object, &cond_fields);
         }
       } else {
-        collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
-        collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
+        // 条件不涉及当前索引变量，不是对该访问的边界检查，跳过
+        continue;
       }
     } else {
-      collectBoundFieldsFromExpression (AD_ARGS, lhs, NULL_TREE, target_base_object, &cond_fields);
-      collectBoundFieldsFromExpression (AD_ARGS, rhs, NULL_TREE, target_base_object, &cond_fields);
+      // 索引是常量，无法进行边界检查分析，跳过
+      continue;
     }
 
     // 去重添加到 related_fields
