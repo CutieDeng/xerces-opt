@@ -184,6 +184,14 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
     if (expressionReferencesField (AD_ARGS, arg, candidate_field)) {
       *out_references = true;
 
+      // 获取候选字段名用于调试输出
+      char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+      AD_DEBUG_PRINT ("[malloc-size] %s() at %s:%d -> field '%s'",
+                      function_name,
+                      LOCATION_FILE (loc) ? LOCATION_FILE (loc) : "?",
+                      LOCATION_LINE (loc),
+                      candidate_name);
+
       CapacityAssociationEvidence* evidence = ggc_alloc<CapacityAssociationEvidence>();
       memset (evidence, 0, sizeof (CapacityAssociationEvidence));
 
@@ -236,14 +244,33 @@ static ArrayDetectErrorCode extractBoundConditionEvidence (
         evidence->location = access->location;
         evidence->stmt = access->stmt;
 
+        // 获取函数名用于调试输出
+        char const* fn_name = "<unknown>";
+        if (access->fn && access->fn->decl && DECL_NAME (access->fn->decl)) {
+          fn_name = IDENTIFIER_POINTER (DECL_NAME (access->fn->decl));
+        }
+        char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+
         if (access->direction == ACCESS_READ) {
           evidence->evidence_type = CAP_EVID_READ_CONDITION;
           evidence->description = "Read access bounded by this field";
           analysis->evidence_bitmap |= CAP_EVID_READ_CONDITION;
+
+          AD_DEBUG_PRINT ("[read] %s() at %s:%d -> field '%s'",
+                          fn_name,
+                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "?",
+                          LOCATION_LINE (access->location),
+                          candidate_name);
         } else {
           evidence->evidence_type = CAP_EVID_WRITE_CONDITION;
           evidence->description = "Write access bounded by this field";
           analysis->evidence_bitmap |= CAP_EVID_WRITE_CONDITION;
+
+          AD_DEBUG_PRINT ("[write] %s() at %s:%d -> field '%s'",
+                          fn_name,
+                          LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "?",
+                          LOCATION_LINE (access->location),
+                          candidate_name);
         }
 
         if (ba->primary_bound) {
@@ -280,6 +307,12 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
   AD_ASSERT_GCC_LOGIC (candidate_field, "candidate_field must not be NULL");
 
   char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
+  char const* type_name = safeGetTypeName (AD_ARGS, pointer_field_data->type);
+  char const* ptr_field_name = safeGetFieldName (AD_ARGS, pointer_field_data->field_decl);
+
+  // 调试: 正在分析哪个 (type, ptr-field) 与哪个候选字段的关联
+  AD_DEBUG_PRINT ("[capacity] analyzing %s::%s <-> %s",
+                  type_name, ptr_field_name, candidate_name);
 
   CapacityCandidateAnalysis* analysis = ggc_alloc<CapacityCandidateAnalysis>();
   memset (analysis, 0, sizeof (CapacityCandidateAnalysis));

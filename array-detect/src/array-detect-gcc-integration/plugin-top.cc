@@ -323,7 +323,7 @@ int plugin_init (struct plugin_name_args * plugin_info,
 
   struct register_pass_info pass_info;
   pass_info.pass = new pass_array_detect (g);
-  pass_info.reference_pass_name = "cdtor";        // 在此 pass 之后插入
+  pass_info.reference_pass_name = "inline";       // 在内联优化之后插入，以便分析内联后的代码
   pass_info.ref_pass_instance_number = 1;         // 符合规则
   pass_info.pos_op = PASS_POS_INSERT_AFTER;
 
