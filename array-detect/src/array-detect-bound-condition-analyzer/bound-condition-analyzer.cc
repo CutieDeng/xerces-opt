@@ -595,24 +595,23 @@ ArrayDetectErrorCode traceExpressionToField (
 ArrayDetectErrorCode findDominatingConditions (
   AD_FUNC_ARGS,
   ArrayAccessCapture *access,
-  vec<gimple*, va_gc> **out_conditions
+  vec<gimple*, va_gc>*& result
 ) AD_FUNCTION_BEGIN {
-  *out_conditions = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (access, "access must not be NULL");
   AD_ASSERT_GCC_LOGIC (access->bb, "access->bb must not be NULL");
   AD_ASSERT_GCC_LOGIC (access->fn, "access->fn must not be NULL");
 
-  if (!cfun || cfun != access->fn) {
-    AD_RETURNE (OK);
-  }
-
   vec<gimple*, va_gc> *conditions = NULL;
   vec_alloc (conditions, 8);
 
+  if (!cfun || cfun != access->fn) {
+    AD_RETURNO (conditions);
+  }
+
   if (!access->fn->cfg) {
-    *out_conditions = conditions;
-    AD_RETURNE (OK);
+    AD_RETURNO (conditions);
   }
 
   if (!dom_info_available_p (CDI_DOMINATORS)) {
@@ -636,8 +635,7 @@ ArrayDetectErrorCode findDominatingConditions (
     current_bb = dominator;
   }
 
-  *out_conditions = conditions;
-  AD_RETURNE (OK);
+  AD_RETURNO (conditions);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -708,15 +706,12 @@ ArrayDetectErrorCode analyzeBoundCondition (
   gimple* cond_stmt,
   tree index_var,
   ArrayAccessCapture* access,
-  BoundConditionAssociation** out_association
+  BoundConditionAssociation*& result
 ) AD_FUNCTION_BEGIN {
-  *out_association = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (cond_stmt, "cond_stmt must not be NULL");
-
-  if (gimple_code (cond_stmt) != GIMPLE_COND) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (gimple_code (cond_stmt) == GIMPLE_COND, "cond_stmt must be GIMPLE_COND");
 
   tree_code cmp_code = gimple_cond_code (cond_stmt);
   tree lhs = gimple_cond_lhs (cond_stmt);
@@ -795,8 +790,7 @@ ArrayDetectErrorCode analyzeBoundCondition (
     }
   }
 
-  *out_association = assoc;
-  AD_RETURNE (OK);
+  AD_RETURNO (assoc);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -806,13 +800,11 @@ ArrayDetectErrorCode analyzeBoundCondition (
 ArrayDetectErrorCode analyzeAccessBoundConditions (
   AD_FUNC_ARGS,
   ArrayAccessCapture* access,
-  ArrayAccessBoundAnalysis** out_analysis
+  ArrayAccessBoundAnalysis*& result
 ) AD_FUNCTION_BEGIN {
-  *out_analysis = NULL;
+  result = NULL;
 
-  if (!access) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (access, "access must not be NULL");
 
   // 创建分析结果
   ArrayAccessBoundAnalysis *analysis = ggc_alloc<ArrayAccessBoundAnalysis>();
@@ -824,8 +816,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   tree index_var = access->offset_expr;
   if (!index_var) {
     access->bound_analysis = analysis;
-    *out_analysis = analysis;
-    AD_RETURNE (OK);
+    AD_RETURNO (analysis);
   }
 
   // 提取目标对象用于过滤不同对象的边界字段
@@ -836,7 +827,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
 
   // 查找支配条件
   vec<gimple*, va_gc> *conditions = NULL;
-  AD_TRY (findDominatingConditions (AD_ARGS, access, &conditions));
+  AD_TRY (findDominatingConditions (AD_ARGS, access, conditions));
 
   if (!conditions || conditions->length () == 0) {
     // 尝试从索引表达式中收集字段
@@ -853,8 +844,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
       }
     }
     access->bound_analysis = analysis;
-    *out_analysis = analysis;
-    AD_RETURNE (OK);
+    AD_RETURNO (analysis);
   }
 
   // 分析每个条件
@@ -912,7 +902,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
     }
 
     BoundConditionAssociation *assoc = NULL;
-    AD_TRY (analyzeBoundCondition (AD_ARGS, cond, index_var, access, &assoc));
+    AD_TRY (analyzeBoundCondition (AD_ARGS, cond, index_var, access, assoc));
 
     if (assoc) {
       vec_safe_push (analysis->bounds, assoc);
@@ -946,8 +936,7 @@ ArrayDetectErrorCode analyzeAccessBoundConditions (
   analysis->primary_bound = best_field_bound;
   access->bound_analysis = analysis;
 
-  *out_analysis = analysis;
-  AD_RETURNE (OK);
+  AD_RETURNO (analysis);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -1001,7 +990,7 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
         push_cfun (current_fn);
 
         ArrayAccessBoundAnalysis* analysis = NULL;
-        ArrayDetectErrorCode err = analyzeAccessBoundConditions (AD_ARGS, access, &analysis);
+        ArrayDetectErrorCode err = analyzeAccessBoundConditions (AD_ARGS, access, analysis);
 
         pop_cfun ();
 

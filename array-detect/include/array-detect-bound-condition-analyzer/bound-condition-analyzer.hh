@@ -106,14 +106,14 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
 ArrayDetectErrorCode analyzeAccessBoundConditions (
   AD_FUNC_ARGS,
   ArrayAccessCapture* access,
-  ArrayAccessBoundAnalysis** out_analysis
+  ArrayAccessBoundAnalysis*& result
 );
 
 // 查找支配该访问的条件语句
 ArrayDetectErrorCode findDominatingConditions (
   AD_FUNC_ARGS,
   ArrayAccessCapture* access,
-  vec<gimple*, va_gc>** out_conditions
+  vec<gimple*, va_gc>*& result
 );
 
 // 分析条件是否为边界检查
@@ -122,7 +122,7 @@ ArrayDetectErrorCode analyzeBoundCondition (
   gimple* cond_stmt,
   tree index_var,
   ArrayAccessCapture* access,
-  BoundConditionAssociation** out_association
+  BoundConditionAssociation*& result
 );
 
 // 检查表达式是否引用了索引变量

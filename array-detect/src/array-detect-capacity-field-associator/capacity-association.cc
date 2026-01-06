@@ -148,17 +148,12 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
   AD_FUNC_ARGS,
   gimple* call_stmt,
   tree candidate_field,
-  bool* out_references,
-  CapacityAssociationEvidence** out_evidence
+  CapacityAssociationEvidence*& result
 ) AD_FUNCTION_BEGIN {
-  *out_references = false;
-  *out_evidence = NULL;
+  result = NULL;
 
   AD_ASSERT_GCC_LOGIC (call_stmt, "call_stmt must not be NULL");
-
-  if (!is_gimple_call (call_stmt)) {
-    AD_RETURNE (OK);
-  }
+  AD_ASSERT_GCC_LOGIC (is_gimple_call (call_stmt), "call_stmt must be a GIMPLE_CALL");
 
   // 获取函数名（仅用于调试输出）
   tree fndecl = gimple_call_fndecl (call_stmt);
@@ -175,15 +170,13 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
 
   unsigned int nargs = gimple_call_num_args (call_stmt);
   if (nargs == 0) {
-    AD_RETURNE (OK);
+    AD_RETURNO (NULL);
   }
 
   for (unsigned int i = 0; i < nargs; i++) {
     tree arg = gimple_call_arg (call_stmt, i);
 
     if (expressionReferencesField (AD_ARGS, arg, candidate_field)) {
-      *out_references = true;
-
       // 获取候选字段名用于调试输出
       char const* candidate_name = safeGetFieldName (AD_ARGS, candidate_field);
       AD_DEBUG_PRINT ("[malloc-size] %s() at %s:%d -> field '%s'",
@@ -202,12 +195,11 @@ ArrayDetectErrorCode analyzeMallocSizeSource (
       evidence->function_name = ggc_strdup (function_name);
       evidence->size_expr = arg;
 
-      *out_evidence = evidence;
-      AD_RETURNE (OK);
+      AD_RETURNO (evidence);
     }
   }
 
-  AD_RETURNE (OK);
+  AD_RETURNO (NULL);
 } AD_FUNCTION_END
 
 // ============================================================================
@@ -333,13 +325,11 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
       if (!record || !record->source_info) continue;
 
       LET_SOURCE_FUNCTION_CALL (func_call, *record->source_info) {
-        bool references = false;
         CapacityAssociationEvidence* evidence = NULL;
-
         AD_TRY (analyzeMallocSizeSource (AD_ARGS, func_call.call_stmt,
-                                          candidate_field, &references, &evidence));
+                                          candidate_field, evidence));
 
-        if (references && evidence) {
+        if (evidence) {
           analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
           vec_safe_push (analysis->evidences, evidence);
         }

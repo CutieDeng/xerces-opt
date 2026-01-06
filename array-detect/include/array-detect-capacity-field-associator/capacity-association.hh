@@ -148,12 +148,12 @@ bool expressionReferencesField (
 );
 
 // 分析 malloc 调用的 size 参数是否引用了候选字段
+// 返回：若找到引用则返回 evidence，否则返回 NULL
 ArrayDetectErrorCode analyzeMallocSizeSource (
   AD_FUNC_ARGS,
   gimple* call_stmt,
   tree candidate_field,
-  bool* out_references,
-  CapacityAssociationEvidence** out_evidence
+  CapacityAssociationEvidence*& result
 );
 
 // 打印指针容量关联结果
