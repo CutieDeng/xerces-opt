@@ -120,6 +120,12 @@ ArrayDetectErrorCode collectTypesAndFields (ArrayDetector &detector, AD_FUNC_ARG
   
   AD_DEBUG_PRINT ("Starting function traversal...");
   FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node) {
+    // 防止访问已被内联释放的函数体
+    if (node->inlined_to)
+      continue;
+    if (!node->has_gimple_body_p ())
+      continue;
+
     function * fn = node->get_fun ();
     if (!fn) continue;
     

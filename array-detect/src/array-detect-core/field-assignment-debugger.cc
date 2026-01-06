@@ -17,6 +17,12 @@ ArrayDetectErrorCode analyzeFieldAssignmentsInFunctions (ArrayDetector &detector
   // 遍历所有函数
   struct cgraph_node * node;
   FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node) {
+    // 防止访问已被内联释放的函数体
+    if (node->inlined_to)
+      continue;
+    if (!node->has_gimple_body_p ())
+      continue;
+
     function * fn = node->get_fun ();
     if (!fn) continue;
     
