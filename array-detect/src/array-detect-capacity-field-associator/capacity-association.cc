@@ -452,9 +452,16 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
 
   assoc->best_match = best_match;
 
-  AD_DEBUG_PRINT ("capAssoc %s::%s: related=%u, unrelated=%u",
-                  assoc->type_name, assoc->pointer_field_name,
-                  assoc->related_count, assoc->unrelated_count);
+  // 重点调试输出：无容量关联的指针字段
+  if (assoc->related_count == 0) {
+    AD_DEBUG_PRINT ("[NO-CAPACITY] %s::%s has no capacity field association (candidates=%u)",
+                    assoc->type_name, assoc->pointer_field_name,
+                    candidates ? candidates->length () : 0);
+  } else {
+    AD_DEBUG_PRINT ("capAssoc %s::%s: related=%u, unrelated=%u",
+                    assoc->type_name, assoc->pointer_field_name,
+                    assoc->related_count, assoc->unrelated_count);
+  }
 
   // 输出结果摘要到调试文件
   if (ctx.debug_file) {
@@ -467,6 +474,8 @@ ArrayDetectErrorCode analyzePointerCapacityAssociation (
     if (best_match) {
       fprintf (ctx.debug_file, "  Best match: %s (evidence_count=%u)\n",
                best_match->field_name, best_evidence_count);
+    } else {
+      fprintf (ctx.debug_file, "  *** NO CAPACITY FIELD FOUND ***\n");
     }
     fprintf (ctx.debug_file, "===================================\n\n");
   }
@@ -533,12 +542,19 @@ ArrayDetectErrorCode analyzeAllCapacityAssociations (
 
       if (assoc->related_count > 0) {
         with_capacity++;
+      } else {
+        // 重点调试输出：无容量关联的指针字段列表
+        char const* type_name = safeGetTypeName (AD_ARGS, conclusion->type);
+        char const* field_name = safeGetFieldName (AD_ARGS, conclusion->field_decl);
+        AD_DEBUG_PRINT ("[NO-CAPACITY] %s::%s - owned pointer without capacity association",
+                        type_name, field_name);
       }
     }
   }
 
-  AD_DEBUG_PRINT ("Capacity association analysis complete: %u fields analyzed, %u with capacity fields",
-                  analyzed, with_capacity);
+  unsigned int without_capacity = analyzed - with_capacity;
+  AD_DEBUG_PRINT ("Capacity association analysis complete: %u fields, %u WITH capacity, %u WITHOUT capacity",
+                  analyzed, with_capacity, without_capacity);
 
   AD_RETURNO (results);
 } AD_FUNCTION_END

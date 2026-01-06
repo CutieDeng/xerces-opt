@@ -966,6 +966,7 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
 
   unsigned int total_analyzed = 0;
   unsigned int with_bounds = 0;
+  unsigned int without_bounds = 0;
 
   for (MapType::iterator iter = array_accesses->begin ();
        iter != array_accesses->end ();
@@ -978,6 +979,8 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
       continue;
     }
 
+    char const* type_name = entry->type_name ? entry->type_name : "?";
+    char const* field_name = entry->field_name ? entry->field_name : "?";
     unsigned int num_accesses = entry->accesses->length ();
 
     for (unsigned int i = 0; i < num_accesses; i++) {
@@ -987,6 +990,12 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
       }
 
       function* current_fn = access->fn;
+
+      // 获取函数名
+      char const* fn_name = "?";
+      if (current_fn->decl && DECL_NAME (current_fn->decl)) {
+        fn_name = IDENTIFIER_POINTER (DECL_NAME (current_fn->decl));
+      }
 
       if (current_fn && current_fn->cfg) {
         push_cfun (current_fn);
@@ -1000,6 +1009,15 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
           total_analyzed++;
           if (analysis && analysis->has_valid_bound) {
             with_bounds++;
+          } else {
+            without_bounds++;
+            // 重点调试输出：无 bound 的访问
+            char const* access_type = (access->direction == ACCESS_READ) ? "READ" : "WRITE";
+            char const* file = LOCATION_FILE (access->location);
+            int line = LOCATION_LINE (access->location);
+            AD_DEBUG_PRINT ("[NO-BOUND] %s::%s %s access in %s() at %s:%d",
+                           type_name, field_name, access_type, fn_name,
+                           file ? file : "?", line);
           }
         }
       } else {
@@ -1009,11 +1027,21 @@ ArrayDetectErrorCode analyzeAllBoundConditions (
         analysis->access = access;
         access->bound_analysis = analysis;
         total_analyzed++;
+        without_bounds++;
+
+        // 重点调试输出：无 CFG 的函数中的访问
+        char const* access_type = (access->direction == ACCESS_READ) ? "READ" : "WRITE";
+        char const* file = LOCATION_FILE (access->location);
+        int line = LOCATION_LINE (access->location);
+        AD_DEBUG_PRINT ("[NO-BOUND] %s::%s %s access in %s() at %s:%d (no CFG)",
+                       type_name, field_name, access_type, fn_name,
+                       file ? file : "?", line);
       }
     }
   }
 
-  AD_DEBUG_PRINT ("analyzeAllBounds: %u accesses, %u with bounds", total_analyzed, with_bounds);
+  AD_DEBUG_PRINT ("analyzeAllBounds: %u accesses, %u with bounds, %u WITHOUT bounds",
+                  total_analyzed, with_bounds, without_bounds);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
