@@ -206,18 +206,33 @@ void writeArrayDetectLtoSummarySection () {
 }
 
 void readArrayDetectLtoSummarySections () {
+  char const* debug_file = getenv ("AD_DEBUG_FILE");
+  FILE* df = debug_file ? fopen (debug_file, "a") : nullptr;
+  if (df) fprintf (df, "[readArrayDetectLtoSummarySections] ENTRY\n");
+
   // Read from all input files.
   lto_file_decl_data** files = lto_get_file_decl_data ();
-  if (!files) return;
+  if (!files) {
+    if (df) { fprintf (df, "[readArrayDetectLtoSummarySections] files=NULL, returning\n"); fclose (df); }
+    return;
+  }
+
+  if (df) fprintf (df, "[readArrayDetectLtoSummarySections] starting file loop\n");
 
   for (unsigned fi = 0; files[fi]; fi++) {
     lto_file_decl_data* file_data = files[fi];
     char const* data = nullptr;
     size_t len = 0;
 
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, calling lto_create_simple_input_block\n", fi);
+
     lto_input_block* ib = lto_create_simple_input_block (file_data, LTO_section_lto, &data, &len);
+
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, ib=%p, data=%p, len=%zu\n", fi, (void*)ib, (void*)data, len);
+
     if (!ib || !data || !len) {
       if (ib) lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
+      if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u skipped (no data)\n", fi);
       continue;
     }
 
@@ -255,7 +270,10 @@ void readArrayDetectLtoSummarySections () {
 
     appendLtransLtoSummaries (file_summaries);
     lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u done\n", fi);
   }
+
+  if (df) { fprintf (df, "[readArrayDetectLtoSummarySections] EXIT\n"); fclose (df); }
 }
 
 } // namespace array_detect_ns

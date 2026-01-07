@@ -11,6 +11,7 @@
 #include "array-detect-context-gcc.hh"
 #include "pipeline.hh"
 #include "lto-summary.hh"
+#include "lto-transform.hh"
 
 #include "gcc-ext-util.hh"
 #include "info.hh"
@@ -49,6 +50,15 @@ static vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* g_wpa_results
 
 // Called after execute() to generate summary data
 static void ipa_generate_summary (void) {
+  char const* debug_file = getenv ("AD_DEBUG_FILE");
+  if (debug_file) {
+    FILE* df = fopen (debug_file, "a");
+    if (df) {
+      fprintf (df, "[ipa_generate_summary] called, g_wpa_results=%p\n", (void*)g_wpa_results);
+      fclose (df);
+    }
+  }
+
   // Results already collected in execute(), convert to LTO summary format
   if (g_wpa_results && !g_wpa_results->is_empty ()) {
     // Get current source file name
@@ -80,19 +90,46 @@ static void ipa_read_summary (void) {
   if (debug_file) {
     FILE* df = fopen (debug_file, "a");
     if (df) {
-      fprintf (df, "[ipa_read_summary] called\n");
+      fprintf (df, "[ipa_read_summary] called (using file-based approach)\n");
       fclose (df);
     }
   }
-  ::array_detect_ns::readArrayDetectLtoSummarySections ();
+  // NOTE: We use file-based aggregation via plugin_finish_callback instead of
+  // LTO section streaming, because LTO_section_lto is GCC's own section.
+  // Custom plugin data in LTO requires a different section mechanism.
+  // TODO: Implement proper custom LTO section handling for cross-TU data transfer
+}
+
+// Called for each function during LTRANS to apply transformations
+static unsigned int ipa_function_transform (cgraph_node* node) {
+  char const* debug_file = getenv ("AD_DEBUG_FILE");
   if (debug_file) {
     FILE* df = fopen (debug_file, "a");
     if (df) {
-      fprintf (df, "[ipa_read_summary] hasLtransLtoSummaries=%d\n",
-               ::array_detect_ns::hasLtransLtoSummaries ());
+      fprintf (df, "[ipa_function_transform] ENTRY, in_lto_p=%d, flag_ltrans=%d, node=%p\n",
+               in_lto_p, flag_ltrans, (void*)node);
       fclose (df);
     }
   }
+
+  // Only transform in LTRANS phase
+  if (!in_lto_p || !flag_ltrans) return 0;
+
+  function* fn = node->get_fun ();
+  if (!fn) return 0;
+
+  char const* fn_name = node->name ();
+
+  if (debug_file) {
+    FILE* df = fopen (debug_file, "a");
+    if (df) {
+      fprintf (df, "[ipa_function_transform] processing function: %s\n",
+               fn_name ? fn_name : "<anon>");
+      fclose (df);
+    }
+  }
+
+  return ::array_detect_ns::runLtoTransform (fn);
 }
 
 // ============================================================================
@@ -115,26 +152,38 @@ class pass_array_detect : public ipa_opt_pass_d {
  public:
   pass_array_detect (gcc::context * ctxt)
       : ipa_opt_pass_d (array_detect_pass_data, ctxt,
-                       ipa_generate_summary,  // generate_summary
-                       ipa_write_summary,     // write_summary
-                       ipa_read_summary,      // read_summary
-                       NULL,  // write_optimization_summary
-                       NULL,  // read_optimization_summary
-                       NULL,  // stmt_fixup
-                       0,     // function_transform_todo_flags_start
-                       NULL,  // function_transform
-                       NULL)  // variable_transform
+                       ipa_generate_summary,     // generate_summary
+                       ipa_write_summary,        // write_summary
+                       ipa_read_summary,         // read_summary
+                       NULL,                     // write_optimization_summary
+                       NULL,                     // read_optimization_summary
+                       NULL,                     // stmt_fixup
+                       TODO_update_ssa_only_virtuals,  // function_transform_todo_flags_start
+                       ipa_function_transform,   // function_transform
+                       NULL)                     // variable_transform
   {}
 
   opt_pass * clone () override { return new pass_array_detect (g); }
 
-  // Gate function: only run during regular compilation, skip during LTO link
+  // Gate function: must return true for IPA summary hooks to work
   bool gate (function* /*fn*/) override {
-    // During LTO WPA/LTRANS phases, we only need summary hooks, not execute()
-    return !in_lto_p;
+    // IMPORTANT: Always return true during LTO phases to enable summary hooks
+    // - Regular compilation: run analysis
+    // - WPA phase: write_summary needs gate=true to be called
+    // - LTRANS phase: read_summary and function_transform need gate=true
+    return true;
   }
 
   unsigned int execute (function* /*fn*/) override {
+    char const* debug_file = getenv ("AD_DEBUG_FILE");
+    if (debug_file) {
+      FILE* df = fopen (debug_file, "a");
+      if (df) {
+        fprintf (df, "[execute] called, in_lto_p=%d, flag_ltrans=%d\n", in_lto_p, flag_ltrans);
+        fclose (df);
+      }
+    }
+
     // Skip analysis during LTO WPA/LTRANS phases - we only need the summary hooks
     // Analysis was already done during initial compilation
     if (in_lto_p) {
