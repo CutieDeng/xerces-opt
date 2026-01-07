@@ -15,17 +15,23 @@
    lto-tests
    platform-name
    so-ext
-   platform-linker-flags)
+   platform-linker-flags
+   gmp-include-path
+   gmp-lib-path
+   mpc-include-path
+   mpc-lib-path
+   mpfr-include-path
+   mpfr-lib-path)
   #:transparent)
 
 (provide
   (struct-out Config)
   make-config-with-cc
+  get-default-config
   write-makefile*)
 
 (require file/glob)
 (require "lib-config.rkt")
-(require "exe-config.rkt")
 
 ;; ============================================================================
 ;; Compiler Path Detection
@@ -45,11 +51,22 @@
     (if include-path `("-I" ,include-path) '())
     (if lib-path `("-L" ,lib-path) '())))
 
-(define (gmp/args is-macos?)
+(define (cfg-force v)
+  (if (promise? v) (force v) v))
+
+(define (cfg-ref cfg accessor)
+  (cfg-force (accessor cfg)))
+
+(define (cfg-cflags cfg)
+  (cfg-ref cfg Config-cflags))
+
+(define (gmp/args cfg is-macos?)
   (with-handlers ([exn? (lambda (_) '())])
+    (define gmp-include (cfg-ref cfg Config-gmp-include-path))
+    (define gmp-lib (cfg-ref cfg Config-gmp-lib-path))
     (cond
-      [(or gmp-custom-include-path gmp-custom-lib-path)
-       (make-lib-args gmp-custom-include-path gmp-custom-lib-path)]
+      [(or gmp-include gmp-lib)
+       (make-lib-args gmp-include gmp-lib)]
       [else
        (append
          (string-split (string-trim (with-output-to-string
@@ -57,11 +74,13 @@
          (string-split (string-trim (with-output-to-string
            (lambda () (system "pkg-config --cflags gmp"))))))])))
 
-(define (mpc/args is-macos?)
+(define (mpc/args cfg is-macos?)
   (with-handlers ([exn? (lambda (_) '())])
+    (define mpc-include (cfg-ref cfg Config-mpc-include-path))
+    (define mpc-lib (cfg-ref cfg Config-mpc-lib-path))
     (cond
-      [(or mpc-custom-include-path mpc-custom-lib-path)
-       (make-lib-args mpc-custom-include-path mpc-custom-lib-path)]
+      [(or mpc-include mpc-lib)
+       (make-lib-args mpc-include mpc-lib)]
       [is-macos?
        (let ([mpc-directory
               (string-trim (with-output-to-string
@@ -75,11 +94,13 @@
          (string-split (string-trim (with-output-to-string
            (lambda () (system "pkg-config --cflags mpc"))))))])))
 
-(define (mpfr/args is-macos?)
+(define (mpfr/args cfg is-macos?)
   (with-handlers ([exn? (lambda (_) '())])
+    (define mpfr-include (cfg-ref cfg Config-mpfr-include-path))
+    (define mpfr-lib (cfg-ref cfg Config-mpfr-lib-path))
     (cond
-      [(or mpfr-custom-include-path mpfr-custom-lib-path)
-       (make-lib-args mpfr-custom-include-path mpfr-custom-lib-path)]
+      [(or mpfr-include mpfr-lib)
+       (make-lib-args mpfr-include mpfr-lib)]
       [is-macos?
        (let ([mpfr-directory
               (string-trim (with-output-to-string
@@ -101,55 +122,55 @@
   (define (find-rel x) (find-relative-path (current-directory) x))
   (append-map
     (lambda (m)
-      (map find-rel (glob (build-path (Config-src-path cfg) m "*.cc"))))
-    (Config-modules cfg)))
+      (map find-rel (glob (build-path (cfg-ref cfg Config-src-path) m "*.cc"))))
+    (cfg-ref cfg Config-modules)))
 
 (define (collect-targets cfg sources)
-  (define (find-rel/src x) (find-relative-path (Config-src-path cfg) x))
+  (define (find-rel/src x) (find-relative-path (cfg-ref cfg Config-src-path) x))
   (define (related-obj x)
-    (build-path (Config-object-dir cfg) (path-replace-extension x ".o")))
+    (build-path (cfg-ref cfg Config-object-dir) (path-replace-extension x ".o")))
   (map (compose related-obj find-rel/src) sources))
 
 (define (write-platform-info cfg)
-  (printf "# Generated Makefile for ~a~n" (Config-platform-name cfg))
-  (printf "# Compiler: ~a~n" (Config-cc cfg))
-  (printf "# Shared library extension: .~a~n" (Config-so-ext cfg))
+  (printf "# Generated Makefile for ~a~n" (cfg-ref cfg Config-platform-name))
+  (printf "# Compiler: ~a~n" (cfg-ref cfg Config-cc))
+  (printf "# Shared library extension: .~a~n" (cfg-ref cfg Config-so-ext))
   (printf "# Platform-specific flags: ~a~n"
-          (if (null? (Config-platform-linker-flags cfg))
+          (if (null? (cfg-ref cfg Config-platform-linker-flags))
               "none"
-              (string-join (Config-platform-linker-flags cfg) " ")))
+              (string-join (cfg-ref cfg Config-platform-linker-flags) " ")))
   (printf "~n"))
 
 (define (write-compiles cfg sources targets)
   (for ([s sources] [t targets])
     (printf "~a:~n" t)
-    (printf "\t~a -c" (Config-cc cfg))
-    (for ([a (Config-cflags cfg)]) (printf " ~s" a))
+    (printf "\t~a -c" (cfg-ref cfg Config-cc))
+    (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
     (printf " ~s" (~a s))
     (printf " -o ~s" (~a t))
     (printf "~n~n")))
 
 (define (write-clean cfg)
   (printf "clean:~n")
-  (printf "\trm -rv ~a~n" (build-path (Config-object-dir cfg) "*"))
-  (printf "\trm -rv ~a~n" (build-path (Config-out-dir cfg) "*"))
+  (printf "\trm -rv ~a~n" (build-path (cfg-ref cfg Config-object-dir) "*"))
+  (printf "\trm -rv ~a~n" (build-path (cfg-ref cfg Config-out-dir) "*"))
   (printf "~n"))
 
 (define (write-plugin cfg targets)
-  (printf "~a:~n" (Config-output-so cfg))
-  (printf "\t~a" (Config-cc cfg))
-  (for ([a (Config-cflags cfg)]) (printf " ~s" a))
+  (printf "~a:~n" (cfg-ref cfg Config-output-so))
+  (printf "\t~a" (cfg-ref cfg Config-cc))
+  (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
   (for ([o targets]) (printf " ~s" (~a o)))
-  (printf " -o ~s" (~a (Config-output-so cfg)))
+  (printf " -o ~s" (~a (cfg-ref cfg Config-output-so)))
   (printf "~n~n"))
 
 (define (write-test-xercese cfg)
   (define test-dir (simplify-path (build-path (current-directory) "../test/test-xercese")))
-  (define abs-plugin-path (simplify-path (build-path (current-directory) (Config-output-so cfg))))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) (cfg-ref cfg Config-output-so))))
   (define rel-plugin-path (~a (find-relative-path test-dir abs-plugin-path)))
-  (printf "test: ~a~n" (Config-output-so cfg))
+  (printf "test: ~a~n" (cfg-ref cfg Config-output-so))
   (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
-  (define input `((gcc-bin . ,(~a (Config-cc cfg))) (cflags ,plugin-arg)))
+  (define input `((gcc-bin . ,(~a (cfg-ref cfg Config-cc))) (cflags ,plugin-arg)))
   (printf "\t@(cd ../test/test-xercese && mkdir -p out && echo ~s | racket build-xercese.rkt)~n"
           (~s input))
   (printf "~n"))
@@ -170,7 +191,7 @@
   (with-handlers ([exn:fail? (lambda (_e) (custodian-shutdown-all c) (raise _e))])
     (parameterize ([current-custodian c])
       (match-define `(,i ,_o ,_p ,i2 ,h)
-        (apply process* (append `(,(Config-cc cfg) . ,(Config-cflags cfg))
+        (apply process* (append `(,(cfg-ref cfg Config-cc) . ,(cfg-cflags cfg))
                                 `("-MM" "-MT" ,(~a target) ,filename))))
       (h 'wait)
       (define is (sequence->list (in-lines i)))
@@ -185,7 +206,7 @@
          (raise-user-error 'calc-dependency
                            "failed to calc '~a' by ~a'"
                            filename
-                           (Config-cc cfg))]))))
+                           (cfg-ref cfg Config-cc))]))))
 
 (define (write-deps2 cfg sources targets)
   (for ([s sources] [t targets])
@@ -205,24 +226,24 @@
       (printf " \\\n  ~a" d))
     (printf "~n")
     (printf "~n"))
-  (printf "~a:" (Config-output-so cfg))
+  (printf "~a:" (cfg-ref cfg Config-output-so))
   (for ([t targets]) (printf " ~a" t))
   (printf "~n~n"))
 
 (define (write-prepare cfg)
   (printf "prepare:~n")
-  (for ([m (Config-modules cfg)])
-    (printf "\tmkdir -p ~a~n" (build-path (Config-object-dir cfg) m)))
-  (printf "\tmkdir -p ~a~n" (build-path (Config-out-dir cfg)))
+  (for ([m (cfg-ref cfg Config-modules)])
+    (printf "\tmkdir -p ~a~n" (build-path (cfg-ref cfg Config-object-dir) m)))
+  (printf "\tmkdir -p ~a~n" (build-path (cfg-ref cfg Config-out-dir)))
   (printf "~n"))
 
 (define (write-test cfg name)
   (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
-  (define abs-plugin-path (simplify-path (build-path (current-directory) (Config-output-so cfg))))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) (cfg-ref cfg Config-output-so))))
   (define rel-plugin-path (~a (find-relative-path test-dir abs-plugin-path)))
-  (printf "~a: ~a~n" name (Config-output-so cfg))
+  (printf "~a: ~a~n" name (cfg-ref cfg Config-output-so))
   (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
-  (define input `((cxx . ,(~a (Config-cc cfg))) (cflags ,plugin-arg)))
+  (define input `((cxx . ,(~a (cfg-ref cfg Config-cc))) (cflags ,plugin-arg)))
   (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
           name
           (~s input))
@@ -230,21 +251,21 @@
 
 (define (write-lto-test cfg name)
   (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
-  (define abs-plugin-path (simplify-path (build-path (current-directory) (Config-output-so cfg))))
+  (define abs-plugin-path (simplify-path (build-path (current-directory) (cfg-ref cfg Config-output-so))))
   (define rel-plugin-path (~a (find-relative-path test-dir abs-plugin-path)))
-  (printf "~a: ~a~n" name (Config-output-so cfg))
+  (printf "~a: ~a~n" name (cfg-ref cfg Config-output-so))
   (define plugin-arg (format "-fplugin=~a" rel-plugin-path))
-  (define input `((cxx . ,(~a (Config-cc cfg))) (cflags ,plugin-arg "-flto")))
+  (define input `((cxx . ,(~a (cfg-ref cfg Config-cc))) (cflags ,plugin-arg "-flto")))
   (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
           name
           (~s input))
   (printf "~n"))
 
 (define (write-tests cfg)
-  (for ([a (Config-tests cfg)]) (write-test cfg a)))
+  (for ([a (cfg-ref cfg Config-tests)]) (write-test cfg a)))
 
 (define (write-lto-tests cfg)
-  (for ([a (Config-lto-tests cfg)]) (write-lto-test cfg a)))
+  (for ([a (cfg-ref cfg Config-lto-tests)]) (write-lto-test cfg a)))
 
 ;; ============================================================================
 ;; Global Config
@@ -288,51 +309,63 @@
       (~a (build-path include-path m))))
   (define extra-include-paths
     (list (~a (build-path include-path "array-detect-result"))))
-  (define base-args
-    (append
-      `("-fPIC"
-        "-fno-rtti"
-        "-shared"
-        "-I" ,(~a src-config-path)
-        "-I" ,plugin-path
-        "-I" ,(~a (build-path plugin-path "include")))
-      (append-map (lambda (p) `("-I" ,p))
-                  (append module-include-paths extra-include-paths))
-      platform-linker-flags
-      '("-Wall"
-        "-Wextra"
-        "-std=c++17"
-        "-g"
-        "-O2")))
-  (Config
-    gcc-bin
-    (append base-args (gmp/args is-macos?) (mpc/args is-macos?) (mpfr/args is-macos?))
-    modules
-    output-so-path
-    src-path
-    include-path
-    src-config-path
-    object-dir
-    out-dir
-    '("test-simple-ptr-field"
-      "test-simple-virtual-call"
-      "test-simple-ptr-copy-escape"
-      "test-bound-check"
-      "test-bound-read")
-    '("test-lto")
-    (if is-macos? "macOS" "Linux")
-    so-ext
-    platform-linker-flags))
-
-(define cfg (make-config-with-cc (find-executable-path "g++-15")))
+  (define base-args-promise
+    (delay
+      (define plugin-path (plugin-path-getter gcc-bin))
+      (append
+        `("-fPIC"
+          "-fno-rtti"
+          "-shared"
+          "-I" ,(~a src-config-path)
+          "-I" ,plugin-path
+          "-I" ,(~a (build-path plugin-path "include")))
+        (append-map (lambda (p) `("-I" ,p))
+                    (append module-include-paths extra-include-paths))
+        platform-linker-flags
+        '("-Wall"
+          "-Wextra"
+          "-std=c++17"
+          "-g"
+          "-O2"))))
+  (letrec ([cfg
+            (Config
+              (delay gcc-bin)
+              (delay
+                (append (force base-args-promise)
+                        (gmp/args cfg is-macos?)
+                        (mpc/args cfg is-macos?)
+                        (mpfr/args cfg is-macos?)))
+              (delay modules)
+              (delay output-so-path)
+              (delay src-path)
+              (delay include-path)
+              (delay src-config-path)
+              (delay object-dir)
+              (delay out-dir)
+              (delay '("test-simple-ptr-field"
+                       "test-simple-virtual-call"
+                       "test-simple-ptr-copy-escape"
+                       "test-bound-check"
+                       "test-bound-read"))
+              (delay '("test-lto"))
+              (delay (if is-macos? "macOS" "Linux"))
+              (delay so-ext)
+              (delay platform-linker-flags)
+              (delay gmp-custom-include-path)
+              (delay gmp-custom-lib-path)
+              (delay mpc-custom-include-path)
+              (delay mpc-custom-lib-path)
+              (delay mpfr-custom-include-path)
+              (delay mpfr-custom-lib-path))])
+    cfg))
 
 ;; ============================================================================
 ;; Main Entry Point
 ;; ============================================================================
 
 (define (write-makefile* cfg)
-  (make-directory* (Config-object-dir cfg))
-  (make-directory* (Config-out-dir cfg))
+  (make-directory* (cfg-ref cfg Config-object-dir))
+  (make-directory* (cfg-ref cfg Config-out-dir))
   (define sources (collect-sources cfg))
   (define targets (collect-targets cfg sources))
   (call-with-atomic-output-file "Makefile"
@@ -349,6 +382,15 @@
         (write-lto-tests cfg)))))
 
 (module+ main
-  (define (write-makefile cfg)
-    (write-makefile* cfg))
-  (write-makefile cfg))
+  (define cfg (get-default-config))
+  (write-makefile* cfg))
+
+;; ============================================================================
+;; Lazy Default Config
+;; ============================================================================
+
+(define default-config-promise
+  (delay (make-config-with-cc (find-executable-path "g++-15"))))
+
+(define (get-default-config)
+  (force default-config-promise))
