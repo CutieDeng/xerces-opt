@@ -18,6 +18,11 @@
    platform-linker-flags)
   #:transparent)
 
+(provide
+  (struct-out Config)
+  make-config-with-cc
+  write-makefile*)
+
 (require file/glob)
 (require "lib-config.rkt")
 (require "exe-config.rkt")
@@ -245,10 +250,10 @@
 ;; Global Config
 ;; ============================================================================
 
-(define (make-default-config)
+(define (make-config-with-cc cc-path)
   (define os-type (system-type 'os))
   (define is-macos? (eq? os-type 'macosx))
-  (define gcc-bin (find-executable-path "g++-15"))
+  (define gcc-bin cc-path)
   (define object-dir "obj")
   (define out-dir "out")
   (define so-ext (if is-macos? "dylib" "so"))
@@ -319,28 +324,31 @@
     so-ext
     platform-linker-flags))
 
-(define cfg (make-default-config))
+(define cfg (make-config-with-cc (find-executable-path "g++-15")))
 
 ;; ============================================================================
 ;; Main Entry Point
 ;; ============================================================================
 
-(module+ main
-  (define (write-makefile cfg)
-    (define sources (collect-sources cfg))
-    (define targets (collect-targets cfg sources))
-    (call-with-atomic-output-file "Makefile"
-      (lambda (o _p)
-        (parameterize ([current-output-port o])
-          (write-platform-info cfg)
-          (write-plugin cfg targets)
-          (write-compiles cfg sources targets)
-          (write-deps2 cfg sources targets)
-          (write-clean cfg)
-          (write-test-xercese cfg)
-          (write-prepare cfg)
-          (write-tests cfg)
-          (write-lto-tests cfg)))))
+(define (write-makefile* cfg)
   (make-directory* (Config-object-dir cfg))
   (make-directory* (Config-out-dir cfg))
+  (define sources (collect-sources cfg))
+  (define targets (collect-targets cfg sources))
+  (call-with-atomic-output-file "Makefile"
+    (lambda (o _p)
+      (parameterize ([current-output-port o])
+        (write-platform-info cfg)
+        (write-plugin cfg targets)
+        (write-compiles cfg sources targets)
+        (write-deps2 cfg sources targets)
+        (write-clean cfg)
+        (write-test-xercese cfg)
+        (write-prepare cfg)
+        (write-tests cfg)
+        (write-lto-tests cfg)))))
+
+(module+ main
+  (define (write-makefile cfg)
+    (write-makefile* cfg))
   (write-makefile cfg))
