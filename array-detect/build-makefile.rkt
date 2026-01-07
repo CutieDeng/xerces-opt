@@ -100,11 +100,20 @@
     (string-trim
       (with-output-to-string (lambda () (system (format "brew --prefix ~a" name)))))))
 
-(define (gmp/args)
+(define (gmp/args is-macos?)
   (with-handlers ([exn? (lambda (_) (values #f #f))])
-    (values
-      (pkg-config-first-flag "pkg-config --cflags gmp" "-I")
-      (pkg-config-first-flag "pkg-config --libs gmp" "-L"))))
+    (if is-macos?
+        (let ([pkg-i (pkg-config-first-flag "pkg-config --cflags gmp" "-I")]
+              [pkg-l (pkg-config-first-flag "pkg-config --libs gmp" "-L")])
+          (if (or pkg-i pkg-l)
+              (values pkg-i pkg-l)
+              (let ([gmp-directory (brew-prefix "gmp")])
+                (values
+                  (and gmp-directory (~a (build-path gmp-directory "include")))
+                  (and gmp-directory (~a (build-path gmp-directory "lib")))))))
+        (values
+          (pkg-config-first-flag "pkg-config --cflags gmp" "-I")
+          (pkg-config-first-flag "pkg-config --libs gmp" "-L")))))
 
 (define (mpc/args is-macos?)
   (with-handlers ([exn? (lambda (_) (values #f #f))])
@@ -400,7 +409,7 @@
           "-std=c++17"
           "-g"
           "-O2"))))
-  (letrec ([gmp-promise (delay (let-values ([(i l) (gmp/args)]) (cons i l)))]
+  (letrec ([gmp-promise (delay (let-values ([(i l) (gmp/args is-macos?)]) (cons i l)))]
            [mpc-promise (delay (let-values ([(i l) (mpc/args is-macos?)]) (cons i l)))]
            [mpfr-promise (delay (let-values ([(i l) (mpfr/args is-macos?)]) (cons i l)))]
            [cfg
