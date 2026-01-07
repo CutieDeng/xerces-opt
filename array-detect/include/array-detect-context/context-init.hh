@@ -18,6 +18,10 @@ ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS);
 // - 如果环境变量为其他值，打开相应文件
 // - 如果环境变量未设置，禁用调试输出（设为 NULL）
 ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS);
+// 初始化全局调试输出流（由插件生命周期调用，只调用一次）
+void initGlobalDebugFileFromEnv ();
+// 关闭全局调试输出流（若为 stderr 则无操作）
+void closeGlobalDebugFile ();
 // 清理上下文资源
 void deinitContext (AD_FUNC_ARGS);
 

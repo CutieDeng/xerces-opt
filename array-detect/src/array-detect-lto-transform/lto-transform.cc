@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "context.hh"
+
 // GCC headers for GIMPLE traversal
 #include "tree.h"
 #include "gimple.h"
@@ -28,63 +30,10 @@ typedef std::pair<const char*, const char*> TypeFieldKey;
 // Context initialization
 // ============================================================================
 
-// Parse result file for owned fields (used in LTRANS when LTO sections unavailable)
-static unsigned int parseResultFileForOwnedFields (
-  LtoTransformContext* ctx,
-  char const* result_path,
-  FILE* debug_out
-) {
-  FILE* rf = fopen (result_path, "r");
-  if (!rf) {
-    if (debug_out) fprintf (debug_out, "[parseResultFileForOwnedFields] Cannot open: %s\n", result_path);
-    return 0;
-  }
-
-  unsigned int owned_count = 0;
-  char line[4096];
-
-  while (fgets (line, sizeof(line), rf)) {
-    // Skip comments
-    if (line[0] == ';') continue;
-
-    // Parse: (type "TypeName")(field "FieldName")(owned yes|no|...)
-    char type_str[256] = "", field_str[256] = "", owned_str[32] = "";
-    char* p;
-
-    if ((p = strstr(line, "(type \""))) sscanf(p, "(type \"%255[^\"]\")", type_str);
-    if ((p = strstr(line, "(field \""))) sscanf(p, "(field \"%255[^\"]\")", field_str);
-    if ((p = strstr(line, "(owned "))) sscanf(p, "(owned %31[^)])", owned_str);
-
-    if (type_str[0] == 0 || field_str[0] == 0) continue;
-
-    // Only include owned=yes fields
-    if (strcmp (owned_str, "yes") != 0) continue;
-
-    // Make key with duplicated strings (xstrdup for persistence)
-    TypeFieldKey key (xstrdup (type_str), xstrdup (field_str));
-
-    // Check if already exists
-    if (ctx->owned_fields->get (key) != nullptr) continue;
-
-    // Insert into hash map (nullptr summary for file-based entries)
-    ctx->owned_fields->put (key, nullptr);
-    owned_count++;
-
-    if (debug_out) {
-      fprintf (debug_out, "[parseResultFileForOwnedFields] Found owned=yes: %s::%s\n",
-               type_str, field_str);
-    }
-  }
-
-  fclose (rf);
-  return owned_count;
-}
-
 bool initLtoTransformContext (LtoTransformContext* ctx) {
   if (!ctx) return false;
 
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  FILE* debug_out = debug_file ? fopen (debug_file, "a") : nullptr;
+  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
   if (debug_out) fprintf (debug_out, "[initLtoTransformContext] ENTRY\n");
 
   // Create hash map
@@ -95,10 +44,8 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
 
   unsigned int owned_count = 0;
 
-  // First try: Get aggregated LTRANS summaries from LTO section
+  // Get aggregated summaries from LTO section
   // (populated by ipa_read_summary -> readArrayDetectLtoSummarySections)
-  // NOTE: LTO section approach currently conflicts with GCC's internal LTO_section_lto
-  // TODO: Use custom section name to avoid conflict
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = aggregateLtransSummaries ();
   if (summaries && !summaries->is_empty ()) {
     if (debug_out) fprintf (debug_out, "[initLtoTransformContext] Using LTO section summaries, count=%u\n",
@@ -129,21 +76,10 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
     }
   }
 
-  // Fallback: Parse result file (file-based approach)
-  // This is used when LTO section reading fails or is not available
-  if (owned_count == 0) {
-    char const* result_path = getenv ("AD_RESULT_FILE");
-    if (result_path) {
-      if (debug_out) fprintf (debug_out, "[initLtoTransformContext] Trying result file: %s\n", result_path);
-      owned_count = parseResultFileForOwnedFields (ctx, result_path, debug_out);
-    }
-  }
-
   ctx->fields_transformed = owned_count;
 
   if (debug_out) {
     fprintf (debug_out, "[initLtoTransformContext] EXIT, owned_count=%u\n", owned_count);
-    fclose (debug_out);
   }
 
   return owned_count > 0;
@@ -319,7 +255,7 @@ static bool checkExprForOwnedAccess (
 
   data->accesses_found++;
 
-  // Check if this field is owned (handles both LTO section and file-based data)
+  // Check if this field is owned
   bool is_owned = isFieldOwned (data->ctx, info.type_name, info.field_name);
 
   if (is_owned) {
@@ -394,8 +330,7 @@ unsigned int transformFunctionForOwnedFields (
 ) {
   if (!ctx || !fn) return 0;
 
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  FILE* debug_out = debug_file ? fopen (debug_file, "a") : nullptr;
+  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
 
   TransformWalkData walk_data;
   walk_data.ctx = ctx;
@@ -427,7 +362,6 @@ unsigned int transformFunctionForOwnedFields (
              fn_name ? fn_name : "<anon>",
              walk_data.accesses_found,
              walk_data.accesses_to_transform);
-    fclose (debug_out);
   }
 
   ctx->accesses_found += walk_data.accesses_found;
@@ -455,14 +389,10 @@ unsigned int runLtoTransform (function* fn) {
     }
 
     // Debug: print owned field table
-    char const* debug_file = getenv ("AD_DEBUG_FILE");
-    if (debug_file) {
-      FILE* df = fopen (debug_file, "a");
-      if (df) {
-        fprintf (df, "\n[runLtoTransform] LTO Transform initialized\n");
-        printOwnedFieldTable (g_transform_ctx, df);
-        fclose (df);
-      }
+    FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+    if (df) {
+      fprintf (df, "\n[runLtoTransform] LTO Transform initialized\n");
+      printOwnedFieldTable (g_transform_ctx, df);
     }
   }
 

@@ -50,13 +50,9 @@ static vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* g_wpa_results
 
 // Called after execute() to generate summary data
 static void ipa_generate_summary (void) {
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
-    if (df) {
-      fprintf (df, "[ipa_generate_summary] called, g_wpa_results=%p\n", (void*)g_wpa_results);
-      fclose (df);
-    }
+  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (df) {
+    fprintf (df, "[ipa_generate_summary] called, g_wpa_results=%p\n", (void*)g_wpa_results);
   }
 
   // Results already collected in execute(), convert to LTO summary format
@@ -73,32 +69,21 @@ static void ipa_generate_summary (void) {
 
 // Called to write summary to LTO section
 static void ipa_write_summary (void) {
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
-    if (df) {
-      fprintf (df, "[ipa_write_summary] called\n");
-      fclose (df);
-    }
+  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (df) {
+    fprintf (df, "[ipa_write_summary] called\n");
   }
   ::array_detect_ns::writeArrayDetectLtoSummarySection ();
 }
 
 // Called in LTRANS to read summaries from all input files
 static void ipa_read_summary (void) {
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
-    if (df) {
-      fprintf (df, "[ipa_read_summary] called\n");
-      fclose (df);
-    }
+  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (df) {
+    fprintf (df, "[ipa_read_summary] called\n");
   }
 
-  // NOTE: LTO section reading with custom section ID (100) causes GCC to crash
-  // because GCC's internal arrays are sized to LTO_N_SECTION_TYPES (~23).
-  // We use file-based approach instead (AD_RESULT_FILE).
-  // The file-based data is read in initLtoTransformContext via parseResultFileForOwnedFields.
+  // LTO summary reading is handled via readArrayDetectLtoSummarySections.
 }
 
 // ============================================================================
@@ -144,13 +129,9 @@ class pass_array_detect : public ipa_opt_pass_d {
   }
 
   unsigned int execute (function* /*fn*/) override {
-    char const* debug_file = getenv ("AD_DEBUG_FILE");
-    if (debug_file) {
-      FILE* df = fopen (debug_file, "a");
-      if (df) {
-        fprintf (df, "[execute] called, in_lto_p=%d, flag_ltrans=%d\n", in_lto_p, flag_ltrans);
-        fclose (df);
-      }
+    FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+    if (df) {
+      fprintf (df, "[execute] called, in_lto_p=%d, flag_ltrans=%d\n", in_lto_p, flag_ltrans);
     }
 
     // Skip analysis during LTO WPA/LTRANS phases - we only need the summary hooks
@@ -176,169 +157,27 @@ class pass_array_detect : public ipa_opt_pass_d {
 // PLUGIN_FINISH callback for LTO aggregation output (WPA)
 // ============================================================================
 
-// File-based LTO aggregation: read existing results and aggregate
-static void aggregateFileResults (char const* result_file, char const* debug_file) {
-  FILE* df = debug_file ? fopen (debug_file, "a") : nullptr;
-
-  FILE* rf = fopen (result_file, "r");
-  if (!rf) {
-    if (df) { fprintf (df, "[aggregateFileResults] Cannot open result file\n"); fclose (df); }
-    return;
-  }
-
-  // Parse and aggregate by (type, field)
-  struct AggEntry {
-    char type[256];
-    char field[256];
-    char owned[32];
-    char malloc_fields[512];    // comma-separated field names
-    char read_bounds[512];      // comma-separated bound field names
-    char write_bounds[512];     // comma-separated bound field names
-  };
-
-  AggEntry entries[64];
-  int entry_count = 0;
-
-  char line[4096];
-  while (fgets (line, sizeof(line), rf) && entry_count < 64) {
-    char type_str[256] = "", field_str[256] = "";
-    char owned_str[32] = "maybe";
-    char malloc_str[256] = "", reads_str[256] = "", writes_str[256] = "";
-
-    // Parse type and field
-    char* p;
-    if ((p = strstr(line, "(type \""))) sscanf(p, "(type \"%255[^\"]\")", type_str);
-    if ((p = strstr(line, "(field \""))) sscanf(p, "(field \"%255[^\"]\")", field_str);
-    if ((p = strstr(line, "(owned "))) sscanf(p, "(owned %31[^)])", owned_str);
-
-    // Extract inner content of (malloc-size (...))
-    if ((p = strstr(line, "(malloc-size ("))) {
-      p += 14; // skip "(malloc-size ("
-      char* end = strchr(p, ')');
-      if (end) { int len = end - p; if (len < 256) { strncpy(malloc_str, p, len); malloc_str[len] = 0; } }
-    }
-
-    // Extract reads bounds - look for patterns like (("field1" "field2"))
-    if ((p = strstr(line, "(reads ("))) {
-      p += 8; // skip "(reads ("
-      char* end = p; int depth = 1;
-      while (*end && depth > 0) { if (*end == '(') depth++; else if (*end == ')') depth--; end++; }
-      end--; // back to closing paren
-      int len = end - p; if (len > 0 && len < 256) { strncpy(reads_str, p, len); reads_str[len] = 0; }
-    }
-
-    // Extract writes bounds
-    if ((p = strstr(line, "(writes ("))) {
-      p += 9; // skip "(writes ("
-      char* end = p; int depth = 1;
-      while (*end && depth > 0) { if (*end == '(') depth++; else if (*end == ')') depth--; end++; }
-      end--;
-      int len = end - p; if (len > 0 && len < 256) { strncpy(writes_str, p, len); writes_str[len] = 0; }
-    }
-
-    if (type_str[0] == 0 || field_str[0] == 0) continue;
-
-    // Find or create entry
-    int idx = -1;
-    for (int i = 0; i < entry_count; i++) {
-      if (strcmp(entries[i].type, type_str) == 0 && strcmp(entries[i].field, field_str) == 0) {
-        idx = i; break;
-      }
-    }
-
-    if (idx < 0) {
-      idx = entry_count++;
-      strcpy(entries[idx].type, type_str);
-      strcpy(entries[idx].field, field_str);
-      strcpy(entries[idx].owned, owned_str);
-      strcpy(entries[idx].malloc_fields, malloc_str);
-      strcpy(entries[idx].read_bounds, reads_str);
-      strcpy(entries[idx].write_bounds, writes_str);
-    } else {
-      // Merge owned: YES > NO > UNDETERMINED
-      if (strcmp(owned_str, "yes") == 0) strcpy(entries[idx].owned, "yes");
-      else if (strcmp(owned_str, "no") == 0 && strcmp(entries[idx].owned, "yes") != 0)
-        strcpy(entries[idx].owned, "no");
-
-      // Merge malloc-size (take first non-empty)
-      if (malloc_str[0] && !entries[idx].malloc_fields[0])
-        strcpy(entries[idx].malloc_fields, malloc_str);
-
-      // Merge reads (append if different and has content)
-      if (reads_str[0] && strlen(entries[idx].read_bounds) + strlen(reads_str) < 500) {
-        if (entries[idx].read_bounds[0]) strcat(entries[idx].read_bounds, " ");
-        strcat(entries[idx].read_bounds, reads_str);
-      }
-
-      // Merge writes
-      if (writes_str[0] && strlen(entries[idx].write_bounds) + strlen(writes_str) < 500) {
-        if (entries[idx].write_bounds[0]) strcat(entries[idx].write_bounds, " ");
-        strcat(entries[idx].write_bounds, writes_str);
-      }
-    }
-  }
-  fclose (rf);
-
-  if (df) fprintf(df, "[aggregateFileResults] Parsed %d unique (type, field) entries\n", entry_count);
-
-  // Write aggregated results
-  FILE* out = fopen (result_file, "w");
-  if (!out) { if (df) fclose(df); return; }
-
-  fprintf(out, ";; LTO Aggregated Results\n");
-  for (int i = 0; i < entry_count; i++) {
-    AggEntry* e = &entries[i];
-    fprintf(out, "((type \"%s\")(field \"%s\")(owned %s)", e->type, e->field, e->owned);
-    fprintf(out, "(malloc-size (%s))", e->malloc_fields);
-    fprintf(out, "(reads (%s))", e->read_bounds);
-    fprintf(out, "(writes (%s)))\n", e->write_bounds);
-  }
-  fclose(out);
-
-  if (df) { fprintf(df, "[aggregateFileResults] Wrote aggregated results\n"); fclose(df); }
-}
-
 static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  char const* result_file = getenv ("AD_RESULT_FILE");
+  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
   char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
 
   // Debug output
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
+  if (df) {
+    fprintf (df, "[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d\n",
+             in_lto_p, flag_ltrans);
+  }
+
+  // In WPA phase, read LTO summaries and write aggregated results
+  if (in_lto_p && !flag_ltrans && aggregated_file) {
+    ::array_detect_ns::clearLtransLtoSummaries ();
+    ::array_detect_ns::readArrayDetectLtoSummarySections ();
+    ::array_detect_ns::writeLtransAggregatedResults (aggregated_file);
     if (df) {
-      fprintf (df, "[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d\n",
-               in_lto_p, flag_ltrans);
-      fclose (df);
+      fprintf (df, "[plugin_finish_callback] wrote aggregated results to: %s\n", aggregated_file);
     }
   }
 
-  // In WPA phase, aggregate file-based results and write to AD_AGGREGATED_FILE
-  if (in_lto_p && !flag_ltrans && result_file && aggregated_file) {
-    // Aggregate the per-TU results from AD_RESULT_FILE
-    aggregateFileResults (result_file, debug_file);
-
-    // Write aggregated result to AD_AGGREGATED_FILE (overwrite mode)
-    FILE* src = fopen (result_file, "r");
-    FILE* dst = fopen (aggregated_file, "w");
-    if (src && dst) {
-      char buf[4096];
-      size_t n;
-      while ((n = fread (buf, 1, sizeof(buf), src)) > 0) {
-        fwrite (buf, 1, n, dst);
-      }
-    }
-    if (src) fclose (src);
-    if (dst) fclose (dst);
-
-    if (debug_file) {
-      FILE* df = fopen (debug_file, "a");
-      if (df) {
-        fprintf (df, "[plugin_finish_callback] wrote aggregated results to: %s\n", aggregated_file);
-        fclose (df);
-      }
-    }
-  }
+  ::array_detect_ns::closeGlobalDebugFile ();
 }
 
 }  // anonymous namespace
@@ -370,6 +209,8 @@ int plugin_init (struct plugin_name_args * plugin_info,
                     PLUGIN_FINISH,
                     plugin_finish_callback,
                     NULL);
+
+  ::array_detect_ns::initGlobalDebugFileFromEnv ();
 
   return 0;
 }

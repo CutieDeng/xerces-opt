@@ -42,8 +42,12 @@ void initContextEnvVars (AD_FUNC_ARGS) {
 
 ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   initContextEnvVars (AD_ARGS);
-  ctx.debug_file = fopen ("/tmp/array-detect.log", "w");
-  ctx.debug_file_dtor = closeWrap;
+  if (!g_array_detect_ctx.debug_file) {
+    g_array_detect_ctx.debug_file = fopen ("/tmp/array-detect.log", "w");
+    g_array_detect_ctx.debug_file_dtor = g_array_detect_ctx.debug_file ? closeWrap : nothingWithFile;
+  }
+  ctx.debug_file = g_array_detect_ctx.debug_file;
+  ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
     AD_RETURNE_RAW (RESOURCE_ERROR);
@@ -52,7 +56,6 @@ ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose (ctx.debug_file);
     AD_RETURN ();
   }
 } AD_FUNCTION_END
@@ -60,8 +63,12 @@ ArrayDetectErrorCode initContextWithTmpFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_file_path) AD_FUNCTION_BEGIN {
   initContextEnvVars (AD_ARGS);
   AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s\n", debug_file_path);
-  ctx.debug_file = fopen (debug_file_path, "w");
-  ctx.debug_file_dtor = closeWrap;
+  if (!g_array_detect_ctx.debug_file) {
+    g_array_detect_ctx.debug_file = fopen (debug_file_path, "w");
+    g_array_detect_ctx.debug_file_dtor = g_array_detect_ctx.debug_file ? closeWrap : nothingWithFile;
+  }
+  ctx.debug_file = g_array_detect_ctx.debug_file;
+  ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
   if (ctx.debug_file == nullptr) {
     AD_RETURNE_RAW (RESOURCE_ERROR);
@@ -70,21 +77,23 @@ ArrayDetectErrorCode initContextWithNamedFile (AD_FUNC_ARGS, char const *debug_f
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose (ctx.debug_file);
     AD_RETURN ();
   }
 } AD_FUNCTION_END
 
 ArrayDetectErrorCode initContextWithStderr (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   initContextEnvVars (AD_ARGS);
-  ctx.debug_file = stderr;
+  if (!g_array_detect_ctx.debug_file) {
+    g_array_detect_ctx.debug_file = stderr;
+    g_array_detect_ctx.debug_file_dtor = nothingWithFile;
+  }
+  ctx.debug_file = g_array_detect_ctx.debug_file;
   ctx.debug_file_dtor = nothingWithFile;
   ctx.match_debug_tracer = false;
   AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
   AD_RETURNE_RAW (OK);
   if (false) {
     fail0:
-    fclose (ctx.debug_file);
     AD_RETURN ();
   }
 } AD_FUNCTION_END
@@ -102,16 +111,19 @@ ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
     AD_RETURNE_RAW (OK);
   } else if (strcmp (debug_file_env, "stderr") == 0) {
     // 使用标准错误输出
-    ctx.debug_file = stderr;
+    ctx.debug_file = g_array_detect_ctx.debug_file;
     ctx.debug_file_dtor = nothingWithFile;
     ctx.match_debug_tracer = false;
+    if (ctx.debug_file == nullptr) {
+      AD_RETURNE_RAW (RESOURCE_ERROR);
+    }
     AD_TRY_LABEL (initContextBuffers (AD_ARGS, 512), fail0);
     AD_RETURNE_RAW (OK);
   } else {
     // 打开指定文件
     AD_DEBUG_PRINT2 (stderr, "set debug ostream -> %s (from AD_DEBUG_FILE env)\n", debug_file_env);
-    ctx.debug_file = fopen (debug_file_env, "w");
-    ctx.debug_file_dtor = closeWrap;
+    ctx.debug_file = g_array_detect_ctx.debug_file;
+    ctx.debug_file_dtor = nothingWithFile;
     ctx.match_debug_tracer = false;
     if (ctx.debug_file == nullptr) {
       AD_RETURNE_RAW (RESOURCE_ERROR);
@@ -122,9 +134,6 @@ ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
   if (false) {
     fail0:
-    if (ctx.debug_file && ctx.debug_file != stderr) {
-      fclose (ctx.debug_file);
-    }
     AD_RETURN ();
   }
 } AD_FUNCTION_END
@@ -132,6 +141,31 @@ ArrayDetectErrorCode initContextAdaptive (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 void deinitContext (AD_FUNC_ARGS) {
   ctx.debug_file_dtor (ctx.debug_file);
   deinitGccContext (AD_ARGS);
+}
+
+void initGlobalDebugFileFromEnv () {
+  char const *debug_file_env = getenv ("AD_DEBUG_FILE");
+  if (debug_file_env == nullptr) {
+    g_array_detect_ctx.debug_file = nullptr;
+    g_array_detect_ctx.debug_file_dtor = nothingWithFile;
+    return;
+  }
+
+  if (strcmp (debug_file_env, "stderr") == 0) {
+    g_array_detect_ctx.debug_file = stderr;
+    g_array_detect_ctx.debug_file_dtor = nothingWithFile;
+    return;
+  }
+
+  g_array_detect_ctx.debug_file = fopen (debug_file_env, "w");
+  g_array_detect_ctx.debug_file_dtor = g_array_detect_ctx.debug_file ? closeWrap : nothingWithFile;
+}
+
+void closeGlobalDebugFile () {
+  if (!g_array_detect_ctx.debug_file) return;
+  g_array_detect_ctx.debug_file_dtor (g_array_detect_ctx.debug_file);
+  g_array_detect_ctx.debug_file = nullptr;
+  g_array_detect_ctx.debug_file_dtor = nothingWithFile;
 }
 
 }
