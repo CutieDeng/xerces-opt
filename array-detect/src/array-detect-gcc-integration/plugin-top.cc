@@ -101,38 +101,6 @@ static void ipa_read_summary (void) {
   // The file-based data is read in initLtoTransformContext via parseResultFileForOwnedFields.
 }
 
-// Called for each function during LTRANS to apply transformations
-static unsigned int ipa_function_transform (cgraph_node* node) {
-  char const* debug_file = getenv ("AD_DEBUG_FILE");
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
-    if (df) {
-      fprintf (df, "[ipa_function_transform] ENTRY, in_lto_p=%d, flag_ltrans=%d, node=%p\n",
-               in_lto_p, flag_ltrans, (void*)node);
-      fclose (df);
-    }
-  }
-
-  // Only transform in LTRANS phase
-  if (!in_lto_p || !flag_ltrans) return 0;
-
-  function* fn = node->get_fun ();
-  if (!fn) return 0;
-
-  char const* fn_name = node->name ();
-
-  if (debug_file) {
-    FILE* df = fopen (debug_file, "a");
-    if (df) {
-      fprintf (df, "[ipa_function_transform] processing function: %s\n",
-               fn_name ? fn_name : "<anon>");
-      fclose (df);
-    }
-  }
-
-  return ::array_detect_ns::runLtoTransform (fn);
-}
-
 // ============================================================================
 // Pass data and class
 // ============================================================================
@@ -159,8 +127,8 @@ class pass_array_detect : public ipa_opt_pass_d {
                        NULL,                     // write_optimization_summary
                        NULL,                     // read_optimization_summary
                        NULL,                     // stmt_fixup
-                       TODO_update_ssa_only_virtuals,  // function_transform_todo_flags_start
-                       ipa_function_transform,   // function_transform
+                       0,                        // function_transform_todo_flags_start
+                       NULL,                     // function_transform
                        NULL)                     // variable_transform
   {}
 
@@ -205,7 +173,7 @@ class pass_array_detect : public ipa_opt_pass_d {
 };
 
 // ============================================================================
-// PLUGIN_FINISH callback for LTO aggregation output
+// PLUGIN_FINISH callback for LTO aggregation output (WPA)
 // ============================================================================
 
 // File-based LTO aggregation: read existing results and aggregate
@@ -345,8 +313,8 @@ static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
     }
   }
 
-  // In LTRANS phase, aggregate file-based results and write to AD_AGGREGATED_FILE
-  if (in_lto_p && flag_ltrans && result_file && aggregated_file) {
+  // In WPA phase, aggregate file-based results and write to AD_AGGREGATED_FILE
+  if (in_lto_p && !flag_ltrans && result_file && aggregated_file) {
     // Aggregate the per-TU results from AD_RESULT_FILE
     aggregateFileResults (result_file, debug_file);
 
