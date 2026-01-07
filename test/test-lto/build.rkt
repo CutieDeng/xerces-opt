@@ -9,10 +9,13 @@
 (make-directory* "obj")
 (make-directory* "out")
 (delete-directory/files (build-path "out" "result.rktd") #:must-exist? #f)
+(delete-directory/files (build-path "out" "aggregated.rktd") #:must-exist? #f)
 
 ;; Environment variables for plugin output
+;; AD_RESULT_FILE: per-TU results (append mode, used by analysis phase)
+;; AD_AGGREGATED_FILE: aggregated LTRANS results (overwrite mode, from LTO section)
 (putenv "AD_RESULT_FILE" "out/result.rktd")
-; (putenv "AD_DEBUG_FILE" "out/debug.txt")
+(putenv "AD_AGGREGATED_FILE" "out/aggregated.rktd")
 
 ;; LTO compilation: compile each TU with -flto
 (define (compile-lto name)
@@ -32,9 +35,17 @@
 ;; Link with LTO (this triggers LTRANS phase)
 (link-lto)
 
-;; Display results
+;; Display aggregated results (from LTO section)
+(when (file-exists? "out/aggregated.rktd")
+  (printf "=== LTO Aggregated Results (from LTO section) ===~n")
+  (call-with-input-file "out/aggregated.rktd"
+    (lambda (in)
+      (for ([line (in-lines in)])
+        (printf "~a~n" line)))))
+
+;; Also show per-TU results if available
 (when (file-exists? "out/result.rktd")
-  (printf "=== LTO Analysis Result ===~n")
+  (printf "~n=== Per-TU Results (from analysis phase) ===~n")
   (call-with-input-file "out/result.rktd"
     (lambda (in)
       (for ([line (in-lines in)])

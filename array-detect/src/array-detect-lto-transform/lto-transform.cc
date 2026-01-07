@@ -95,10 +95,14 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
 
   unsigned int owned_count = 0;
 
-  // First try: Get aggregated LTRANS summaries from LTO section (if available)
+  // First try: Get aggregated LTRANS summaries from LTO section
+  // (populated by ipa_read_summary -> readArrayDetectLtoSummarySections)
+  // NOTE: LTO section approach currently conflicts with GCC's internal LTO_section_lto
+  // TODO: Use custom section name to avoid conflict
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = aggregateLtransSummaries ();
   if (summaries && !summaries->is_empty ()) {
-    if (debug_out) fprintf (debug_out, "[initLtoTransformContext] Using LTO section summaries\n");
+    if (debug_out) fprintf (debug_out, "[initLtoTransformContext] Using LTO section summaries, count=%u\n",
+                            summaries->length ());
 
     for (unsigned i = 0; i < summaries->length (); i++) {
       LtoUnifiedResultSummary* s = (*summaries)[i];
@@ -118,10 +122,15 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
       // Insert with summary pointer
       ctx->owned_fields->put (key, s);
       owned_count++;
+
+      if (debug_out) {
+        fprintf (debug_out, "[initLtoTransformContext] Added owned field from LTO: %s::%s\n", tname, fname);
+      }
     }
   }
 
-  // Second try: Parse result file (for file-based aggregation approach)
+  // Fallback: Parse result file (file-based approach)
+  // This is used when LTO section reading fails or is not available
   if (owned_count == 0) {
     char const* result_path = getenv ("AD_RESULT_FILE");
     if (result_path) {

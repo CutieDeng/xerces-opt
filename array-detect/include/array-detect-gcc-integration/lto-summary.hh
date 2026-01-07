@@ -95,6 +95,10 @@ vec<LtoUnifiedResultSummary*, va_gc>* convertAllToLtoSummaries (
 vec<LtoUnifiedResultSummary*, va_gc>* aggregateLtransSummaries ();
 
 // Write final aggregated results to Racket datum (called in LTRANS)
+// Uses OVERWRITE mode (not append)
+void writeLtransAggregatedResults (char const* output_path);
+
+// Legacy: append mode (deprecated, use writeLtransAggregatedResults instead)
 void writeLtransResultsToRacketDatum (char const* output_path);
 
 } // namespace array_detect_ns

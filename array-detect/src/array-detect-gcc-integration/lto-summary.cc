@@ -12,6 +12,11 @@ namespace array_detect_ns {
 static constexpr unsigned HOST_WIDE_INT kMagic = 0x41525F4445544543ULL; // "AR_DETEC"
 static constexpr unsigned HOST_WIDE_INT kVersion = 2;  // v2: added template_args
 
+// Custom LTO section type for our plugin data.
+// Use a high value (100) to avoid conflict with GCC's internal sections (0-22).
+// GCC's LTO_N_SECTION_TYPES is around 23, so using 100 is safe.
+static constexpr lto_section_type kArrayDetectSection = (lto_section_type) 100;
+
 // Module-owned pointers (GC-managed allocations).
 static vec<LtoUnifiedResultSummary*, va_gc>* g_wpa_summaries = nullptr;
 static vec<LtoUnifiedResultSummary*, va_gc>* g_ltrans_summaries = nullptr;
@@ -165,8 +170,8 @@ void writeArrayDetectLtoSummarySection () {
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = g_wpa_summaries;
   if (!summaries || summaries->is_empty ()) return;
 
-  // Simple output block for our summary section.
-  lto_simple_output_block* sob = lto_create_simple_output_block (LTO_section_lto);
+  // Simple output block for our summary section (use custom section ID).
+  lto_simple_output_block* sob = lto_create_simple_output_block (kArrayDetectSection);
   lto_output_stream* os = sob->main_stream;
 
   // Header.
@@ -195,8 +200,8 @@ void writeArrayDetectLtoSummarySection () {
     write_related_fields (os, e->writes);
   }
 
-  // Emit the section.
-  char* section_name = lto_get_section_name (LTO_section_lto, nullptr, 0, nullptr);
+  // Emit the section (use custom section ID).
+  char* section_name = lto_get_section_name (kArrayDetectSection, nullptr, 0, nullptr);
   lto_begin_section (section_name, /*compress*/ true);
   lto_write_stream (os);
   lto_end_section ();
@@ -224,14 +229,14 @@ void readArrayDetectLtoSummarySections () {
     char const* data = nullptr;
     size_t len = 0;
 
-    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, calling lto_create_simple_input_block\n", fi);
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, calling lto_create_simple_input_block with section=%d\n", fi, kArrayDetectSection);
 
-    lto_input_block* ib = lto_create_simple_input_block (file_data, LTO_section_lto, &data, &len);
+    lto_input_block* ib = lto_create_simple_input_block (file_data, kArrayDetectSection, &data, &len);
 
     if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, ib=%p, data=%p, len=%zu\n", fi, (void*)ib, (void*)data, len);
 
     if (!ib || !data || !len) {
-      if (ib) lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
+      if (ib) lto_destroy_simple_input_block (file_data, kArrayDetectSection, ib, data, len);
       if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u skipped (no data)\n", fi);
       continue;
     }
@@ -240,7 +245,9 @@ void readArrayDetectLtoSummarySections () {
     unsigned HOST_WIDE_INT magic = streamer_read_uhwi (ib);
     unsigned HOST_WIDE_INT version = streamer_read_uhwi (ib);
     if (magic != kMagic || version != kVersion) {
-      lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
+      if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u magic/version mismatch, got magic=0x%llx version=%llu\n",
+                       fi, (unsigned long long)magic, (unsigned long long)version);
+      lto_destroy_simple_input_block (file_data, kArrayDetectSection, ib, data, len);
       continue;
     }
 
@@ -269,8 +276,8 @@ void readArrayDetectLtoSummarySections () {
     }
 
     appendLtransLtoSummaries (file_summaries);
-    lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
-    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u done\n", fi);
+    lto_destroy_simple_input_block (file_data, kArrayDetectSection, ib, data, len);
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u done, read %llu entries\n", fi, (unsigned long long)count);
   }
 
   if (df) { fprintf (df, "[readArrayDetectLtoSummarySections] EXIT\n"); fclose (df); }
@@ -515,7 +522,7 @@ void writeLtransResultsToRacketDatum (char const* output_path) {
   vec<LtoUnifiedResultSummary*, va_gc>* aggregated = aggregateLtransSummaries ();
   if (!aggregated || aggregated->is_empty ()) return;
 
-  FILE* f = fopen (output_path, "a");
+  FILE* f = fopen (output_path, "a");  // append mode (legacy)
   if (!f) return;
 
   for (unsigned i = 0; i < aggregated->length (); i++) {
@@ -536,6 +543,82 @@ void writeLtransResultsToRacketDatum (char const* output_path) {
     }
     fprintf (f, "))");
 
+    fprintf (f, "(field \"%s\")", s->ptr_field_name ? s->ptr_field_name : "");
+
+    // owned
+    char const* owned_str = "undetermined";
+    if (s->owned_verdict == OWNED_YES) owned_str = "yes";
+    else if (s->owned_verdict == OWNED_PARTIAL_YES) owned_str = "partial-yes";
+    else if (s->owned_verdict == OWNED_NO) owned_str = "no";
+    fprintf (f, "(owned %s)", owned_str);
+
+    // malloc-size
+    fprintf (f, "(malloc-size (");
+    if (s->malloc_size_field_names) {
+      for (unsigned j = 0; j < s->malloc_size_field_names->length (); j++) {
+        if (j > 0) fprintf (f, " ");
+        fprintf (f, "\"%s\"", (*s->malloc_size_field_names)[j]);
+      }
+    }
+    fprintf (f, "))");
+
+    // reads
+    fprintf (f, "(reads (");
+    if (s->reads) {
+      for (unsigned j = 0; j < s->reads->length (); j++) {
+        LtoRelatedFieldsSummary* rf = (*s->reads)[j];
+        fprintf (f, "(");
+        if (rf && rf->field_names) {
+          for (unsigned k = 0; k < rf->field_names->length (); k++) {
+            if (k > 0) fprintf (f, " ");
+            fprintf (f, "\"%s\"", (*rf->field_names)[k]);
+          }
+        }
+        fprintf (f, ")");
+      }
+    }
+    fprintf (f, "))");
+
+    // writes
+    fprintf (f, "(writes (");
+    if (s->writes) {
+      for (unsigned j = 0; j < s->writes->length (); j++) {
+        LtoRelatedFieldsSummary* rf = (*s->writes)[j];
+        fprintf (f, "(");
+        if (rf && rf->field_names) {
+          for (unsigned k = 0; k < rf->field_names->length (); k++) {
+            if (k > 0) fprintf (f, " ");
+            fprintf (f, "\"%s\"", (*rf->field_names)[k]);
+          }
+        }
+        fprintf (f, ")");
+      }
+    }
+    fprintf (f, "))");
+
+    fprintf (f, ")\n");
+  }
+
+  fclose (f);
+}
+
+// Write aggregated results with OVERWRITE mode (not append)
+void writeLtransAggregatedResults (char const* output_path) {
+  vec<LtoUnifiedResultSummary*, va_gc>* aggregated = aggregateLtransSummaries ();
+  if (!aggregated || aggregated->is_empty ()) return;
+
+  FILE* f = fopen (output_path, "w");  // OVERWRITE mode
+  if (!f) return;
+
+  fprintf (f, ";; LTO Aggregated Results (from LTO section)\n");
+
+  for (unsigned i = 0; i < aggregated->length (); i++) {
+    LtoUnifiedResultSummary* s = (*aggregated)[i];
+    if (!s) continue;
+
+    // Format: ((type "TypeName")(field "...")(owned yes|no|undetermined)
+    //          (malloc-size (...))(reads (...))(writes (...)))
+    fprintf (f, "((type \"%s\")", s->type_name ? s->type_name : "");
     fprintf (f, "(field \"%s\")", s->ptr_field_name ? s->ptr_field_name : "");
 
     // owned

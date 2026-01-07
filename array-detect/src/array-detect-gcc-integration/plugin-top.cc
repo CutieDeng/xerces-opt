@@ -90,14 +90,15 @@ static void ipa_read_summary (void) {
   if (debug_file) {
     FILE* df = fopen (debug_file, "a");
     if (df) {
-      fprintf (df, "[ipa_read_summary] called (using file-based approach)\n");
+      fprintf (df, "[ipa_read_summary] called\n");
       fclose (df);
     }
   }
-  // NOTE: We use file-based aggregation via plugin_finish_callback instead of
-  // LTO section streaming, because LTO_section_lto is GCC's own section.
-  // Custom plugin data in LTO requires a different section mechanism.
-  // TODO: Implement proper custom LTO section handling for cross-TU data transfer
+
+  // NOTE: LTO section reading with custom section ID (100) causes GCC to crash
+  // because GCC's internal arrays are sized to LTO_N_SECTION_TYPES (~23).
+  // We use file-based approach instead (AD_RESULT_FILE).
+  // The file-based data is read in initLtoTransformContext via parseResultFileForOwnedFields.
 }
 
 // Called for each function during LTRANS to apply transformations
@@ -187,15 +188,7 @@ class pass_array_detect : public ipa_opt_pass_d {
     // Skip analysis during LTO WPA/LTRANS phases - we only need the summary hooks
     // Analysis was already done during initial compilation
     if (in_lto_p) {
-      // In LTRANS phase, output aggregated results once
-      static bool ltrans_output_done = false;
-      if (flag_ltrans && !ltrans_output_done && ::array_detect_ns::hasLtransLtoSummaries ()) {
-        ltrans_output_done = true;
-        char const* result_file = getenv ("AD_RESULT_FILE");
-        if (result_file) {
-          ::array_detect_ns::writeLtransResultsToRacketDatum (result_file);
-        }
-      }
+      // Aggregated results are written in plugin_finish_callback
       return 0;
     }
 
@@ -340,6 +333,7 @@ static void aggregateFileResults (char const* result_file, char const* debug_fil
 static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
   char const* debug_file = getenv ("AD_DEBUG_FILE");
   char const* result_file = getenv ("AD_RESULT_FILE");
+  char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
 
   // Debug output
   if (debug_file) {
@@ -351,9 +345,31 @@ static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
     }
   }
 
-  // In LTRANS phase, aggregate file-based results
-  if (in_lto_p && flag_ltrans && result_file) {
+  // In LTRANS phase, aggregate file-based results and write to AD_AGGREGATED_FILE
+  if (in_lto_p && flag_ltrans && result_file && aggregated_file) {
+    // Aggregate the per-TU results from AD_RESULT_FILE
     aggregateFileResults (result_file, debug_file);
+
+    // Write aggregated result to AD_AGGREGATED_FILE (overwrite mode)
+    FILE* src = fopen (result_file, "r");
+    FILE* dst = fopen (aggregated_file, "w");
+    if (src && dst) {
+      char buf[4096];
+      size_t n;
+      while ((n = fread (buf, 1, sizeof(buf), src)) > 0) {
+        fwrite (buf, 1, n, dst);
+      }
+    }
+    if (src) fclose (src);
+    if (dst) fclose (dst);
+
+    if (debug_file) {
+      FILE* df = fopen (debug_file, "a");
+      if (df) {
+        fprintf (df, "[plugin_finish_callback] wrote aggregated results to: %s\n", aggregated_file);
+        fclose (df);
+      }
+    }
   }
 }
 
