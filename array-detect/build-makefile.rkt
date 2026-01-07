@@ -67,7 +67,8 @@
                   "array-detect-capacity-field-associator"
                   "array-detect-array-access-collector"
                   "array-detect-bound-condition-analyzer"
-                  "array-detect-unified-result-aggregator"))
+                  "array-detect-unified-result-aggregator"
+                  "array-detect-lto-transform"))
 
 (define s "src")
 (define i "include")
@@ -133,7 +134,8 @@
       "-I" ,(path->string (build-path "include/array-detect-capacity-field-associator"))
       "-I" ,(path->string (build-path "include/array-detect-array-access-collector"))
       "-I" ,(path->string (build-path "include/array-detect-bound-condition-analyzer"))
-      "-I" ,(path->string (build-path "include/array-detect-unified-result-aggregator")))
+      "-I" ,(path->string (build-path "include/array-detect-unified-result-aggregator"))
+      "-I" ,(path->string (build-path "include/array-detect-lto-transform")))
     platform-linker-flags
     '("-Wall"
       "-Wextra"
