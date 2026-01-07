@@ -19,6 +19,12 @@ namespace array_detect_ns {
 static LtoTransformContext* g_transform_ctx = nullptr;
 
 // ============================================================================
+// Key type alias for cleaner code
+// ============================================================================
+
+typedef std::pair<const char*, const char*> TypeFieldKey;
+
+// ============================================================================
 // Context initialization
 // ============================================================================
 
@@ -54,15 +60,14 @@ static unsigned int parseResultFileForOwnedFields (
     // Only include owned=yes fields
     if (strcmp (owned_str, "yes") != 0) continue;
 
-    TypeFieldKey key;
-    key.type_name = type_str;
-    key.field_name = field_str;
+    // Make key with duplicated strings (xstrdup for persistence)
+    TypeFieldKey key (xstrdup (type_str), xstrdup (field_str));
 
     // Check if already exists
-    if (ctx->owned_fields->find (key) != ctx->owned_fields->end ()) continue;
+    if (ctx->owned_fields->get (key) != nullptr) continue;
 
-    // Create a minimal summary entry (nullptr - we don't need full data for transform)
-    (*ctx->owned_fields)[key] = nullptr;
+    // Insert into hash map (nullptr summary for file-based entries)
+    ctx->owned_fields->put (key, nullptr);
     owned_count++;
 
     if (debug_out) {
@@ -82,7 +87,8 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
   FILE* debug_out = debug_file ? fopen (debug_file, "a") : nullptr;
   if (debug_out) fprintf (debug_out, "[initLtoTransformContext] ENTRY\n");
 
-  ctx->owned_fields = new std::unordered_map<TypeFieldKey, LtoUnifiedResultSummary*, TypeFieldKeyHasher> ();
+  // Create hash map
+  ctx->owned_fields = new OwnedFieldMap ();
   ctx->fields_transformed = 0;
   ctx->accesses_found = 0;
   ctx->accesses_transformed = 0;
@@ -101,11 +107,16 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
       // Only include owned=yes fields
       if (s->owned_verdict != OWNED_YES) continue;
 
-      TypeFieldKey key;
-      key.type_name = s->type_name ? s->type_name : "";
-      key.field_name = s->ptr_field_name ? s->ptr_field_name : "";
+      char const* tname = s->type_name ? s->type_name : "";
+      char const* fname = s->ptr_field_name ? s->ptr_field_name : "";
 
-      (*ctx->owned_fields)[key] = s;
+      TypeFieldKey key (tname, fname);
+
+      // Check if already exists
+      if (ctx->owned_fields->get (key) != nullptr) continue;
+
+      // Insert with summary pointer
+      ctx->owned_fields->put (key, s);
       owned_count++;
     }
   }
@@ -145,15 +156,11 @@ LtoUnifiedResultSummary* lookupOwnedField (
   if (!ctx || !ctx->owned_fields) return nullptr;
   if (!type_name || !field_name) return nullptr;
 
-  TypeFieldKey key;
-  key.type_name = type_name;
-  key.field_name = field_name;
-
-  auto it = ctx->owned_fields->find (key);
-  return it != ctx->owned_fields->end () ? it->second : nullptr;
+  TypeFieldKey key (type_name, field_name);
+  OwnedFieldValue* val = ctx->owned_fields->get (key);
+  return val ? *val : nullptr;
 }
 
-// Check if a (type, field) pair is owned (returns true even if summary is nullptr)
 bool isFieldOwned (
   LtoTransformContext* ctx,
   char const* type_name,
@@ -162,11 +169,8 @@ bool isFieldOwned (
   if (!ctx || !ctx->owned_fields) return false;
   if (!type_name || !field_name) return false;
 
-  TypeFieldKey key;
-  key.type_name = type_name;
-  key.field_name = field_name;
-
-  return ctx->owned_fields->find (key) != ctx->owned_fields->end ();
+  TypeFieldKey key (type_name, field_name);
+  return ctx->owned_fields->get (key) != nullptr;
 }
 
 void printOwnedFieldTable (LtoTransformContext* ctx, FILE* out) {
@@ -175,11 +179,13 @@ void printOwnedFieldTable (LtoTransformContext* ctx, FILE* out) {
   fprintf (out, "=== Owned Field Table ===\n");
   fprintf (out, "Total owned fields: %u\n", ctx->fields_transformed);
 
-  // Iterate the std::unordered_map
-  for (auto const& entry : *ctx->owned_fields) {
+  // Iterate hash_map using iterator
+  for (auto iter = ctx->owned_fields->begin ();
+       iter != ctx->owned_fields->end (); ++iter) {
+    auto entry = *iter;
     fprintf (out, "  %s::%s\n",
-             entry.first.type_name.c_str (),
-             entry.first.field_name.c_str ());
+             entry.first.first ? entry.first.first : "<null>",
+             entry.first.second ? entry.first.second : "<null>");
   }
 
   fprintf (out, "=========================\n");

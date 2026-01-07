@@ -4,32 +4,32 @@
 #include "gcc-common.hh"
 #include "lto-summary.hh"
 
-#include <unordered_map>
-#include <string>
+#include "hash-map.h"
+#include "hash-traits.h"
 
 namespace array_detect_ns {
 
 // ============================================================================
-// Owned field lookup table
+// Owned field lookup using GCC hash_map
 // ============================================================================
 
-// Key for (type_name, field_name) pair - using std::string for safe storage
-struct TypeFieldKey {
-  std::string type_name;
-  std::string field_name;
+// Key type: (type_name, field_name) pair of strings
+// Using pair_hash with nofree_string_hash for both strings
+typedef pair_hash<nofree_string_hash, nofree_string_hash> TypeFieldPairHash;
 
-  bool operator== (TypeFieldKey const& other) const {
-    return type_name == other.type_name && field_name == other.field_name;
-  }
-};
+// Value type: pointer to summary (may be nullptr for file-based entries)
+typedef LtoUnifiedResultSummary* OwnedFieldValue;
 
-struct TypeFieldKeyHasher {
-  std::size_t operator() (TypeFieldKey const& key) const {
-    std::size_t h1 = std::hash<std::string>{}(key.type_name);
-    std::size_t h2 = std::hash<std::string>{}(key.field_name);
-    return h1 ^ (h2 << 1);
-  }
-};
+// Hash map traits: key uses pair_hash, value is pointer (unbounded since
+// pointer cannot represent empty/deleted - use value for these markers)
+typedef simple_hashmap_traits<TypeFieldPairHash, OwnedFieldValue> OwnedFieldMapTraits;
+
+// The hash map type: (type_name, field_name) -> LtoUnifiedResultSummary*
+typedef hash_map<
+  std::pair<const char*, const char*>,
+  OwnedFieldValue,
+  OwnedFieldMapTraits
+> OwnedFieldMap;
 
 // ============================================================================
 // LTO Transform context
@@ -37,7 +37,7 @@ struct TypeFieldKeyHasher {
 
 struct LtoTransformContext {
   // Lookup table: (type_name, field_name) -> owned info
-  std::unordered_map<TypeFieldKey, LtoUnifiedResultSummary*, TypeFieldKeyHasher>* owned_fields;
+  OwnedFieldMap* owned_fields;
 
   // Statistics
   unsigned int fields_transformed;
@@ -59,6 +59,13 @@ void deinitLtoTransformContext (LtoTransformContext* ctx);
 // Check if a (type, field) pair is owned
 // Returns the summary if owned, nullptr otherwise
 LtoUnifiedResultSummary* lookupOwnedField (
+  LtoTransformContext* ctx,
+  char const* type_name,
+  char const* field_name
+);
+
+// Check if field is owned (returns true even if summary is nullptr)
+bool isFieldOwned (
   LtoTransformContext* ctx,
   char const* type_name,
   char const* field_name
