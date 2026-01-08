@@ -102,5 +102,3 @@ void writeLtransAggregatedResults (char const* output_path);
 void writeLtransResultsToRacketDatum (char const* output_path);
 
 } // namespace array_detect_ns
-
-

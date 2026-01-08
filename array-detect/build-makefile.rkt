@@ -54,19 +54,30 @@
           (make-lib-args (cfg-ref cfg Config-mpfr-include-path)
                          (cfg-ref cfg Config-mpfr-lib-path))))
 
+(define (cfg-command-prefix cfg)
+  #f)
+
 ;; ============================================================================
 ;; Compiler Path Detection
 ;; ============================================================================
 
-(define (find-default-compiler)
-  (define gcc-15 (find-executable-path "g++-15"))
-  (define gcc (find-executable-path "g++"))
+(define (env-compiler)
+  (define env (or (getenv "AD_CXX") (getenv "CXX")))
   (cond
-    [gcc-15 gcc-15]
-    [gcc gcc]
-    [else
-     (raise-user-error 'build-makefile
-                       "Cannot find g++ compiler (g++-15 or g++)")]))
+    [(and env (file-exists? env)) env]
+    [env (find-executable-path env)]
+    [else #f]))
+
+(define (find-default-compiler)
+  (or
+    (env-compiler)
+    (find-executable-path "g++-15")
+    (find-executable-path "g++-12")
+    (find-executable-path "g++")
+    (raise-user-error 'build-makefile
+      "Cannot find g++ compiler (g++-15 or g++)")
+  )
+)
 
 (define (plugin-path-getter cc)
   (define out
@@ -176,7 +187,10 @@
 (define (write-compiles cfg sources targets)
   (for ([s sources] [t targets])
     (printf "~a:~n" (~a t))
-    (printf "\t~a -c" (cfg-ref cfg Config-cc))
+    (define prefix (cfg-command-prefix cfg))
+    (printf "\t")
+    (when prefix (printf "~a " prefix))
+    (printf "~a -c" (cfg-ref cfg Config-cc))
     (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
     (for ([a (cfg-lib-args cfg)]) (printf " ~s" a))
     (printf " ~s" (~a s))
@@ -195,7 +209,10 @@
   (printf "~a:" (cfg-ref cfg Config-output-so))
   (for ([o targets]) (printf " ~a" (~a o)))
   (printf "~n")
-  (printf "\t~a" (cfg-ref cfg Config-cc))
+  (define prefix (cfg-command-prefix cfg))
+  (printf "\t")
+  (when prefix (printf "~a " prefix))
+  (printf "~a" (cfg-ref cfg Config-cc))
   (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
   (for ([a (cfg-lib-args cfg)]) (printf " ~s" a))
   (for ([o targets]) (printf " ~s" (~a o)))
@@ -386,6 +403,11 @@
     (if is-macos?
         '("-undefined" "dynamic_lookup")
         '()))
+  (define macos-warning-flags
+    (if is-macos?
+        '("-Wno-deprecated-declarations"
+          "-Wa,-Wno-overriding-deployment-version")
+        '()))
   (define module-include-paths
     (for/list ([m modules])
       (~a (build-path include-path m))))
@@ -405,8 +427,9 @@
                     (append module-include-paths extra-include-paths))
         platform-linker-flags
         '("-Wall"
-          "-Wextra"
-          "-std=c++17"
+          "-Wextra")
+        macos-warning-flags
+        '("-std=c++17"
           "-g"
           "-O2"))))
   (letrec ([gmp-promise (delay (let-values ([(i l) (gmp/args is-macos?)]) (cons i l)))]

@@ -13,7 +13,7 @@
 
 ;; Environment variables for plugin output
 ;; AD_RESULT_FILE: per-TU results (append mode, used by analysis phase)
-;; AD_AGGREGATED_FILE: aggregated LTRANS results (overwrite mode, from LTO section)
+;; AD_AGGREGATED_FILE: aggregated LTRANS results (overwrite mode)
 (putenv "AD_RESULT_FILE" "out/result.rktd")
 (putenv "AD_AGGREGATED_FILE" "out/aggregated.rktd")
 
@@ -35,9 +35,9 @@
 ;; Link with LTO (this triggers LTRANS phase)
 (link-lto)
 
-;; Display aggregated results (from LTO section)
+;; Display aggregated results
 (when (file-exists? "out/aggregated.rktd")
-  (printf "=== LTO Aggregated Results (from LTO section) ===~n")
+  (printf "=== LTO Aggregated Results ===~n")
   (call-with-input-file "out/aggregated.rktd"
     (lambda (in)
       (for ([line (in-lines in)])

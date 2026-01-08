@@ -14,13 +14,15 @@ namespace array_detect_ns {
 static constexpr unsigned HOST_WIDE_INT kMagic = 0x41525F4445544543ULL; // "AR_DETEC"
 static constexpr unsigned HOST_WIDE_INT kVersion = 2;  // v2: added template_args
 
-// Use an existing LTO section type with a unique section name to avoid
+// Use an existing LTO section type that is unused in normal builds to avoid
 // introducing new section IDs.
-static constexpr lto_section_type kArrayDetectSection = LTO_section_ipa_fn_summary;
+static constexpr lto_section_type kArrayDetectSection = LTO_section_offload_table;
+static constexpr int kArrayDetectSectionId = 0;
 
 // Module-owned pointers (GC-managed allocations).
 static vec<LtoUnifiedResultSummary*, va_gc>* g_wpa_summaries = nullptr;
 static vec<LtoUnifiedResultSummary*, va_gc>* g_ltrans_summaries = nullptr;
+static bool g_ltrans_summaries_loaded = false;
 
 static inline char const* dup_cstr (char const* s) {
   if (!s) return nullptr;
@@ -148,7 +150,10 @@ static inline void read_string_list (
 } // namespace
 
 void clearWpaLtoSummaries () { g_wpa_summaries = nullptr; }
-void clearLtransLtoSummaries () { g_ltrans_summaries = nullptr; }
+void clearLtransLtoSummaries () {
+  g_ltrans_summaries = nullptr;
+  g_ltrans_summaries_loaded = false;
+}
 
 void setWpaLtoSummaries (vec<LtoUnifiedResultSummary*, va_gc>* summaries) {
   g_wpa_summaries = summaries;
@@ -178,7 +183,11 @@ void writeArrayDetectLtoSummarySection () {
   // Header.
   streamer_write_uhwi_stream (os, kMagic);
   streamer_write_uhwi_stream (os, kVersion);
-  streamer_write_uhwi_stream (os, (unsigned HOST_WIDE_INT) summaries->length ());
+  unsigned HOST_WIDE_INT entry_count = 0;
+  for (unsigned i = 0; i < summaries->length (); i++) {
+    if ((*summaries)[i]) entry_count++;
+  }
+  streamer_write_uhwi_stream (os, entry_count);
 
   // Entries.
   for (unsigned i = 0; i < summaries->length (); i++) {
@@ -202,7 +211,12 @@ void writeArrayDetectLtoSummarySection () {
   }
 
   // Emit the section with a unique name for this pass.
-  char* section_name = lto_get_section_name (kArrayDetectSection, "array-detect", 0, nullptr);
+  char* section_name = lto_get_section_name (kArrayDetectSection, "array-detect",
+                                             kArrayDetectSectionId, nullptr);
+  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (df) {
+    fprintf (df, "[writeArrayDetectLtoSummarySection] section=%s\n", section_name);
+  }
   lto_begin_section (section_name, /*compress*/ true);
   lto_write_stream (os);
   lto_end_section ();
@@ -213,6 +227,10 @@ void writeArrayDetectLtoSummarySection () {
 
 void readArrayDetectLtoSummarySections () {
   FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (g_ltrans_summaries_loaded) {
+    if (df) fprintf (df, "[readArrayDetectLtoSummarySections] already loaded, skipping\n");
+    return;
+  }
   if (df) fprintf (df, "[readArrayDetectLtoSummarySections] ENTRY\n");
 
   // Read from all input files.
@@ -229,14 +247,17 @@ void readArrayDetectLtoSummarySections () {
     char const* data = nullptr;
     size_t len = 0;
 
-    char* section_name = lto_get_section_name (kArrayDetectSection, "array-detect", 0, file_data);
-    data = lto_get_section_data (file_data, kArrayDetectSection, section_name, 0, &len, /*decompress*/ true);
+    char* section_name = lto_get_section_name (kArrayDetectSection, "array-detect",
+                                               kArrayDetectSectionId, file_data);
+    data = lto_get_section_data (file_data, kArrayDetectSection, section_name,
+                                 kArrayDetectSectionId, &len, /*decompress*/ true);
 
     if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u, data=%p, len=%zu\n",
                      fi, (void*)data, len);
 
     if (!data || !len) {
-      if (data) lto_free_section_data (file_data, kArrayDetectSection, section_name, data, len, true);
+      if (data) lto_free_section_data (file_data, kArrayDetectSection, section_name,
+                                       data, len, true);
       free (section_name);
       if (df) fprintf (df, "[readArrayDetectLtoSummarySections] file %u skipped (no data)\n", fi);
       continue;
@@ -291,6 +312,7 @@ void readArrayDetectLtoSummarySections () {
     unsigned int total = vec_safe_length (getLtransLtoSummaries ());
     fprintf (df, "[readArrayDetectLtoSummarySections] total summaries=%u\n", total);
   }
+  g_ltrans_summaries_loaded = true;
 }
 
 } // namespace array_detect_ns
@@ -620,7 +642,7 @@ void writeLtransAggregatedResults (char const* output_path) {
   FILE* f = fopen (output_path, "w");  // OVERWRITE mode
   if (!f) return;
 
-  fprintf (f, ";; LTO Aggregated Results (from LTO section)\n");
+  fprintf (f, ";; LTO Aggregated Results (from summaries)\n");
 
   for (unsigned i = 0; i < aggregated->length (); i++) {
     LtoUnifiedResultSummary* s = (*aggregated)[i];

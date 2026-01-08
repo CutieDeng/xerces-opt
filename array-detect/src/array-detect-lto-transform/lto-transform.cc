@@ -1,8 +1,12 @@
 #include "lto-transform.hh"
 
+#include <stdlib.h>
 #include <cstring>
 
+#include "array-detect-context-gcc.hh"
+#include "context-init.hh"
 #include "context.hh"
+#include "pipeline.hh"
 
 // GCC headers for GIMPLE traversal
 #include "tree.h"
@@ -19,6 +23,50 @@ namespace array_detect_ns {
 // ============================================================================
 
 static LtoTransformContext* g_transform_ctx = nullptr;
+static bool g_ltrans_analysis_done = false;
+static bool g_ltrans_aggregated_written = false;
+
+static void ensureLtransSummariesFromAnalysis () {
+  if (hasLtransLtoSummaries ()) return;
+  if (g_ltrans_analysis_done) return;
+  g_ltrans_analysis_done = true;
+
+  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  if (debug_out) {
+    fprintf (debug_out, "[ensureLtransSummariesFromAnalysis] fallback analysis\n");
+  }
+
+  ::array_detect_ns::ArrayDetectContext ctx;
+  ::array_detect_ns::ArrayDetectContextGcc gcc_ctx;
+
+  ::array_detect_ns::initGccContext (ctx, gcc_ctx);
+  ::array_detect_ns::ArrayDetectErrorCode err =
+    ::array_detect_ns::initContextAdaptive (ctx, gcc_ctx);
+  if (err != ::array_detect_ns::OK) {
+    ::array_detect_ns::deinitContext (ctx, gcc_ctx);
+    return;
+  }
+
+  err = ::array_detect_ns::runArrayDetectorAnalysis (ctx, gcc_ctx);
+  vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* results =
+    (vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>*) ctx.unified_results;
+
+  if (err == ::array_detect_ns::OK && results && !results->is_empty ()) {
+    vec<LtoUnifiedResultSummary*, va_gc>* summaries =
+      ::array_detect_ns::convertAllToLtoSummaries (results, "<ltrans>");
+    if (summaries && !summaries->is_empty ()) {
+      ::array_detect_ns::setWpaLtoSummaries (summaries);
+      ::array_detect_ns::clearLtransLtoSummaries ();
+      ::array_detect_ns::appendLtransLtoSummaries (summaries);
+      if (debug_out) {
+        fprintf (debug_out, "[ensureLtransSummariesFromAnalysis] populated summaries=%u\n",
+                 summaries->length ());
+      }
+    }
+  }
+
+  ::array_detect_ns::deinitContext (ctx, gcc_ctx);
+}
 
 // ============================================================================
 // Key type alias for cleaner code
@@ -44,12 +92,23 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
 
   unsigned int owned_count = 0;
 
-  // Get aggregated summaries from LTO section
-  // (populated by ipa_read_summary -> readArrayDetectLtoSummarySections)
+  // Load summaries from LTO sections (populated by ipa_read_summary).
+  ::array_detect_ns::readArrayDetectLtoSummarySections ();
+  bool loaded_from_section = hasLtransLtoSummaries ();
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = aggregateLtransSummaries ();
+  if (!summaries || summaries->is_empty ()) {
+    ensureLtransSummariesFromAnalysis ();
+    summaries = aggregateLtransSummaries ();
+    if (!summaries || summaries->is_empty ()) {
+      summaries = getWpaLtoSummaries ();
+    }
+  }
   if (summaries && !summaries->is_empty ()) {
-    if (debug_out) fprintf (debug_out, "[initLtoTransformContext] Using LTO section summaries, count=%u\n",
-                            summaries->length ());
+    if (debug_out) {
+      fprintf (debug_out, "[initLtoTransformContext] Using %s summaries, count=%u\n",
+               loaded_from_section ? "LTO section" : "analysis",
+               summaries->length ());
+    }
 
     for (unsigned i = 0; i < summaries->length (); i++) {
       LtoUnifiedResultSummary* s = (*summaries)[i];
@@ -339,8 +398,11 @@ unsigned int transformFunctionForOwnedFields (
   walk_data.accesses_to_transform = 0;
   walk_data.debug_out = debug_out;
 
-  // Get function name for debugging
-  char const* fn_name = function_name (fn);
+  // Get function name for debugging (avoid function_name symbol on newer GCC).
+  char const* fn_name = nullptr;
+  if (fn && fn->decl && DECL_NAME (fn->decl)) {
+    fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
+  }
 
   if (debug_out) {
     fprintf (debug_out, "[transformFunction] Analyzing function: %s\n",
@@ -393,6 +455,14 @@ unsigned int runLtoTransform (function* fn) {
     if (df) {
       fprintf (df, "\n[runLtoTransform] LTO Transform initialized\n");
       printOwnedFieldTable (g_transform_ctx, df);
+    }
+
+    if (!g_ltrans_aggregated_written) {
+      char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
+      if (aggregated_file) {
+        ::array_detect_ns::writeLtransAggregatedResults (aggregated_file);
+      }
+      g_ltrans_aggregated_written = true;
     }
   }
 
