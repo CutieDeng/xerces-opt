@@ -209,12 +209,10 @@
 
 (define (write-test-xercese config)
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
-  (define test-dir (simplify-path (build-path (current-directory) "../test/test-xercese")))
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "test-xercese: ~a~n" output-so)
   (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
-  (printf "\t@(cd ../test/test-xercese && mkdir -p out && echo ~s | racket build-xercese.rkt)~n"
-          (~s input))
+  (printf "\t@echo ~s | racket test-script/test-xercese.rkt~n" (~s input))
   (printf "~n"))
 
 (define (normalize-deps-output lines)
@@ -323,21 +321,26 @@
   (printf "~n"))
 
 (define (write-test-impl cc output-so name)
-  (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
   (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
-  (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
-          name
-          (~s input))
+  (printf "\t@echo ~s | racket test-script/~a.rkt~n" (~s input) name)
   (printf "~n"))
 
 (define (write-lto-test config name)
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
-  (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags ,(format "-fplugin=~a" output-so))))
-  (printf "\t@echo ~s | racket test-script/test-lto.rkt~n" (~s input))
-  (printf "~n"))
+  (define plugin-arg (format "-fplugin=~a" output-so))
+  (cond
+    [(string=? name "test-xercese-lto")
+     (printf "~a: ~a~n" name output-so)
+     (define input `((cxx . ,(~a cc)) (cflags ,(list plugin-arg "-flto"))))
+     (printf "\t@echo ~s | racket test-script/test-xercese.rkt~n" (~s input))
+     (printf "~n")]
+    [else
+     (printf "~a: ~a~n" name output-so)
+     (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
+     (printf "\t@echo ~s | racket test-script/test-lto.rkt~n" (~s input))
+     (printf "~n")]))
 
 (define (write-tests config)
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ tests _ _ _ _ _ _ _ _ _ _) config)
@@ -435,7 +438,7 @@
              "test-ownership-transfer"
              "test-phi-ice"
              "test-trivial-assignment")
-    '("test-lto")
+    '("test-lto" "test-xercese-lto")
     so-ext
     platform-linker-flags
     dep-jobs

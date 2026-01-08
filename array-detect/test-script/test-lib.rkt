@@ -20,18 +20,34 @@
 
 (provide (all-defined-out))
 
+(define (normalize-args v)
+  (cond
+    [(not v) '()]
+    [(string? v) (list v)]
+    [(list? v) v]
+    [else (list (format "~a" v))]))
+
 (define (parse-ut-compile-task task cxx other-args root-path)
   (match-define (ut-compile-task source target args) task)
-  `(,cxx "-c" ,@(force other-args) ,@(force args) ,(build-path (force root-path) (force source)) "-o" ,(build-path (force root-path) (force target)))
-)
+  `(,cxx "-c"
+    ,@(normalize-args (force other-args))
+    ,@(normalize-args (force args))
+    ,(build-path (force root-path) (force source))
+    "-o"
+    ,(build-path (force root-path) (force target))))
 
 (define (parse-total-compile-task task cxx other-args root-path)
-  (match-define (total-compile-task sources target args) task)
-  `(,cxx ,@(force other-args) ,@(force args) ,@(map (lambda (s) (build-path (force root-path) s)) (force sources)) "-o" ,(build-path (force root-path) (force target)))
-)
+  (and task
+       (match-define (total-compile-task sources target args) task)
+       `(,cxx
+         ,@(normalize-args (force other-args))
+         ,@(normalize-args (force args))
+         ,@(map (lambda (s) (build-path (force root-path) s)) (force sources))
+         "-o"
+         ,(build-path (force root-path) (force target)))))
 
 (define (run-test config cxx other-args root-path)
-  (match-define (test-config name pre-fn post-fn ut-compile-tasks total-compile-task _) config)
+  (match-define (test-config name pre-fn post-fn ut-compile-tasks total-compile-task run-tasks) config)
   (eprintf "Running test: ~a~n" name)
   ((force pre-fn) (force root-path))
   (for ([t (force ut-compile-tasks)])
@@ -40,7 +56,11 @@
     (apply system* ut-compile-args)
   )
   (define total-compile-args (parse-total-compile-task (force total-compile-task) cxx other-args root-path))
-  (eprintf "~a~n" total-compile-args)
-  (apply system* total-compile-args)
+  (when total-compile-args
+    (eprintf "~a~n" total-compile-args)
+    (apply system* total-compile-args))
+  (define run-fn (force run-tasks))
+  (when run-fn
+    (run-fn cxx other-args root-path))
   ((force post-fn) (force root-path))
 )
