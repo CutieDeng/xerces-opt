@@ -333,7 +333,7 @@
   (printf "~n"))
 
 (define (write-lto-test config name)
-  (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
+  (match-define (Config _ cc _ _ output-so _ _ _ _ _ tests _ _ _ _ _ _ _ _ _ _) config)
   (printf "~a: ~a~n" name output-so)
   (define input `((cxx . ,(~a cc)) (cflags . ,(format "-fplugin=~a" output-so))))
   (printf "\t@echo ~s | racket test-script/test-lto.rkt~n" (~s input))
@@ -344,7 +344,7 @@
   (for ([a (force tests)]) (write-test-impl (force cc) (force output-so) a))
 )
 
-(define (write-lto-tests config)
+(define (write-lto-tests config lto-tests)
   (match-define (Config _ _ _ _ _ _ _ _ _ _ _ lto-tests _ _ _ _ _ _ _ _ _) config)
   (for ([a lto-tests]) (write-lto-test config a)))
 
