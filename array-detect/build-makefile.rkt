@@ -37,25 +37,24 @@
 ;; Helpers
 ;; ============================================================================
 
-(define (cfg-force v)
-  (if (promise? v) (force v) v))
-
 (define (cfg-ref cfg accessor)
-  (cfg-force (accessor cfg)))
+  (force (accessor cfg)))
 
 (define (cfg-cflags cfg)
   (cfg-ref cfg Config-cflags))
 
 (define (cfg-lib-args cfg)
-  (append (make-lib-args (cfg-ref cfg Config-gmp-include-path)
-                         (cfg-ref cfg Config-gmp-lib-path))
-          (make-lib-args (cfg-ref cfg Config-mpc-include-path)
-                         (cfg-ref cfg Config-mpc-lib-path))
-          (make-lib-args (cfg-ref cfg Config-mpfr-include-path)
-                         (cfg-ref cfg Config-mpfr-lib-path))))
-
-(define (cfg-command-prefix cfg)
-  #f)
+  (append 
+    (make-lib-args
+      (force (Config-gmp-include-path cfg))
+      (force (Config-gmp-lib-path cfg)))
+    (make-lib-args
+      (force (Config-mpc-include-path cfg))
+      (force (Config-mpc-lib-path cfg)))
+    (make-lib-args
+      (force (Config-mpfr-include-path cfg))
+      (force (Config-mpfr-lib-path cfg)))
+  ))
 
 ;; ============================================================================
 ;; Compiler Path Detection
@@ -93,9 +92,7 @@
 ;; ============================================================================
 
 (define (make-lib-args include-path lib-path)
-  (append
-    (if include-path `("-I" ,include-path) '())
-    (if lib-path `("-L" ,lib-path) '())))
+  `("-I" ,(~a include-path) "-L" ,(~a lib-path)))
 
 (define (pkg-config-first-flag cmd prefix)
   (with-handlers ([exn? (lambda (_) #f)])
@@ -187,9 +184,7 @@
 (define (write-compiles cfg sources targets)
   (for ([s sources] [t targets])
     (printf "~a:~n" (~a t))
-    (define prefix (cfg-command-prefix cfg))
     (printf "\t")
-    (when prefix (printf "~a " prefix))
     (printf "~a -c" (cfg-ref cfg Config-cc))
     (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
     (for ([a (cfg-lib-args cfg)]) (printf " ~s" a))
@@ -209,9 +204,7 @@
   (printf "~a:" (cfg-ref cfg Config-output-so))
   (for ([o targets]) (printf " ~a" (~a o)))
   (printf "~n")
-  (define prefix (cfg-command-prefix cfg))
   (printf "\t")
-  (when prefix (printf "~a " prefix))
   (printf "~a" (cfg-ref cfg Config-cc))
   (for ([a (cfg-cflags cfg)]) (printf " ~s" a))
   (for ([a (cfg-lib-args cfg)]) (printf " ~s" a))
