@@ -155,18 +155,15 @@ ArrayDetectErrorCode analyzeArrayAccess (
     tree mem_base = TREE_OPERAND (expr, 0);
     tree mem_offset = TREE_OPERAND (expr, 1);
 
-    // 检查偏移量是否非零（表示数组访问）
-    if (mem_offset && TREE_CODE (mem_offset) == INTEGER_CST) {
-      HOST_WIDE_INT offset_val = TREE_INT_CST_LOW (mem_offset);
-      if (offset_val != 0) {
-        base_pointer = mem_base;
-        offset_expr = mem_offset;
-        access_type = ACCESS_MEM_REF;
-      }
+    // MEM_REF always represents a memory access; treat offset (even variable/zero) as index input.
+    if (mem_base) {
+      base_pointer = mem_base;
+      offset_expr = mem_offset;
+      access_type = ACCESS_MEM_REF;
     }
 
     // 检查基址是否是 POINTER_PLUS_EXPR 结果
-    if (!base_pointer && mem_base && TREE_CODE (mem_base) == SSA_NAME) {
+    if (mem_base && TREE_CODE (mem_base) == SSA_NAME) {
       gimple* def_stmt = SSA_NAME_DEF_STMT (mem_base);
       if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
         enum tree_code def_code = gimple_assign_rhs_code (def_stmt);
@@ -176,6 +173,13 @@ ArrayDetectErrorCode analyzeArrayAccess (
           access_type = ACCESS_MEM_REF;
         }
       }
+    }
+
+    // Handle direct POINTER_PLUS_EXPR base (seen after LTO optimizations).
+    if (mem_base && TREE_CODE (mem_base) == POINTER_PLUS_EXPR) {
+      base_pointer = TREE_OPERAND (mem_base, 0);
+      offset_expr = TREE_OPERAND (mem_base, 1);
+      access_type = ACCESS_MEM_REF;
     }
   }
 

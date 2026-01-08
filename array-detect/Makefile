@@ -249,10 +249,10 @@ obj/array-detect-gcc-integration/gcc-ext-util.o: \
 obj/array-detect-gcc-integration/lto-summary.o: \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/src/array-detect-gcc-integration/lto-summary.cc \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-gcc-integration/lto-summary.hh \
-  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-gcc-integration/gcc-common.hh \
-  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-owned-verdict-generator/owned-conclusion.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-utils/prelude.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-context/context.hh \
+  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-gcc-integration/gcc-common.hh \
+  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-owned-verdict-generator/owned-conclusion.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-core/array-detector.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-context/state.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/config/array-detect-state.txt \
@@ -575,11 +575,11 @@ obj/array-detect-unified-result-aggregator/result-aggregator.o: \
 obj/array-detect-lto-transform/lto-transform.o: \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/src/array-detect-lto-transform/lto-transform.cc \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-lto-transform/lto-transform.hh \
+  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-utils/prelude.hh \
+  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-context/context.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-gcc-integration/gcc-common.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-gcc-integration/lto-summary.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-owned-verdict-generator/owned-conclusion.hh \
-  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-utils/prelude.hh \
-  /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-context/context.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-core/array-detector.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/include/array-detect-context/state.hh \
   /Users/cutiedeng/Documents/trae-gcc-plugin/array-detect/config/array-detect-state.txt \
@@ -621,32 +621,32 @@ prepare:
 	mkdir -p out
 
 test-simple-ptr-field: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-field && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-field && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-virtual-call: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-virtual-call && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-virtual-call && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-bound-check: out/plugin-array-detect.dylib
-	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-bound-read: out/plugin-array-detect.dylib
-	@(cd ../test/test-bound-read && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-bound-read && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-malloc-size: out/plugin-array-detect.dylib
-	@(cd ../test/test-malloc-size && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-malloc-size && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-ownership-transfer: out/plugin-array-detect.dylib
-	@(cd ../test/test-ownership-transfer && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-ownership-transfer && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-phi-ice: out/plugin-array-detect.dylib
-	@(cd ../test/test-phi-ice && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-phi-ice && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-trivial-assignment: out/plugin-array-detect.dylib
-	@(cd ../test/test-trivial-assignment && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-trivial-assignment && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-lto: out/plugin-array-detect.dylib
-	@(cd ../test/test-lto && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=../../array-detect/out/plugin-array-detect.dylib\" \"-flto\"))" | racket build.rkt)
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-lto.rkt
 

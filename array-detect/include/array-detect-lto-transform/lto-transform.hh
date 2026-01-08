@@ -1,6 +1,8 @@
 #ifndef ARRAY_DETECT_LTO_TRANSFORM_HH
 #define ARRAY_DETECT_LTO_TRANSFORM_HH
 
+#include "prelude.hh"
+#include "context.hh"
 #include "gcc-common.hh"
 #include "lto-summary.hh"
 
@@ -136,7 +138,7 @@ struct LtoTransformContext {
 
 // Initialize transform context from LTRANS summaries
 // Returns true if there are owned fields to transform
-bool initLtoTransformContext (LtoTransformContext* ctx);
+bool initLtoTransformContext (AD_FUNC_ARGS, LtoTransformContext* transform_ctx);
 
 // Clean up transform context
 void deinitLtoTransformContext (LtoTransformContext* ctx);
@@ -159,16 +161,17 @@ bool isFieldOwned (
 // Transform a single function's GIMPLE to handle owned field accesses
 // Returns number of transformations made
 unsigned int transformFunctionForOwnedFields (
-  LtoTransformContext* ctx,
+  AD_FUNC_ARGS,
+  LtoTransformContext* transform_ctx,
   function* fn
 );
 
 // Entry point: transform all functions in LTRANS
 // Called from function_transform callback
-unsigned int runLtoTransform (function* fn);
+unsigned int runLtoTransform (AD_FUNC_ARGS, function* fn);
 
 // Debug: print owned field table
-void printOwnedFieldTable (LtoTransformContext* ctx, FILE* out);
+void printOwnedFieldTable (AD_FUNC_ARGS, LtoTransformContext* transform_ctx);
 
 } // namespace array_detect_ns
 

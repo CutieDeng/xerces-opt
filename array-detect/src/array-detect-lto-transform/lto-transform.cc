@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "array-detect-context-gcc.hh"
+#include "prelude.hh"
 #include "context-init.hh"
 #include "context.hh"
 #include "pipeline.hh"
@@ -26,30 +27,28 @@ static LtoTransformContext* g_transform_ctx = nullptr;
 static bool g_ltrans_analysis_done = false;
 static bool g_ltrans_aggregated_written = false;
 
-static void ensureLtransSummariesFromAnalysis () {
+static void ensureLtransSummariesFromAnalysis (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
   if (hasLtransLtoSummaries ()) return;
   if (g_ltrans_analysis_done) return;
   g_ltrans_analysis_done = true;
 
-  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
-  if (debug_out) {
-    fprintf (debug_out, "[ensureLtransSummariesFromAnalysis] fallback analysis\n");
-  }
+  AD_DEBUG_PRINT ("[ensureLtransSummariesFromAnalysis] fallback analysis");
 
-  ::array_detect_ns::ArrayDetectContext ctx;
-  ::array_detect_ns::ArrayDetectContextGcc gcc_ctx;
+  ::array_detect_ns::ArrayDetectContext analysis_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc analysis_gcc_ctx;
 
-  ::array_detect_ns::initGccContext (ctx, gcc_ctx);
+  ::array_detect_ns::initGccContext (analysis_ctx, analysis_gcc_ctx);
   ::array_detect_ns::ArrayDetectErrorCode err =
-    ::array_detect_ns::initContextAdaptive (ctx, gcc_ctx);
+    ::array_detect_ns::initContextAdaptive (analysis_ctx, analysis_gcc_ctx);
   if (err != ::array_detect_ns::OK) {
-    ::array_detect_ns::deinitContext (ctx, gcc_ctx);
+    ::array_detect_ns::deinitContext (analysis_ctx, analysis_gcc_ctx);
     return;
   }
 
-  err = ::array_detect_ns::runArrayDetectorAnalysis (ctx, gcc_ctx);
+  err = ::array_detect_ns::runArrayDetectorAnalysis (analysis_ctx, analysis_gcc_ctx);
   vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* results =
-    (vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>*) ctx.unified_results;
+    (vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>*) analysis_ctx.unified_results;
 
   if (err == ::array_detect_ns::OK && results && !results->is_empty ()) {
     vec<LtoUnifiedResultSummary*, va_gc>* summaries =
@@ -58,14 +57,12 @@ static void ensureLtransSummariesFromAnalysis () {
       ::array_detect_ns::setWpaLtoSummaries (summaries);
       ::array_detect_ns::clearLtransLtoSummaries ();
       ::array_detect_ns::appendLtransLtoSummaries (summaries);
-      if (debug_out) {
-        fprintf (debug_out, "[ensureLtransSummariesFromAnalysis] populated summaries=%u\n",
-                 summaries->length ());
-      }
+      AD_DEBUG_PRINT ("[ensureLtransSummariesFromAnalysis] populated summaries=%u",
+                      summaries->length ());
     }
   }
 
-  ::array_detect_ns::deinitContext (ctx, gcc_ctx);
+  ::array_detect_ns::deinitContext (analysis_ctx, analysis_gcc_ctx);
 }
 
 // ============================================================================
@@ -78,37 +75,35 @@ typedef std::pair<const char*, const char*> TypeFieldKey;
 // Context initialization
 // ============================================================================
 
-bool initLtoTransformContext (LtoTransformContext* ctx) {
-  if (!ctx) return false;
+bool initLtoTransformContext (AD_FUNC_ARGS, LtoTransformContext* transform_ctx) {
+  if (!transform_ctx) return false;
 
-  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
-  if (debug_out) fprintf (debug_out, "[initLtoTransformContext] ENTRY\n");
+  AD_DEBUG_PRINT ("[initLtoTransformContext] ENTRY");
 
   // Create hash map
-  ctx->owned_fields = new OwnedFieldMap ();
-  ctx->fields_transformed = 0;
-  ctx->accesses_found = 0;
-  ctx->accesses_transformed = 0;
+  transform_ctx->owned_fields = new OwnedFieldMap ();
+  transform_ctx->fields_transformed = 0;
+  transform_ctx->accesses_found = 0;
+  transform_ctx->accesses_transformed = 0;
 
   unsigned int owned_count = 0;
 
   // Load summaries from LTO sections (populated by ipa_read_summary).
-  ::array_detect_ns::readArrayDetectLtoSummarySections ();
+  ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
   bool loaded_from_section = hasLtransLtoSummaries ();
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = aggregateLtransSummaries ();
   if (!summaries || summaries->is_empty ()) {
-    ensureLtransSummariesFromAnalysis ();
+    AD_DEBUG_PRINT ("[initLtoTransformContext] WARNING: LTO summary blob missing; falling back to LTRANS analysis");
+    ensureLtransSummariesFromAnalysis (AD_ARGS);
     summaries = aggregateLtransSummaries ();
     if (!summaries || summaries->is_empty ()) {
       summaries = getWpaLtoSummaries ();
     }
   }
   if (summaries && !summaries->is_empty ()) {
-    if (debug_out) {
-      fprintf (debug_out, "[initLtoTransformContext] Using %s summaries, count=%u\n",
-               loaded_from_section ? "LTO section" : "analysis",
-               summaries->length ());
-    }
+    AD_DEBUG_PRINT ("[initLtoTransformContext] Using %s summaries, count=%u",
+                    loaded_from_section ? "LTO section" : "analysis",
+                    summaries->length ());
 
     for (unsigned i = 0; i < summaries->length (); i++) {
       LtoUnifiedResultSummary* s = (*summaries)[i];
@@ -123,23 +118,19 @@ bool initLtoTransformContext (LtoTransformContext* ctx) {
       TypeFieldKey key (tname, fname);
 
       // Check if already exists
-      if (ctx->owned_fields->get (key) != nullptr) continue;
+      if (transform_ctx->owned_fields->get (key) != nullptr) continue;
 
       // Insert with summary pointer
-      ctx->owned_fields->put (key, s);
+      transform_ctx->owned_fields->put (key, s);
       owned_count++;
 
-      if (debug_out) {
-        fprintf (debug_out, "[initLtoTransformContext] Added owned field from LTO: %s::%s\n", tname, fname);
-      }
+      AD_DEBUG_PRINT ("[initLtoTransformContext] Added owned field from LTO: %s::%s", tname, fname);
     }
   }
 
-  ctx->fields_transformed = owned_count;
+  transform_ctx->fields_transformed = owned_count;
 
-  if (debug_out) {
-    fprintf (debug_out, "[initLtoTransformContext] EXIT, owned_count=%u\n", owned_count);
-  }
+  AD_DEBUG_PRINT ("[initLtoTransformContext] EXIT, owned_count=%u", owned_count);
 
   return owned_count > 0;
 }
@@ -177,22 +168,23 @@ bool isFieldOwned (
   return ctx->owned_fields->get (key) != nullptr;
 }
 
-void printOwnedFieldTable (LtoTransformContext* ctx, FILE* out) {
-  if (!ctx || !ctx->owned_fields || !out) return;
+void printOwnedFieldTable (AD_FUNC_ARGS, LtoTransformContext* transform_ctx) {
+  (void) gcc_ctx;
+  if (!transform_ctx || !transform_ctx->owned_fields) return;
 
-  fprintf (out, "=== Owned Field Table ===\n");
-  fprintf (out, "Total owned fields: %u\n", ctx->fields_transformed);
+  AD_DEBUG_PRINT ("=== Owned Field Table ===");
+  AD_DEBUG_PRINT ("Total owned fields: %u", transform_ctx->fields_transformed);
 
   // Iterate hash_map using iterator
-  for (auto iter = ctx->owned_fields->begin ();
-       iter != ctx->owned_fields->end (); ++iter) {
+  for (auto iter = transform_ctx->owned_fields->begin ();
+       iter != transform_ctx->owned_fields->end (); ++iter) {
     auto entry = *iter;
-    fprintf (out, "  %s::%s\n",
-             entry.first.first ? entry.first.first : "<null>",
-             entry.first.second ? entry.first.second : "<null>");
+    AD_DEBUG_PRINT ("  %s::%s",
+                    entry.first.first ? entry.first.first : "<null>",
+                    entry.first.second ? entry.first.second : "<null>");
   }
 
-  fprintf (out, "=========================\n");
+  AD_DEBUG_PRINT ("=========================");
 }
 
 // ============================================================================
@@ -296,34 +288,33 @@ static bool extractFieldAccess (tree expr, FieldAccessInfo* info) {
 // ============================================================================
 
 struct TransformWalkData {
-  LtoTransformContext* ctx;
+  LtoTransformContext* transform_ctx;
   function* fn;
   unsigned int accesses_found;
   unsigned int accesses_to_transform;
-  FILE* debug_out;
 };
 
 // Check a single tree expression for field access
 static bool checkExprForOwnedAccess (
+  AD_FUNC_ARGS,
   tree expr,
   TransformWalkData* data,
   bool is_read
 ) {
+  (void) gcc_ctx;
   FieldAccessInfo info;
   if (!extractFieldAccess (expr, &info)) return false;
 
   data->accesses_found++;
 
   // Check if this field is owned
-  bool is_owned = isFieldOwned (data->ctx, info.type_name, info.field_name);
+  bool is_owned = isFieldOwned (data->transform_ctx, info.type_name, info.field_name);
 
   if (is_owned) {
     data->accesses_to_transform++;
-    if (data->debug_out) {
-      fprintf (data->debug_out, "  [OWNED ACCESS] %s::%s (%s)\n",
-               info.type_name, info.field_name,
-               is_read ? "read" : "write");
-    }
+    AD_DEBUG_PRINT ("  [OWNED ACCESS] %s::%s (%s)",
+                    info.type_name, info.field_name,
+                    is_read ? "read" : "write");
     return true;
   }
 
@@ -331,19 +322,20 @@ static bool checkExprForOwnedAccess (
 }
 
 // Analyze a GIMPLE statement for owned field accesses
-static void analyzeStmtForOwnedAccess (gimple* stmt, TransformWalkData* data) {
+static void analyzeStmtForOwnedAccess (AD_FUNC_ARGS, gimple* stmt, TransformWalkData* data) {
+  (void) gcc_ctx;
   if (!stmt) return;
 
   switch (gimple_code (stmt)) {
     case GIMPLE_ASSIGN: {
       // Check LHS (write)
       tree lhs = gimple_assign_lhs (stmt);
-      checkExprForOwnedAccess (lhs, data, false);
+      checkExprForOwnedAccess (AD_ARGS, lhs, data, false);
 
       // Check RHS operands (read)
       for (unsigned i = 1; i < gimple_num_ops (stmt); i++) {
         tree op = gimple_op (stmt, i);
-        if (op) checkExprForOwnedAccess (op, data, true);
+        if (op) checkExprForOwnedAccess (AD_ARGS, op, data, true);
       }
       break;
     }
@@ -352,25 +344,25 @@ static void analyzeStmtForOwnedAccess (gimple* stmt, TransformWalkData* data) {
       // Check arguments (usually reads, but could be writes for out params)
       for (unsigned i = 0; i < gimple_call_num_args (stmt); i++) {
         tree arg = gimple_call_arg (stmt, i);
-        checkExprForOwnedAccess (arg, data, true);
+        checkExprForOwnedAccess (AD_ARGS, arg, data, true);
       }
       // Check LHS if present
       tree lhs = gimple_call_lhs (stmt);
-      if (lhs) checkExprForOwnedAccess (lhs, data, false);
+      if (lhs) checkExprForOwnedAccess (AD_ARGS, lhs, data, false);
       break;
     }
 
     case GIMPLE_RETURN: {
       greturn* ret = as_a<greturn*> (stmt);
       tree val = gimple_return_retval (ret);
-      if (val) checkExprForOwnedAccess (val, data, true);
+      if (val) checkExprForOwnedAccess (AD_ARGS, val, data, true);
       break;
     }
 
     case GIMPLE_COND: {
       gcond* cond = as_a<gcond*> (stmt);
-      checkExprForOwnedAccess (gimple_cond_lhs (cond), data, true);
-      checkExprForOwnedAccess (gimple_cond_rhs (cond), data, true);
+      checkExprForOwnedAccess (AD_ARGS, gimple_cond_lhs (cond), data, true);
+      checkExprForOwnedAccess (AD_ARGS, gimple_cond_rhs (cond), data, true);
       break;
     }
 
@@ -384,19 +376,18 @@ static void analyzeStmtForOwnedAccess (gimple* stmt, TransformWalkData* data) {
 // ============================================================================
 
 unsigned int transformFunctionForOwnedFields (
-  LtoTransformContext* ctx,
+  AD_FUNC_ARGS,
+  LtoTransformContext* transform_ctx,
   function* fn
 ) {
-  if (!ctx || !fn) return 0;
-
-  FILE* debug_out = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  (void) gcc_ctx;
+  if (!transform_ctx || !fn) return 0;
 
   TransformWalkData walk_data;
-  walk_data.ctx = ctx;
+  walk_data.transform_ctx = transform_ctx;
   walk_data.fn = fn;
   walk_data.accesses_found = 0;
   walk_data.accesses_to_transform = 0;
-  walk_data.debug_out = debug_out;
 
   // Get function name for debugging (avoid function_name symbol on newer GCC).
   char const* fn_name = nullptr;
@@ -404,10 +395,8 @@ unsigned int transformFunctionForOwnedFields (
     fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
   }
 
-  if (debug_out) {
-    fprintf (debug_out, "[transformFunction] Analyzing function: %s\n",
-             fn_name ? fn_name : "<anonymous>");
-  }
+  AD_DEBUG_PRINT ("[transformFunction] Analyzing function: %s",
+                  fn_name ? fn_name : "<anonymous>");
 
   // Traverse all basic blocks
   basic_block bb;
@@ -415,19 +404,17 @@ unsigned int transformFunctionForOwnedFields (
     for (gimple_stmt_iterator gsi = gsi_start_bb (bb);
          !gsi_end_p (gsi); gsi_next (&gsi)) {
       gimple* stmt = gsi_stmt (gsi);
-      analyzeStmtForOwnedAccess (stmt, &walk_data);
+      analyzeStmtForOwnedAccess (AD_ARGS, stmt, &walk_data);
     }
   }
 
-  if (debug_out) {
-    fprintf (debug_out, "[transformFunction] %s: %u accesses found, %u owned\n",
-             fn_name ? fn_name : "<anon>",
-             walk_data.accesses_found,
-             walk_data.accesses_to_transform);
-  }
+  AD_DEBUG_PRINT ("[transformFunction] %s: %u accesses found, %u owned",
+                  fn_name ? fn_name : "<anon>",
+                  walk_data.accesses_found,
+                  walk_data.accesses_to_transform);
 
-  ctx->accesses_found += walk_data.accesses_found;
-  ctx->accesses_transformed += walk_data.accesses_to_transform;
+  transform_ctx->accesses_found += walk_data.accesses_found;
+  transform_ctx->accesses_transformed += walk_data.accesses_to_transform;
 
   // TODO: Actual code transformation will be added here
   // For now, we just identify the accesses
@@ -439,11 +426,11 @@ unsigned int transformFunctionForOwnedFields (
 // Entry point for function_transform callback
 // ============================================================================
 
-unsigned int runLtoTransform (function* fn) {
+unsigned int runLtoTransform (AD_FUNC_ARGS, function* fn) {
   // Initialize global context on first call
   if (!g_transform_ctx) {
     g_transform_ctx = new LtoTransformContext ();
-    if (!initLtoTransformContext (g_transform_ctx)) {
+    if (!initLtoTransformContext (AD_ARGS, g_transform_ctx)) {
       // No owned fields to transform
       delete g_transform_ctx;
       g_transform_ctx = nullptr;
@@ -451,11 +438,8 @@ unsigned int runLtoTransform (function* fn) {
     }
 
     // Debug: print owned field table
-    FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-    if (df) {
-      fprintf (df, "\n[runLtoTransform] LTO Transform initialized\n");
-      printOwnedFieldTable (g_transform_ctx, df);
-    }
+    AD_DEBUG_PRINT ("[runLtoTransform] LTO Transform initialized");
+    printOwnedFieldTable (AD_ARGS, g_transform_ctx);
 
     if (!g_ltrans_aggregated_written) {
       char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
@@ -468,7 +452,7 @@ unsigned int runLtoTransform (function* fn) {
 
   if (!g_transform_ctx) return 0;
 
-  return transformFunctionForOwnedFields (g_transform_ctx, fn);
+  return transformFunctionForOwnedFields (AD_ARGS, g_transform_ctx, fn);
 }
 
 } // namespace array_detect_ns

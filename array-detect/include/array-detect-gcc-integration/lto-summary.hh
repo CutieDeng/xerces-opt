@@ -1,7 +1,8 @@
 #pragma once
 
+#include "prelude.hh"
+#include "context.hh"
 #include "gcc-common.hh"
-
 #include "owned-conclusion.hh"
 
 namespace array_detect_ns {
@@ -61,12 +62,12 @@ vec<LtoUnifiedResultSummary*, va_gc>* getLtransLtoSummaries ();
 bool hasLtransLtoSummaries ();
 
 // ============================================================================
-// Streaming (WPA write / LTRANS read)
+// Streaming via LTO decls (WPA write / LTRANS read)
 // ============================================================================
 
 // Called by ipa pass hooks (write_summary/read_summary).
-void writeArrayDetectLtoSummarySection ();
-void readArrayDetectLtoSummarySections ();
+void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS);
+void readArrayDetectLtoSummarySections (AD_FUNC_ARGS);
 
 // ============================================================================
 // Conversion from analysis results

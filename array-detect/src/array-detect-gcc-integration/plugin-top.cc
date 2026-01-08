@@ -50,6 +50,7 @@ namespace {
 // Store results from execute() for later serialization
 static vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* g_wpa_results = nullptr;
 static bool g_wpa_analysis_done = false;
+static ::array_detect_ns::ArrayDetectContextGcc g_plugin_gcc_ctx;
 
 static bool isWpaPhase () {
   return flag_wpa != nullptr;
@@ -65,14 +66,10 @@ static bool isTruthyEnv (char const* value) {
   return true;
 }
 
-static bool shouldEnableLtoSections () {
+static bool shouldEnableLtoSummaryBlob () {
   char const* env = getenv ("AD_ENABLE_LTO_SECTIONS");
   if (env) return isTruthyEnv (env);
-#ifdef __APPLE__
-  return false;
-#else
   return true;
-#endif
 }
 
 static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
@@ -88,30 +85,22 @@ static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
 }
 
 // Called after execute() to generate summary data
-static void ipa_generate_summary (void) {
-  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-  if (df) {
-    fprintf (df, "[ipa_generate_summary] called, g_wpa_results=%p\n", (void*)g_wpa_results);
-  }
+static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("[ipa_generate_summary] called, g_wpa_results=%p", (void*)g_wpa_results);
 
   if (isWpaPhase () && !g_wpa_results && !g_wpa_analysis_done) {
     if (!getenv ("AD_ALLOW_WPA_ANALYSIS")) {
-      if (df) {
-        fprintf (df, "[ipa_generate_summary] WPA: skip analysis (set AD_ALLOW_WPA_ANALYSIS=1 to enable)\n");
-      }
+      AD_DEBUG_PRINT ("[ipa_generate_summary] WPA: skip analysis (set AD_ALLOW_WPA_ANALYSIS=1 to enable)");
       g_wpa_analysis_done = true;
     } else {
-      if (df) {
-        fprintf (df, "[ipa_generate_summary] WPA: running analysis for summary\n");
-      }
+      AD_DEBUG_PRINT ("[ipa_generate_summary] WPA: running analysis for summary");
       runAnalysisAndStoreResults ();
     }
   }
 
   if (!in_lto_p && flag_generate_lto && !g_wpa_results && !g_wpa_analysis_done) {
-    if (df) {
-      fprintf (df, "[ipa_generate_summary] LGEN: running analysis for summary\n");
-    }
+    AD_DEBUG_PRINT ("[ipa_generate_summary] LGEN: running analysis for summary");
     runAnalysisAndStoreResults ();
   }
 
@@ -125,51 +114,60 @@ static void ipa_generate_summary (void) {
 
     ::array_detect_ns::setWpaLtoSummaries (summaries);
   }
+
+  if (!in_lto_p && flag_generate_lto && shouldEnableLtoSummaryBlob ()) {
+    ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+  }
 }
 
-// Called to write summary to LTO section
-static void ipa_write_summary (void) {
-  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-  if (df) {
-    fprintf (df, "[ipa_write_summary] called\n");
-  }
+static void ipa_generate_summary (void) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+  ipa_generate_summary_impl (AD_ARGS);
+}
+
+// Called to write summary blob into LTO decls
+static void ipa_write_summary_impl (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("[ipa_write_summary] called");
   if (in_lto_p || !flag_generate_lto) {
-    if (df) {
-      fprintf (df, "[ipa_write_summary] skip (not LGEN)\n");
-    }
+    AD_DEBUG_PRINT ("[ipa_write_summary] skip (not LGEN)");
     return;
   }
 
   char const* enable_sections = getenv ("AD_ENABLE_LTO_SECTIONS");
-  if (df) {
-    fprintf (df, "[ipa_write_summary] AD_ENABLE_LTO_SECTIONS=%s\n",
-             enable_sections ? enable_sections : "<null>");
-  }
-  if (!shouldEnableLtoSections ()) {
-    if (df) {
-      fprintf (df, "[ipa_write_summary] skip LTO section (set AD_ENABLE_LTO_SECTIONS=1 to enable)\n");
-    }
+  AD_DEBUG_PRINT ("[ipa_write_summary] AD_ENABLE_LTO_SECTIONS=%s",
+                  enable_sections ? enable_sections : "<null>");
+  if (!shouldEnableLtoSummaryBlob ()) {
+    AD_DEBUG_PRINT ("[ipa_write_summary] skip LTO summary blob (set AD_ENABLE_LTO_SECTIONS=1 to enable)");
     return;
   }
-  ::array_detect_ns::writeArrayDetectLtoSummarySection ();
+  ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+}
+
+static void ipa_write_summary (void) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+  ipa_write_summary_impl (AD_ARGS);
 }
 
 // Called in LTRANS to read summaries from all input files
-static void ipa_read_summary (void) {
-  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-  if (df) {
-    fprintf (df, "[ipa_read_summary] called\n");
-  }
-
+static void ipa_read_summary_impl (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("[ipa_read_summary] called");
   if (!flag_ltrans) {
-    if (df) {
-      fprintf (df, "[ipa_read_summary] skip (not in LTRANS)\n");
-    }
+    AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in LTRANS)");
     return;
   }
 
-  // Load per-TU summaries from LTO sections for LTRANS.
-  ::array_detect_ns::readArrayDetectLtoSummarySections ();
+  // Load per-TU summaries from LTO decls for LTRANS.
+  ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+}
+
+static void ipa_read_summary (void) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+  ipa_read_summary_impl (AD_ARGS);
 }
 
 // ============================================================================
@@ -182,7 +180,9 @@ static unsigned int runLtoTransformEntry (cgraph_node* node) {
   if (!node->get_body ()) return 0;
   function* fn = node->get_fun ();
   if (!fn) return 0;
-  return ::array_detect_ns::runLtoTransform (fn);
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+  return ::array_detect_ns::runLtoTransform (AD_ARGS, fn);
 }
 
 // ============================================================================
@@ -239,24 +239,18 @@ class pass_array_detect : public ipa_opt_pass_d {
     return true;
   }
 
-  unsigned int execute (function* /*fn*/) override {
-    FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-    if (df) {
-      fprintf (df, "[execute] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s\n",
-               in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
-    }
+  static unsigned int execute_impl (AD_FUNC_ARGS) {
+    (void) gcc_ctx;
+    AD_DEBUG_PRINT ("[execute] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
+                    in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
 
     if (flag_ltrans) {
-      if (df) {
-        fprintf (df, "[execute] skip (LTRANS)\n");
-      }
+      AD_DEBUG_PRINT ("[execute] skip (LTRANS)");
       return 0;
     }
 
     if (isWpaPhase ()) {
-      if (df) {
-        fprintf (df, "[execute] WPA: skip (no file aggregation)\n");
-      }
+      AD_DEBUG_PRINT ("[execute] WPA: skip (no file aggregation)");
       return 0;
     }
 
@@ -269,6 +263,12 @@ class pass_array_detect : public ipa_opt_pass_d {
     ::array_detect_ns::ArrayDetectErrorCode result = runAnalysisAndStoreResults ();
     return result != ::array_detect_ns::OK;
   }
+
+  unsigned int execute (function* /*fn*/) override {
+    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+    ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+    return execute_impl (AD_ARGS);
+  }
 };
 
 class pass_array_detect_ltrans : public gimple_opt_pass {
@@ -280,19 +280,22 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 
   bool gate (function* /*fn*/) override { return true; }
 
-  unsigned int execute (function* fn) override {
-    FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
+  static unsigned int execute_impl (AD_FUNC_ARGS, function* fn) {
     char const* fn_name = nullptr;
     if (fn && fn->decl && DECL_NAME (fn->decl)) {
       fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
     }
-    if (df) {
-      fprintf (df, "[ltrans-pass] execute fn=%s flag_ltrans=%d\n",
-               fn_name ? fn_name : "<null>", flag_ltrans);
-    }
+    AD_DEBUG_PRINT ("[ltrans-pass] execute fn=%s flag_ltrans=%d",
+                    fn_name ? fn_name : "<null>", flag_ltrans);
     if (!flag_ltrans || !fn) return 0;
     if (!gimple_has_body_p (fn->decl)) return 0;
-    return ::array_detect_ns::runLtoTransform (fn);
+    return ::array_detect_ns::runLtoTransform (AD_ARGS, fn);
+  }
+
+  unsigned int execute (function* fn) override {
+    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+    ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+    return execute_impl (AD_ARGS, fn);
   }
 };
 
@@ -301,14 +304,10 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 // PLUGIN_FINISH callback for LTO aggregation output (WPA)
 // ============================================================================
 
-static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
-  FILE* df = ::array_detect_ns::g_array_detect_ctx.debug_file;
-
-  // Debug output
-  if (df) {
-    fprintf (df, "[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d\n",
-             in_lto_p, flag_ltrans);
-  }
+static void plugin_finish_callback_impl (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d",
+                  in_lto_p, flag_ltrans);
 
   if (in_lto_p && !flag_ltrans) {
     ::array_detect_ns::closeGlobalDebugFile ();
@@ -316,6 +315,18 @@ static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
   }
 
   ::array_detect_ns::closeGlobalDebugFile ();
+}
+
+static void plugin_init_debug (AD_FUNC_ARGS) {
+  (void) gcc_ctx;
+  AD_DEBUG_PRINT ("[plugin_init] in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s",
+                  in_lto_p, flag_ltrans, flag_generate_lto, flag_wpa ? flag_wpa : "<null>");
+}
+
+static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+  plugin_finish_callback_impl (AD_ARGS);
 }
 
 }  // anonymous namespace
@@ -332,10 +343,10 @@ int plugin_init (struct plugin_name_args * plugin_info,
   }
 
   ::array_detect_ns::initGlobalDebugFileFromEnv ();
-  if (::array_detect_ns::g_array_detect_ctx.debug_file) {
-    fprintf (::array_detect_ns::g_array_detect_ctx.debug_file,
-             "[plugin_init] in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s\n",
-             in_lto_p, flag_ltrans, flag_generate_lto, flag_wpa ? flag_wpa : "<null>");
+  {
+    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+    ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+    plugin_init_debug (AD_ARGS);
   }
 
   struct register_pass_info pass_info;
