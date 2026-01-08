@@ -599,7 +599,7 @@ clean:
 	rm -rf obj out
 
 test-xercese: out/plugin-array-detect.dylib
-	@(cd ../test/test-xercese && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build-xercese.rkt)
+	@(cd ../test/test-xercese && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build-xercese.rkt)
 
 prepare:
 	mkdir -p obj/array-detect-core
@@ -621,32 +621,32 @@ prepare:
 	mkdir -p out
 
 test-simple-ptr-field: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-field && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-field && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-virtual-call: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-virtual-call && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-virtual-call && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-simple-ptr-copy-escape: out/plugin-array-detect.dylib
-	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-simple-ptr-copy-escape && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-bound-check: out/plugin-array-detect.dylib
-	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-bound-check && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-bound-read: out/plugin-array-detect.dylib
-	@(cd ../test/test-bound-read && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-bound-read && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-malloc-size: out/plugin-array-detect.dylib
-	@(cd ../test/test-malloc-size && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-malloc-size && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-ownership-transfer: out/plugin-array-detect.dylib
-	@(cd ../test/test-ownership-transfer && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-ownership-transfer && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-phi-ice: out/plugin-array-detect.dylib
-	@(cd ../test/test-phi-ice && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-phi-ice && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-trivial-assignment: out/plugin-array-detect.dylib
-	@(cd ../test/test-trivial-assignment && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
+	@(cd ../test/test-trivial-assignment && mkdir -p out && echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket build.rkt)
 
 test-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags . \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-lto.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-lto.rkt
 

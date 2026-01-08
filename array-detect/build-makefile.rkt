@@ -212,7 +212,7 @@
   (define test-dir (simplify-path (build-path (current-directory) "../test/test-xercese")))
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "test-xercese: ~a~n" output-so)
-  (define input `((cxx . ,(~a cc)) (cflags . ,plugin-arg)))
+  (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
   (printf "\t@(cd ../test/test-xercese && mkdir -p out && echo ~s | racket build-xercese.rkt)~n"
           (~s input))
   (printf "~n"))
@@ -326,7 +326,7 @@
   (define test-dir (simplify-path (build-path (current-directory) "../test" name)))
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags . ,plugin-arg)))
+  (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
   (printf "\t@(cd ../test/~a && mkdir -p out && echo ~s | racket build.rkt)~n"
           name
           (~s input))
@@ -335,7 +335,7 @@
 (define (write-lto-test config name)
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags . ,(format "-fplugin=~a" output-so))))
+  (define input `((cxx . ,(~a cc)) (cflags ,(format "-fplugin=~a" output-so))))
   (printf "\t@echo ~s | racket test-script/test-lto.rkt~n" (~s input))
   (printf "~n"))
 
