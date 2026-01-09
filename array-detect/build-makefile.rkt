@@ -372,7 +372,13 @@
       "array-detect-array-access-collector"
       "array-detect-bound-condition-analyzer"
       "array-detect-unified-result-aggregator"
-      "array-detect-lto-transform"))
+      "array-detect-lto-transform"
+      ;; 新模块 (拆分自 escape-evidence-synthesizer)
+      "ad-escaped-use"
+      "ad-source-escape"
+      "ad-field-escape"
+      ;; 新模块 (wrapper 独立)
+      "ad-field-wrapper"))
   (define src-path "src")
   (define include-path "include")
   (define src-config-path "config")
