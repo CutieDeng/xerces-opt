@@ -15,6 +15,18 @@ namespace array_detect_ns {
 using namespace ::array_detector;
 
 // ============================================================================
+// 前向声明
+// ============================================================================
+
+ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_checkStatement(
+  AD_FUNC_ARGS,
+  gimple* stmt,
+  basic_block bb,
+  tree func_decl,
+  FieldWriteInfo*& result
+);
+
+// ============================================================================
 // 内部实现
 // ============================================================================
 

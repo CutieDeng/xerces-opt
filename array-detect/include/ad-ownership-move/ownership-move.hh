@@ -104,12 +104,14 @@ typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
 // ============================================================================
 
 // 主入口：分析单个字段写入的所有权转移
-// field-write-info, write-original-source -> ownership-move-result
+// 输入：write_info, source_kind, field_access_data
+// 输出：直接写入 out_move 指向的指针 (wrapper->move)
 ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  array_detector::WriteOriginalSource* source,
-  OwnershipMoveResult*& result
+  field_analysis::FieldSourceKind source_kind,
+  field_analysis::FieldAccessData* field_access_data,
+  field_analysis::FieldMoveAnalysis** out_move
 );
 
 // ============================================================================
@@ -125,25 +127,6 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
 );
 
 // ============================================================================
-// 向后兼容接口
-// ============================================================================
-
-// 向后兼容别名
-inline ArrayDetectErrorCode analyzeOwnershipTransfer (
-  AD_FUNC_ARGS_DECL,
-  FieldWriteInfo* write_info,
-  array_detector::WriteOriginalSource* source,
-  OwnershipMoveResult*& result
-) { return analyzeOwnershipMove(AD_FUNC_ARGS_CALL, write_info, source, result); }
-
-inline ArrayDetectErrorCode analyzeAllOwnershipTransfers (
-  AD_FUNC_ARGS_DECL,
-  array_detector::ArrayDetector &detector,
-  unsigned int &total_analyzed,
-  unsigned int &total_certain_moves
-) { return analyzeAllOwnershipMoves(AD_FUNC_ARGS_CALL, detector, total_analyzed, total_certain_moves); }
-
-// ============================================================================
 // 调试输出
 // ============================================================================
 
@@ -151,14 +134,7 @@ inline ArrayDetectErrorCode analyzeAllOwnershipTransfers (
 void printOwnershipMoveResult (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipMoveResult* result
+  field_analysis::FieldMoveAnalysis* result
 );
-
-// 向后兼容别名
-inline void printOwnershipTransferResult (
-  AD_FUNC_ARGS_DECL,
-  FILE* out,
-  OwnershipMoveResult* result
-) { printOwnershipMoveResult(AD_FUNC_ARGS_CALL, out, result); }
 
 } // namespace array_detect_ns

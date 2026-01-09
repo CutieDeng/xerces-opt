@@ -6,6 +6,7 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "escaped-use.hh"
+#include "field-wrapper.hh"
 
 namespace array_detect_ns {
 
@@ -51,25 +52,16 @@ typedef SourceEscapeConclude EscapeEvidenceResult;
 // ============================================================================
 
 // 生成源级逃逸结论
-// EscapedUseResult -> SourceEscapeConclude
+// 输入：escaped_uses (逃逸使用列表)
+// 输出：直接写入 wrapper 成员地址
 ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  EscapedUseResult * escaped_uses,
-  tree type,
-  tree field_decl,
-  location_t write_location,
-  SourceEscapeConclude * &result
+  vec<field_analysis::FieldUsePoint const*>* escaped_uses,
+  unsigned int* out_total_escapes,
+  unsigned int* out_safe_debug_escapes,
+  unsigned int* out_rejecting_escapes,
+  bool* out_has_rejecting_evidence
 );
-
-// 向后兼容别名
-inline ArrayDetectErrorCode generateEscapeEvidence (
-  AD_FUNC_ARGS_DECL,
-  EscapedUseResult * escaped_uses,
-  tree type,
-  tree field_decl,
-  location_t write_location,
-  SourceEscapeConclude * &result
-) { return generateSourceEscapeConclude(AD_FUNC_ARGS_CALL, escaped_uses, type, field_decl, write_location, result); }
 
 // ============================================================================
 // 调试逃逸识别（唯一允许字符串匹配的场景）
@@ -86,7 +78,7 @@ bool isKnownSafeDebugFunction (
 // 仅当逃逸为函数调用且函数为调试函数时返回 true
 bool isSafeDebugEscape (
   AD_FUNC_ARGS,
-  SourceUseInfo const * escape
+  field_analysis::FieldUsePoint const * escape
 );
 
 // ============================================================================

@@ -3,6 +3,7 @@
 #include "gcc-common.hh"
 #include "prelude.hh"
 #include "field-write.hh"
+#include "field-wrapper.hh"
 
 namespace array_detector {
 
@@ -171,7 +172,8 @@ typedef WriteOriginalSource FieldSourceInfo;
 // ============================================================================
 // 公开接口声明
 // ============================================================================
-// 数据流：FieldWriteInfo -> WriteOriginalSource
+// 数据流：field-write-info -> write-original-source
+// 输出模式：直接写入 Wrapper 成员地址
 
 namespace array_detector {
 
@@ -179,11 +181,13 @@ class ArrayDetector;
 
 // 主入口：追踪写入来源
 // 从 FieldWriteInfo.rhs 追踪到语义来源
+// 输出：直接写入 out_kind 和 out_data 指向的地址
 ArrayDetectErrorCode traceWriteSource (
   AD_FUNC_ARGS,
   ArrayDetector& detector,
   FieldWriteInfo* write_info,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,        // 直接写入来源类型
+  FieldSourceDataUnion* out_data    // 直接写入来源数据
 );
 
 // Pipeline 接口：追踪所有字段赋值

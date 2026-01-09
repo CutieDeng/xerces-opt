@@ -55,15 +55,15 @@ bool isKnownSafeDebugFunction (
 // 判断逃逸是否为安全调试逃逸
 bool isSafeDebugEscape (
   AD_FUNC_ARGS,
-  SourceUseInfo const * escape
+  field_analysis::FieldUsePoint const * escape
 ) {
   if (!escape || !escape->is_escape()) {
     return false;
   }
 
   // 只有参数传递和外部调用可能是调试调用
-  if (escape->escape_kind != SU_ESCAPE_PARAMETER &&
-      escape->escape_kind != SU_ESCAPE_EXTERNAL_CALL) {
+  if (escape->escape_kind != field_analysis::FIELD_ESC_PARAMETER &&
+      escape->escape_kind != field_analysis::FIELD_ESC_EXTERNAL_CALL) {
     return false;
   }
 
@@ -72,57 +72,51 @@ bool isSafeDebugEscape (
 }
 
 // ============================================================================
-// 源逃逸结论生成：EscapedUseResult -> SourceEscapeConclude
+// 源逃逸结论生成
+// 输入：escaped_uses (逃逸使用列表)
+// 输出：直接写入 wrapper 成员地址
 // ============================================================================
 
 ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  EscapedUseResult * escaped_uses,
-  tree type,
-  tree field_decl,
-  location_t write_location,
-  SourceEscapeConclude * &result
+  vec<field_analysis::FieldUsePoint const*>* escaped_uses,
+  unsigned int* out_total_escapes,
+  unsigned int* out_safe_debug_escapes,
+  unsigned int* out_rejecting_escapes,
+  bool* out_has_rejecting_evidence
 ) AD_FUNCTION_BEGIN {
-  // 向后兼容：使用旧变量名
-  EscapedUseResult * extraction = escaped_uses;
-  if (!extraction) {
+  if (!out_total_escapes || !out_safe_debug_escapes ||
+      !out_rejecting_escapes || !out_has_rejecting_evidence) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // 分配结果结构
-  EscapeEvidenceResult * evidence = ggc_alloc<EscapeEvidenceResult> ();
-  if (!evidence) {
-    AD_RETURNE (MEMORY_ERROR);
-  }
-  memset (evidence, 0, sizeof (EscapeEvidenceResult));
+  // 初始化输出
+  *out_total_escapes = 0;
+  *out_safe_debug_escapes = 0;
+  *out_rejecting_escapes = 0;
+  *out_has_rejecting_evidence = false;
 
-  // 设置写入位置标识
-  evidence->type = type;
-  evidence->field_decl = field_decl;
-  evidence->write_location = write_location;
-  evidence->original_write_info = extraction->original_write_info;
+  if (!escaped_uses) {
+    AD_RETURNE (OK);
+  }
 
   // 统计逃逸
-  evidence->total_escapes = extraction->escape_count;
-  evidence->safe_debug_escapes = 0;
-  evidence->rejecting_escapes = 0;
+  *out_total_escapes = escaped_uses->length ();
 
   // 遍历所有逃逸，区分调试逃逸和非调试逃逸
-  if (extraction->escapes) {
-    for (unsigned int i = 0; i < extraction->escapes->length (); i++) {
-      SourceUseInfo const * escape = (*extraction->escapes)[i];
-      if (isSafeDebugEscape (AD_ARGS, escape)) {
-        evidence->safe_debug_escapes++;
-      } else {
-        evidence->rejecting_escapes++;
-      }
+  for (unsigned int i = 0; i < escaped_uses->length (); i++) {
+    field_analysis::FieldUsePoint const * escape = (*escaped_uses)[i];
+    if (isSafeDebugEscape (AD_ARGS, escape)) {
+      (*out_safe_debug_escapes)++;
+    } else {
+      (*out_rejecting_escapes)++;
     }
   }
 
   // 核心判定：存在非调试逃逸 => 拒绝 owned
-  evidence->has_rejecting_evidence = (evidence->rejecting_escapes > 0);
+  *out_has_rejecting_evidence = (*out_rejecting_escapes > 0);
 
-  AD_RETURNO (evidence);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ============================================================================

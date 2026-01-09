@@ -6,6 +6,7 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "field-write.hh"
+#include "field-wrapper.hh"
 
 namespace array_detector {
   class ArrayDetector;
@@ -130,13 +131,20 @@ constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 // ============================================================================
 
 // 主入口：分析源操作数的所有使用
-// 数据流：source_operand -> SourceUseResult
+// 数据流：source_operand -> 直接写入 wrapper 成员地址
+// 输出：写入各个 out_ 参数指向的地址
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
   gimple * exclude_stmt,
-  SourceUseResult *& result
+  // 直接写入 wrapper 成员
+  tree* out_source_operand,
+  gimple** out_source_stmt,
+  vec<field_analysis::FieldUsePoint>** out_all_uses,
+  unsigned int* out_total_use_count,
+  unsigned int* out_max_use_depth,
+  bool* out_is_fully_analyzed
 );
 
 // ============================================================================
@@ -152,30 +160,6 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   array_detector::ArrayDetector &detector,
   unsigned int &total_analyzed,
   unsigned int &total_escaped
-);
-
-// ============================================================================
-// 向后兼容接口
-// ============================================================================
-
-// 收集单个源操作数的使用信息（别名）
-inline ArrayDetectErrorCode collectSourceOperandEscapes (
-  AD_FUNC_ARGS,
-  tree source_operand,
-  gimple * source_stmt,
-  gimple * exclude_stmt,
-  SourceUseResult * &result
-) {
-  return analyzeSourceUse (AD_ARGS, source_operand, source_stmt, exclude_stmt, result);
-}
-
-// 从字段写入中收集源使用信息
-// 输入：write_info - 字段写入信息
-// 输出：result - SourceUseResult 指针（GC 管理）
-ArrayDetectErrorCode collectFieldWriteEscapes (
-  AD_FUNC_ARGS,
-  FieldWriteInfo * write_info,
-  SourceUseResult * &result
 );
 
 // ============================================================================

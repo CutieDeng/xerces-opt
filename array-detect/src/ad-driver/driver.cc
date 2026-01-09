@@ -59,6 +59,7 @@ void printDriverContext (
 // driveWriteAnalysis
 // ============================================================================
 // 驱动单个写入的完整分析
+// 直接写入 wrapper 成员地址，不使用 fill 函数
 
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
@@ -76,44 +77,42 @@ ArrayDetectErrorCode driveWriteAnalysis (
     AD_RETURNE (MEMORY_ERROR);
   }
 
-  // Step 2: 追踪来源
-  WriteOriginalSource* source = NULL;
+  // Step 2: 追踪来源 - 直接写入 wrapper 成员
   ArrayDetector dummy_detector;
-  AD_TRY (traceWriteSource (AD_ARGS, dummy_detector, write_info, source));
-  if (source) {
-    AD_TRY (fillWrapperSource (AD_ARGS, wrapper, source));
-  }
+  AD_TRY (traceWriteSource (AD_ARGS, dummy_detector, write_info,
+    &wrapper->source_kind, &wrapper->source_data));
 
-  // Step 3: 分析使用链
-  SourceUseResult* use_result = NULL;
-  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, write_info->stmt, use_result));
+  // Step 3: 分析使用链 - 直接写入 wrapper 成员
+  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, write_info->stmt,
+    &wrapper->source_operand,
+    &wrapper->source_stmt,
+    &wrapper->all_uses,
+    &wrapper->total_use_count,
+    &wrapper->max_use_depth,
+    &wrapper->is_fully_analyzed
+  ));
 
-  // Step 4: 提取逃逸使用
-  EscapedUseResult* escaped_uses = NULL;
-  if (use_result) {
-    AD_TRY (extractEscapedUses (AD_ARGS, use_result, escaped_uses));
-    AD_TRY (fillWrapperUseAnalysis (AD_ARGS, wrapper, use_result, escaped_uses));
-  }
+  // Step 4: 提取逃逸使用 - 直接写入 wrapper 成员
+  AD_TRY (extractEscapedUses (AD_ARGS, wrapper->all_uses,
+    &wrapper->escape_uses,
+    &wrapper->escape_count,
+    &wrapper->has_escape
+  ));
 
-  // Step 5: 生成源级逃逸结论
-  SourceEscapeConclude* escape_conclude = NULL;
-  if (escaped_uses) {
-    AD_TRY (generateSourceEscapeConclude (AD_ARGS, escaped_uses,
-      write_info->type, write_info->field_decl, write_info->location,
-      escape_conclude));
-    if (escape_conclude) {
-      AD_TRY (fillWrapperEscapeConclude (AD_ARGS, wrapper, escape_conclude));
-    }
-  }
+  // Step 5: 生成源级逃逸结论 - 直接写入 wrapper 成员
+  AD_TRY (generateSourceEscapeConclude (AD_ARGS, wrapper->escape_uses,
+    &wrapper->total_escapes,
+    &wrapper->safe_debug_escapes,
+    &wrapper->rejecting_escapes,
+    &wrapper->has_rejecting_evidence
+  ));
 
-  // Step 6: 所有权转移分析（仅当来源是字段访问时）
-  if (source && source->source_type == SOURCE_FIELD_ACCESS) {
-    OwnershipMoveResult* move_result = NULL;
-    AD_TRY (analyzeOwnershipMove (AD_ARGS, write_info, source, move_result));
-    if (move_result) {
-      AD_TRY (fillWrapperOwnershipMove (AD_ARGS, wrapper, move_result));
-    }
-  }
+  // Step 6: 所有权转移分析 - 直接写入 wrapper->move
+  AD_TRY (analyzeOwnershipMove (AD_ARGS, write_info,
+    wrapper->source_kind,
+    &wrapper->source_data.field_access,
+    &wrapper->move
+  ));
 
   result = wrapper;
   AD_RETURNE (OK);
@@ -123,6 +122,7 @@ ArrayDetectErrorCode driveWriteAnalysis (
 // driveAllWriteAnalysis
 // ============================================================================
 // 驱动所有写入的分析
+// 直接写入 wrapper 成员地址
 
 ArrayDetectErrorCode driveAllWriteAnalysis (
   AD_FUNC_ARGS,
@@ -163,54 +163,44 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
 
       // Step 1: 追踪来源（如果尚未追踪）
       if (wrapper->source_kind == FIELD_SRC_UNKNOWN) {
-        WriteOriginalSource* source = NULL;
-        AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info, source));
-        if (source) {
-          AD_TRY (fillWrapperSource (AD_ARGS, wrapper, source));
-        }
+        AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info,
+          &wrapper->source_kind, &wrapper->source_data));
       }
 
       // Step 2: 分析使用链（如果尚未分析）
       if (!wrapper->all_uses) {
-        SourceUseResult* use_result = NULL;
-        AD_TRY (analyzeSourceUse (AD_ARGS, wrapper->rhs, wrapper->stmt, wrapper->stmt, use_result));
+        AD_TRY (analyzeSourceUse (AD_ARGS, wrapper->rhs, wrapper->stmt, wrapper->stmt,
+          &wrapper->source_operand,
+          &wrapper->source_stmt,
+          &wrapper->all_uses,
+          &wrapper->total_use_count,
+          &wrapper->max_use_depth,
+          &wrapper->is_fully_analyzed
+        ));
 
-        if (use_result) {
-          EscapedUseResult* escaped_uses = NULL;
-          AD_TRY (extractEscapedUses (AD_ARGS, use_result, escaped_uses));
-          AD_TRY (fillWrapperUseAnalysis (AD_ARGS, wrapper, use_result, escaped_uses));
+        // Step 3: 提取逃逸使用
+        AD_TRY (extractEscapedUses (AD_ARGS, wrapper->all_uses,
+          &wrapper->escape_uses,
+          &wrapper->escape_count,
+          &wrapper->has_escape
+        ));
 
-          // Step 3: 生成源级逃逸结论
-          if (escaped_uses) {
-            SourceEscapeConclude* escape_conclude = NULL;
-            AD_TRY (generateSourceEscapeConclude (AD_ARGS, escaped_uses,
-              wrapper->type, wrapper->field, wrapper->write_location,
-              escape_conclude));
-            if (escape_conclude) {
-              AD_TRY (fillWrapperEscapeConclude (AD_ARGS, wrapper, escape_conclude));
-            }
-          }
-        }
+        // Step 4: 生成源级逃逸结论
+        AD_TRY (generateSourceEscapeConclude (AD_ARGS, wrapper->escape_uses,
+          &wrapper->total_escapes,
+          &wrapper->safe_debug_escapes,
+          &wrapper->rejecting_escapes,
+          &wrapper->has_rejecting_evidence
+        ));
       }
 
-      // Step 4: 所有权转移分析（如果尚未分析且来源是字段访问）
-      if (!wrapper->move && wrapper->source_kind == FIELD_SRC_FIELD_ACCESS) {
-        WriteOriginalSource temp_source;
-        memset (&temp_source, 0, sizeof (WriteOriginalSource));
-        temp_source.source_type = SOURCE_FIELD_ACCESS;
-        temp_source.data.field_access.access_stmt = wrapper->source_data.field_access.stmt;
-        temp_source.data.field_access.field_decl = wrapper->source_data.field_access.field;
-        temp_source.data.field_access.base_object = wrapper->source_data.field_access.object;
-        temp_source.data.field_access.object_type = wrapper->source_data.field_access.object_type;
-        temp_source.data.field_access.field_name = wrapper->source_data.field_access.field_name;
-        temp_source.data.field_access.type_name = wrapper->source_data.field_access.type_name;
-        temp_source.data.field_access.location = wrapper->source_data.field_access.location;
-
-        OwnershipMoveResult* move_result = NULL;
-        AD_TRY (analyzeOwnershipMove (AD_ARGS, &temp_write_info, &temp_source, move_result));
-        if (move_result) {
-          AD_TRY (fillWrapperOwnershipMove (AD_ARGS, wrapper, move_result));
-        }
+      // Step 5: 所有权转移分析（如果尚未分析）
+      if (!wrapper->move) {
+        AD_TRY (analyzeOwnershipMove (AD_ARGS, &temp_write_info,
+          wrapper->source_kind,
+          &wrapper->source_data.field_access,
+          &wrapper->move
+        ));
       }
 
       total_success++;

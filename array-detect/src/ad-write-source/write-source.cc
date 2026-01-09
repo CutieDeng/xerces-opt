@@ -119,111 +119,108 @@ ArrayDetectErrorCode traceWriteSource_reduceTrivialMoves (
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromCall
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromCall (
   AD_FUNC_ARGS,
   gimple* call_stmt,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind || !out_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_FUNCTION_CALL;
-  source->data.function_call.call_stmt = call_stmt;
-  source->data.function_call.location = gimple_location (call_stmt);
+  *out_kind = FIELD_SRC_FUNCTION_CALL;
+  out_data->function_call.stmt = call_stmt;
+  out_data->function_call.location = gimple_location (call_stmt);
 
   tree fn = gimple_call_fn (call_stmt);
   if (fn && TREE_CODE (fn) == OBJ_TYPE_REF) {
-    source->data.function_call.call_type = CALL_VIRTUAL;
-    source->data.function_call.function_name = ggc_strdup ("<virtual>");
+    out_data->function_call.call_kind = FIELD_CALL_VIRTUAL;
+    out_data->function_call.name = ggc_strdup ("<virtual>");
   } else if (fn && TREE_CODE (fn) == ADDR_EXPR) {
     tree fn_decl = TREE_OPERAND (fn, 0);
     if (fn_decl && DECL_NAME (fn_decl)) {
-      source->data.function_call.function_name =
+      out_data->function_call.name =
         ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (fn_decl)));
-      source->data.function_call.call_type = CALL_DIRECT;
+      out_data->function_call.call_kind = FIELD_CALL_DIRECT;
     } else {
-      source->data.function_call.function_name = ggc_strdup ("<unknown>");
-      source->data.function_call.call_type = CALL_UNKNOWN;
+      out_data->function_call.name = ggc_strdup ("<unknown>");
+      out_data->function_call.call_kind = FIELD_CALL_UNKNOWN;
     }
   } else {
-    source->data.function_call.call_type = CALL_INDIRECT;
-    source->data.function_call.function_name = ggc_strdup ("<indirect>");
+    out_data->function_call.call_kind = FIELD_CALL_INDIRECT;
+    out_data->function_call.name = ggc_strdup ("<indirect>");
   }
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromConstant
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromConstant (
   AD_FUNC_ARGS,
   tree constant_value,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind || !out_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_CONSTANT;
-  source->data.constant.constant_value = constant_value;
+  *out_kind = FIELD_SRC_CONSTANT;
+  out_data->constant.value = constant_value;
 
   if (integer_zerop (constant_value)) {
-    source->data.constant.constant_str = ggc_strdup ("0");
+    out_data->constant.str = ggc_strdup ("0");
   } else if (TREE_CODE (constant_value) == INTEGER_CST) {
     char buf[64];
     snprintf (buf, sizeof (buf), "%ld", (long)TREE_INT_CST_LOW (constant_value));
-    source->data.constant.constant_str = ggc_strdup (buf);
+    out_data->constant.str = ggc_strdup (buf);
   } else {
-    source->data.constant.constant_str = ggc_strdup ("<constant>");
+    out_data->constant.str = ggc_strdup ("<constant>");
   }
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromFieldAccess
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromFieldAccess (
   AD_FUNC_ARGS,
   tree field_ref,
   gimple* final_stmt,
   location_t location,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind || !out_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_FIELD_ACCESS;
-  source->data.field_access.access_stmt = final_stmt;
-  source->data.field_access.access_expr = field_ref;
-  source->data.field_access.location = location;
+  *out_kind = FIELD_SRC_FIELD_ACCESS;
+  out_data->field_access.stmt = final_stmt;
+  out_data->field_access.location = location;
 
   if (TREE_CODE (field_ref) == COMPONENT_REF) {
     tree field_decl = TREE_OPERAND (field_ref, 1);
     tree base = TREE_OPERAND (field_ref, 0);
 
-    source->data.field_access.field_decl = field_decl;
-    source->data.field_access.base_object = base;
+    out_data->field_access.field = field_decl;
+    out_data->field_access.object = base;
 
     if (field_decl && DECL_NAME (field_decl)) {
-      source->data.field_access.field_name =
+      out_data->field_access.field_name =
         ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (field_decl)));
     } else {
-      source->data.field_access.field_name = ggc_strdup ("<anonymous>");
+      out_data->field_access.field_name = ggc_strdup ("<anonymous>");
     }
 
     tree object_type = TREE_TYPE (base);
@@ -232,140 +229,136 @@ ArrayDetectErrorCode traceWriteSource_extractSource_extractFromFieldAccess (
           TREE_CODE (object_type) == REFERENCE_TYPE) {
         object_type = TREE_TYPE (object_type);
       }
-      source->data.field_access.object_type = TYPE_MAIN_VARIANT (object_type);
+      out_data->field_access.object_type = TYPE_MAIN_VARIANT (object_type);
       if (TYPE_NAME (object_type)) {
         tree type_name = TYPE_NAME (object_type);
         if (TREE_CODE (type_name) == IDENTIFIER_NODE) {
-          source->data.field_access.type_name =
+          out_data->field_access.type_name =
             ggc_strdup (IDENTIFIER_POINTER (type_name));
         } else if (TREE_CODE (type_name) == TYPE_DECL && DECL_NAME (type_name)) {
-          source->data.field_access.type_name =
+          out_data->field_access.type_name =
             ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (type_name)));
         }
       }
     }
   } else if (TREE_CODE (field_ref) == MEM_REF) {
     tree base = TREE_OPERAND (field_ref, 0);
-    source->data.field_access.base_object = base;
-    source->data.field_access.field_name = ggc_strdup ("<mem_ref>");
+    out_data->field_access.object = base;
+    out_data->field_access.field_name = ggc_strdup ("<mem_ref>");
   }
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromComputation
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromComputation (
   AD_FUNC_ARGS,
   tree expr,
   gimple* final_stmt,
   location_t location,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind || !out_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_COMPUTATION;
-  source->data.computation.compute_stmt = final_stmt;
-  source->data.computation.compute_expr = expr;
-  source->data.computation.location = location;
+  *out_kind = FIELD_SRC_COMPUTATION;
+  out_data->computation.stmt = final_stmt;
+  out_data->computation.expr = expr;
+  out_data->computation.location = location;
 
   enum tree_code code = TREE_CODE (expr);
   char const * desc = get_tree_code_name (code);
-  source->data.computation.description = ggc_strdup (desc ? desc : "<computation>");
+  out_data->computation.desc = ggc_strdup (desc ? desc : "<computation>");
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromPhi
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromPhi (
   AD_FUNC_ARGS,
   gimple* phi_stmt,
   tree ssa_name,
   location_t location,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind || !out_data) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_PHI;
-  source->data.phi.phi_stmt = phi_stmt;
-  source->data.phi.ssa_name = ssa_name;
-  source->data.phi.location = location;
+  *out_kind = FIELD_SRC_PHI;
+  out_data->phi.stmt = phi_stmt;
+  out_data->phi.ssa_name = ssa_name;
+  out_data->phi.location = location;
 
   tree var = SSA_NAME_VAR (ssa_name);
   if (var) {
-    source->data.phi.var_decl = var;
+    out_data->phi.var = var;
     if (DECL_NAME (var)) {
-      source->data.phi.var_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (var)));
+      out_data->phi.var_name = ggc_strdup (IDENTIFIER_POINTER (DECL_NAME (var)));
     }
   }
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource_extractFromUnknown
 // ----------------------------------------------------------------------------
+// 输出：直接写入 out_kind
 
 ArrayDetectErrorCode traceWriteSource_extractSource_extractFromUnknown (
   AD_FUNC_ARGS,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind
 ) AD_FUNCTION_BEGIN {
-  WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
-  if (!source) {
-    AD_RETURNE (MEMORY_ERROR);
+  if (!out_kind) {
+    AD_RETURNE (INVALID_ARGUMENT);
   }
-  memset (source, 0, sizeof (WriteOriginalSource));
 
-  source->source_type = SOURCE_UNKNOWN;
+  *out_kind = FIELD_SRC_UNKNOWN;
 
-  result = source;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // traceWriteSource_extractSource
 // ----------------------------------------------------------------------------
-// 从最终值提取来源
+// 从最终值提取来源，写入 out_kind 和 out_data
 
 ArrayDetectErrorCode traceWriteSource_extractSource (
   AD_FUNC_ARGS,
   tree final_value,
   gimple* final_stmt,
   location_t location,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
   // SSA_NAME 且有函数调用定义
   if (TREE_CODE (final_value) == SSA_NAME) {
     if (final_stmt && gimple_code (final_stmt) == GIMPLE_CALL) {
       AD_TRY (traceWriteSource_extractSource_extractFromCall (
-        AD_ARGS, final_stmt, result));
+        AD_ARGS, final_stmt, out_kind, out_data));
       AD_RETURNE (OK);
     }
     // 无法追踪到明确来源
-    AD_TRY (traceWriteSource_extractSource_extractFromUnknown (AD_ARGS, result));
+    AD_TRY (traceWriteSource_extractSource_extractFromUnknown (AD_ARGS, out_kind));
     AD_RETURNE (OK);
   }
 
   // 常量
   if (CONSTANT_CLASS_P (final_value)) {
     AD_TRY (traceWriteSource_extractSource_extractFromConstant (
-      AD_ARGS, final_value, result));
+      AD_ARGS, final_value, out_kind, out_data));
     AD_RETURNE (OK);
   }
 
@@ -373,97 +366,15 @@ ArrayDetectErrorCode traceWriteSource_extractSource (
   enum tree_code final_code = TREE_CODE (final_value);
   if (final_code == COMPONENT_REF || final_code == MEM_REF) {
     AD_TRY (traceWriteSource_extractSource_extractFromFieldAccess (
-      AD_ARGS, final_value, final_stmt, location, result));
+      AD_ARGS, final_value, final_stmt, location, out_kind, out_data));
     AD_RETURNE (OK);
   }
 
   // 其他计算表达式
   AD_TRY (traceWriteSource_extractSource_extractFromComputation (
-    AD_ARGS, final_value, final_stmt, location, result));
+    AD_ARGS, final_value, final_stmt, location, out_kind, out_data));
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
-// traceFieldAssignments_convertSourceType
-// ----------------------------------------------------------------------------
-// 将 SourceType 转换为 FieldSourceKind
-
-field_analysis::FieldSourceKind traceFieldAssignments_convertSourceType (SourceType st) {
-  switch (st) {
-    case SOURCE_FUNCTION_CALL: return field_analysis::FIELD_SRC_FUNCTION_CALL;
-    case SOURCE_CONSTANT:      return field_analysis::FIELD_SRC_CONSTANT;
-    case SOURCE_FIELD_ACCESS:  return field_analysis::FIELD_SRC_FIELD_ACCESS;
-    case SOURCE_COMPUTATION:   return field_analysis::FIELD_SRC_COMPUTATION;
-    case SOURCE_PHI:           return field_analysis::FIELD_SRC_PHI;
-    default:                   return field_analysis::FIELD_SRC_UNKNOWN;
-  }
-}
-
-// ----------------------------------------------------------------------------
-// traceFieldAssignments_copySourceDataToWrapper
-// ----------------------------------------------------------------------------
-// 将 source_info 数据复制到 wrapper 的 source_data 中
-
-void traceFieldAssignments_copySourceDataToWrapper (
-  FieldWriteAnalysisWrapper* wrapper,
-  WriteOriginalSource const* source_info
-) {
-  if (!wrapper || !source_info) return;
-
-  wrapper->source_kind = traceFieldAssignments_convertSourceType (source_info->source_type);
-
-  switch (source_info->source_type) {
-    case SOURCE_FUNCTION_CALL: {
-      FunctionCallSource const &src = source_info->data.function_call;
-      wrapper->source_data.function_call.stmt = src.call_stmt;
-      wrapper->source_data.function_call.call_kind =
-        (src.call_type == CALL_VIRTUAL) ? field_analysis::FIELD_CALL_VIRTUAL :
-        (src.call_type == CALL_DIRECT)  ? field_analysis::FIELD_CALL_DIRECT :
-        (src.call_type == CALL_INDIRECT) ? field_analysis::FIELD_CALL_INDIRECT :
-        field_analysis::FIELD_CALL_UNKNOWN;
-      wrapper->source_data.function_call.name = src.function_name;
-      wrapper->source_data.function_call.location = src.location;
-      break;
-    }
-    case SOURCE_CONSTANT: {
-      ConstantSource const &src = source_info->data.constant;
-      wrapper->source_data.constant.value = src.constant_value;
-      wrapper->source_data.constant.str = src.constant_str;
-      break;
-    }
-    case SOURCE_FIELD_ACCESS: {
-      FieldAccessSource const &src = source_info->data.field_access;
-      wrapper->source_data.field_access.stmt = src.access_stmt;
-      wrapper->source_data.field_access.field = src.field_decl;
-      wrapper->source_data.field_access.object = src.base_object;
-      wrapper->source_data.field_access.object_type = src.object_type;
-      wrapper->source_data.field_access.field_name = src.field_name;
-      wrapper->source_data.field_access.type_name = src.type_name;
-      wrapper->source_data.field_access.location = src.location;
-      break;
-    }
-    case SOURCE_COMPUTATION: {
-      ComputationSource const &src = source_info->data.computation;
-      wrapper->source_data.computation.stmt = src.compute_stmt;
-      wrapper->source_data.computation.expr = src.compute_expr;
-      wrapper->source_data.computation.desc = src.description;
-      wrapper->source_data.computation.location = src.location;
-      break;
-    }
-    case SOURCE_PHI: {
-      PhiSource const &src = source_info->data.phi;
-      wrapper->source_data.phi.stmt = src.phi_stmt;
-      wrapper->source_data.phi.ssa_name = src.ssa_name;
-      wrapper->source_data.phi.var = src.var_decl;
-      wrapper->source_data.phi.var_name = src.var_name;
-      wrapper->source_data.phi.location = src.location;
-      break;
-    }
-    default:
-      wrapper->source_kind = field_analysis::FIELD_SRC_UNKNOWN;
-      break;
-  }
-}
 
 } // anonymous namespace
 
@@ -475,16 +386,22 @@ void traceFieldAssignments_copySourceDataToWrapper (
 // traceWriteSource
 // ----------------------------------------------------------------------------
 // 主入口：追踪写入来源
+// 输出：直接写入 out_kind 和 out_data 指向的地址
 
 ArrayDetectErrorCode traceWriteSource (
   AD_FUNC_ARGS,
   ArrayDetector& detector,
   FieldWriteInfo* write_info,
-  WriteOriginalSource*& result
+  FieldSourceKind* out_kind,
+  FieldSourceDataUnion* out_data
 ) AD_FUNCTION_BEGIN {
-  if (!write_info) {
+  if (!write_info || !out_kind || !out_data) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
+
+  // 清零输出
+  *out_kind = FIELD_SRC_UNKNOWN;
+  memset (out_data, 0, sizeof (FieldSourceDataUnion));
 
   tree rhs = write_info->rhs;
   gimple* stmt = write_info->stmt;
@@ -504,13 +421,13 @@ ArrayDetectErrorCode traceWriteSource (
   // PHI 节点特殊处理
   if (is_phi) {
     AD_TRY (traceWriteSource_extractSource_extractFromPhi (
-      AD_ARGS, final_stmt, final_value, location, result));
+      AD_ARGS, final_stmt, final_value, location, out_kind, out_data));
     AD_RETURNE (OK);
   }
 
   // 从最终值提取来源
   AD_TRY (traceWriteSource_extractSource (
-    AD_ARGS, final_value, final_stmt, location, result));
+    AD_ARGS, final_value, final_stmt, location, out_kind, out_data));
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -562,17 +479,14 @@ ArrayDetectErrorCode traceFieldAssignments (
       temp_write_info.rhs = wrapper->rhs;
       temp_write_info.location = wrapper->write_location;
 
-      WriteOriginalSource* source_info = NULL;
-      AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info, source_info));
+      // 直接写入 wrapper 成员地址
+      AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info,
+        &wrapper->source_kind, &wrapper->source_data));
+      source_extracted_count++;
 
-      if (source_info) {
-        traceFieldAssignments_copySourceDataToWrapper (wrapper, source_info);
-        source_extracted_count++;
-
-        // 调试输出
-        TypeFieldKey key = (*iter).first;
-        AD_TRY (printFieldWriteSourceInfoFromWrapper (AD_ARGS, key.type, key.field_decl, wrapper, source_info));
-      }
+      // 调试输出（传 NULL 跳过，因为 FieldSourceInfo 已重构）
+      TypeFieldKey key = (*iter).first;
+      AD_TRY (printFieldWriteSourceInfoFromWrapper (AD_ARGS, key.type, key.field_decl, wrapper, NULL));
     }
   }
 

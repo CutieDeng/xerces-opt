@@ -96,7 +96,7 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.current_phase = PHASE_ANALYZE_OWNERSHIP;
   unsigned int transfer_analyzed = 0;
   unsigned int certain_transfers = 0;
-  AD_TRY (analyzeAllOwnershipTransfers (AD_ARGS, detector, transfer_analyzed, certain_transfers));
+  AD_TRY (analyzeAllOwnershipMoves (AD_ARGS, detector, transfer_analyzed, certain_transfers));
   g_pipeline_state.total_ownership_analyzed = transfer_analyzed;
 
   // ========================================================================

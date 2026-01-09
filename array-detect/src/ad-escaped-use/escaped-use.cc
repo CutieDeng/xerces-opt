@@ -4,49 +4,46 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 逃逸使用提取：SourceUseResult -> EscapedUseResult
+// 逃逸使用提取
+// 输入：all_uses (所有使用点)
+// 输出：直接写入 out_escape_uses 和 out_escape_count
 // ============================================================================
 
 ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  SourceUseResult * use_result,
-  EscapedUseResult * &result
+  vec<field_analysis::FieldUsePoint>* all_uses,
+  vec<field_analysis::FieldUsePoint const*>** out_escape_uses,
+  unsigned int* out_escape_count,
+  bool* out_has_escape
 ) AD_FUNCTION_BEGIN {
-  // 向后兼容：使用旧变量名
-  SourceUseResult * raw_result = use_result;
-  if (!raw_result) {
+  if (!out_escape_uses || !out_escape_count || !out_has_escape) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // 分配结果结构
-  EscapeExtractionResult * extraction = ggc_alloc<EscapeExtractionResult> ();
-  if (!extraction) {
-    AD_RETURNE (MEMORY_ERROR);
-  }
-  memset (extraction, 0, sizeof (EscapeExtractionResult));
-
-  // 复制源信息
-  extraction->source_operand = raw_result->source_operand;
-  extraction->source_stmt = raw_result->source_stmt;
-  extraction->original_write_info = raw_result->original_write_info;
+  // 初始化输出
+  *out_escape_count = 0;
+  *out_has_escape = false;
 
   // 分配逃逸向量
-  extraction->escapes = ggc_alloc<vec<SourceUseInfo const *>> ();
-  extraction->escapes->create (0);
-  extraction->escape_count = 0;
+  *out_escape_uses = ggc_alloc<vec<field_analysis::FieldUsePoint const*>> ();
+  if (!*out_escape_uses) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  (*out_escape_uses)->create (0);
 
   // 从 all_uses 中提取逃逸使用
-  if (raw_result->all_uses) {
-    for (unsigned int i = 0; i < raw_result->all_uses->length (); i++) {
-      SourceUseInfo const &use = (*raw_result->all_uses)[i];
+  if (all_uses) {
+    for (unsigned int i = 0; i < all_uses->length (); i++) {
+      field_analysis::FieldUsePoint const &use = (*all_uses)[i];
       if (use.is_escape()) {
-        extraction->escapes->safe_push (&use);
-        extraction->escape_count++;
+        (*out_escape_uses)->safe_push (&(*all_uses)[i]);
+        (*out_escape_count)++;
+        *out_has_escape = true;
       }
     }
   }
 
-  AD_RETURNO (extraction);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ============================================================================

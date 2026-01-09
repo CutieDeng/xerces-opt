@@ -6,6 +6,7 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "source-escape-collection.hh"
+#include "field-wrapper.hh"
 
 namespace array_detect_ns {
 
@@ -40,19 +41,15 @@ typedef EscapedUseResult EscapeExtractionResult;
 // ============================================================================
 
 // 提取逃逸使用
-// SourceUseResult -> EscapedUseResult
+// 输入：all_uses (所有使用点)
+// 输出：直接写入 wrapper->escape_uses 和 wrapper->escape_count
 ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  SourceUseResult * use_result,
-  EscapedUseResult * &result
+  vec<field_analysis::FieldUsePoint>* all_uses,
+  vec<field_analysis::FieldUsePoint const*>** out_escape_uses,
+  unsigned int* out_escape_count,
+  bool* out_has_escape
 );
-
-// 向后兼容别名
-inline ArrayDetectErrorCode extractEscapes (
-  AD_FUNC_ARGS_DECL,
-  SourceUseResult * use_result,
-  EscapedUseResult * &result
-) { return extractEscapedUses(AD_FUNC_ARGS_CALL, use_result, result); }
 
 // ============================================================================
 // 调试输出

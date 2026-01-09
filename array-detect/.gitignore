@@ -3,3 +3,4 @@ obj/
 *.debug
 .claude
 log/
+claude.sh
