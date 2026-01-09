@@ -156,8 +156,9 @@
 
 (define (write-phony config)
   (match-define (Config _ _ _ _ _ _ _ _ _ _ tests lto-tests _ _ _ _ _ _ _ _ _) config)
+  (define lto-names (map car (force lto-tests)))
   (printf ".PHONY: ")
-  (for ([a (in-sequences (in-list '("all" "clean" "prepare" "test-xercese")) (in-list (force tests)) (in-list (force lto-tests)))] [i (in-naturals)])
+  (for ([a (in-sequences (in-list '("all" "clean" "prepare" "test-xercese")) (in-list (force tests)) (in-list lto-names))] [i (in-naturals)])
     (when (> i 0) (printf " ")) 
     (printf "~a" a)
   )
@@ -323,24 +324,16 @@
 (define (write-test-impl cc output-so name)
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
+  (define input `((cxx . ,(~a cc)) (cflags . ,(list plugin-arg))))
   (printf "\t@echo ~s | racket test-script/~a.rkt~n" (~s input) name)
   (printf "~n"))
 
-(define (write-lto-test config name)
-  (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
+(define (write-lto-test-impl cc output-so name script-file)
   (define plugin-arg (format "-fplugin=~a" output-so))
-  (cond
-    [(string=? name "test-xercese-lto")
-     (printf "~a: ~a~n" name output-so)
-     (define input `((cxx . ,(~a cc)) (cflags ,(list plugin-arg "-flto"))))
-     (printf "\t@echo ~s | racket test-script/test-xercese.rkt~n" (~s input))
-     (printf "~n")]
-    [else
-     (printf "~a: ~a~n" name output-so)
-     (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
-     (printf "\t@echo ~s | racket test-script/test-lto.rkt~n" (~s input))
-     (printf "~n")]))
+  (printf "~a: ~a~n" name output-so)
+  (define input `((cxx . ,(~a cc)) (cflags . ,(list plugin-arg "-flto"))))
+  (printf "\t@echo ~s | racket ~a~n" (~s input) (build-path "test-script" script-file))
+  (printf "~n"))
 
 (define (write-tests config)
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ tests _ _ _ _ _ _ _ _ _ _) config)
@@ -348,8 +341,9 @@
 )
 
 (define (write-lto-tests config)
-  (match-define (Config _ _ _ _ _ _ _ _ _ _ _ lto-tests _ _ _ _ _ _ _ _ _) config)
-  (for ([a lto-tests]) (write-lto-test config a)))
+  (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ lto-tests _ _ _ _ _ _ _ _ _) config)
+  (for ([a (force lto-tests)])
+    (write-lto-test-impl (force cc) (force output-so) (car a) (cdr a))))
 
 ;; ============================================================================
 ;; Global Config
@@ -418,6 +412,22 @@
   (define gmp (gmp/brew))
   (define mpc (mpc/brew))
   (define mpfr (mpfr/brew))
+  (define tests
+    '("test-simple-ptr-field"
+      "test-simple-virtual-call"
+      "test-simple-ptr-copy-escape"
+      "test-bound-check"
+      "test-bound-read"
+      "test-malloc-size"
+      "test-ownership-transfer"
+      "test-phi-ice"
+      "test-trivial-assignment"))
+(define lto-tests
+  `(
+    ,@(map (lambda (t) (cons (format "~a-lto" t) (format "~a.rkt" t))) tests)
+    ("test-lto" . "test-lto.rkt")
+    ("test-xercese-lto" . "test-xercese.rkt")
+  ))
   (Config
     name
     cc-path
@@ -429,16 +439,8 @@
     src-config-path
     object-dir
     out-dir
-    '("test-simple-ptr-field"
-             "test-simple-virtual-call"
-             "test-simple-ptr-copy-escape"
-             "test-bound-check"
-             "test-bound-read"
-             "test-malloc-size"
-             "test-ownership-transfer"
-             "test-phi-ice"
-             "test-trivial-assignment")
-    '("test-lto" "test-xercese-lto")
+    tests
+    lto-tests
     so-ext
     platform-linker-flags
     dep-jobs

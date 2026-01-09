@@ -3,7 +3,7 @@
 # Shared library extension: .dylib
 # Platform-specific flags:  -undefined dynamic_lookup
 
-.PHONY: all clean prepare test-xercese test-simple-ptr-field test-simple-virtual-call test-simple-ptr-copy-escape test-bound-check test-bound-read test-malloc-size test-ownership-transfer test-phi-ice test-trivial-assignment test-lto test-xercese-lto
+.PHONY: all clean prepare test-xercese test-simple-ptr-field test-simple-virtual-call test-simple-ptr-copy-escape test-bound-check test-bound-read test-malloc-size test-ownership-transfer test-phi-ice test-trivial-assignment test-simple-ptr-field-lto test-simple-virtual-call-lto test-simple-ptr-copy-escape-lto test-bound-check-lto test-bound-read-lto test-malloc-size-lto test-ownership-transfer-lto test-phi-ice-lto test-trivial-assignment-lto test-lto test-xercese-lto
 
 all: out/plugin-array-detect.dylib
 
@@ -647,9 +647,36 @@ test-phi-ice: out/plugin-array-detect.dylib
 test-trivial-assignment: out/plugin-array-detect.dylib
 	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-trivial-assignment.rkt
 
+test-simple-ptr-field-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-ptr-field.rkt
+
+test-simple-virtual-call-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-virtual-call.rkt
+
+test-simple-ptr-copy-escape-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-ptr-copy-escape.rkt
+
+test-bound-check-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-bound-check.rkt
+
+test-bound-read-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-bound-read.rkt
+
+test-malloc-size-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-malloc-size.rkt
+
+test-ownership-transfer-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-ownership-transfer.rkt
+
+test-phi-ice-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-phi-ice.rkt
+
+test-trivial-assignment-lto: out/plugin-array-detect.dylib
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-trivial-assignment.rkt
+
 test-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-lto.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-lto.rkt
 
 test-xercese-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags (\"-fplugin=out/plugin-array-detect.dylib\" \"-flto\")))" | racket test-script/test-xercese.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/gcc-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-xercese.rkt
 
