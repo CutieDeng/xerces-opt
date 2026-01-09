@@ -373,6 +373,11 @@
       "array-detect-bound-condition-analyzer"
       "array-detect-unified-result-aggregator"
       "array-detect-lto-transform"
+      ;; 新模块 (基础数据结构)
+      "ad-field-write"
+      "ad-write-source"
+      "ad-source-use"
+      "ad-ownership-move"
       ;; 新模块 (拆分自 escape-evidence-synthesizer)
       "ad-escaped-use"
       "ad-source-escape"
