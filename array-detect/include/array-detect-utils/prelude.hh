@@ -177,8 +177,12 @@
 #define AD_FUNC_ARGS \
   ::array_detect_ns::ArrayDetectContext &ctx, ::array_detect_ns::ArrayDetectContextGcc &gcc_ctx
 
+#define AD_FUNC_ARGS_DECL AD_FUNC_ARGS
+
 #define AD_ARGS \
   ctx, gcc_ctx
+
+#define AD_FUNC_ARGS_CALL AD_ARGS
 
 // ============================================================================
 // 栈帧信息输出宏

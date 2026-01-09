@@ -3,6 +3,7 @@
 #include "gcc-ext-util.hh"
 #include "field-source-variant.hh"
 #include "info-print.hh"
+#include "field-analysis.hh"
 
 namespace array_detect_ns {
 
@@ -415,31 +416,85 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     TypeFieldWriteOps* tfwo = (*iter).second;
-    if (!tfwo || !tfwo->write_records) continue;
+    if (!tfwo || !tfwo->writes) continue;
 
-    for (unsigned int i = 0; i < tfwo->write_records->length (); i++) {
-      FieldWriteAnalysisRecord* record = (*tfwo->write_records)[i];
-      if (!record || !record->write_info || !record->source) continue;
+    for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
+      field_analysis::FieldWriteAnalysisWrapper* wrapper = (*tfwo->writes)[i];
+      if (!wrapper) continue;
 
       // 只分析字段访问源
-      if (record->source->source_type != SOURCE_FIELD_ACCESS) {
+      if (wrapper->source_kind != field_analysis::FIELD_SRC_FIELD_ACCESS) {
         continue;
       }
 
       total_analyzed++;
 
+      // 从 wrapper 创建临时 FieldWriteInfo
+      FieldWriteInfo temp_write_info;
+      memset (&temp_write_info, 0, sizeof (FieldWriteInfo));
+      temp_write_info.type = wrapper->type;
+      temp_write_info.field_decl = wrapper->field;
+      temp_write_info.function_decl = wrapper->func;
+      temp_write_info.bb = wrapper->bb;
+      temp_write_info.stmt = wrapper->stmt;
+      temp_write_info.lhs = wrapper->lhs;
+      temp_write_info.rhs = wrapper->rhs;
+      temp_write_info.location = wrapper->write_location;
+
+      // 从 wrapper 创建临时 WriteOriginalSource
+      WriteOriginalSource temp_source;
+      memset (&temp_source, 0, sizeof (WriteOriginalSource));
+      temp_source.source_type = SOURCE_FIELD_ACCESS;
+      temp_source.data.field_access.access_stmt = wrapper->source_data.field_access.stmt;
+      temp_source.data.field_access.access_expr = NULL_TREE;  // 不需要
+      temp_source.data.field_access.field_decl = wrapper->source_data.field_access.field;
+      temp_source.data.field_access.field_name = wrapper->source_data.field_access.field_name;
+      temp_source.data.field_access.object_type = wrapper->source_data.field_access.object_type;
+      temp_source.data.field_access.type_name = wrapper->source_data.field_access.type_name;
+      temp_source.data.field_access.base_object = wrapper->source_data.field_access.object;
+      temp_source.data.field_access.location = wrapper->source_data.field_access.location;
+
       // 执行分析
       OwnershipMoveResult* move_result = NULL;
       AD_TRY (analyzeOwnershipMove (
         AD_ARGS,
-        record->write_info,
-        record->source,
+        &temp_write_info,
+        &temp_source,
         move_result
       ));
 
       if (move_result) {
-        // 存储结果到 record
-        record->ownership_move = move_result;
+        // 存储结果到 wrapper->move (转换到 FieldMoveAnalysis)
+        field_analysis::FieldMoveAnalysis* field_move = ggc_alloc<field_analysis::FieldMoveAnalysis> ();
+        if (field_move) {
+          memset (field_move, 0, sizeof (field_analysis::FieldMoveAnalysis));
+          field_move->source_field = move_result->source_field;
+          field_move->source_object = move_result->source_object;
+          field_move->transfer_stmt = move_result->transfer_stmt;
+          field_move->transfer_location = move_result->transfer_location;
+          // 转换销毁点（简化：不复制，标记为 NULL）
+          field_move->invalidations = NULL;
+          // 转换判定
+          switch (move_result->verdict) {
+            case MOVE_CERTAIN:
+              field_move->verdict = field_analysis::FIELD_MOVE_CERTAIN;
+              break;
+            case MOVE_IMPOSSIBLE:
+              field_move->verdict = field_analysis::FIELD_MOVE_IMPOSSIBLE;
+              break;
+            case MOVE_CONDITIONAL:
+              field_move->verdict = field_analysis::FIELD_MOVE_CONDITIONAL;
+              break;
+            default:
+              field_move->verdict = field_analysis::FIELD_MOVE_NOT_APPLICABLE;
+              break;
+          }
+          field_move->paths_with = move_result->paths_with_invalidation;
+          field_move->paths_without = move_result->paths_without_invalidation;
+          field_move->total_paths = move_result->total_exit_paths;
+          field_move->verdict_desc = move_result->verdict_description;
+          wrapper->move = field_move;
+        }
 
         // 打印结果（调试信息）
         printOwnershipMoveResult (AD_ARGS, ctx.debug_file, move_result);

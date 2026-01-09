@@ -427,6 +427,64 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
+// 简化版本：不需要 capture 参数（用于 Wrapper 兼容）
+ArrayDetectErrorCode printFieldWriteSourceInfoFromWrapper (
+  AD_FUNC_ARGS,
+  tree type,
+  tree field_decl,
+  void const *wrapper,  // FieldWriteAnalysisWrapper*，但此函数不使用
+  ::array_detector::FieldSourceInfo *source_info
+) AD_FUNCTION_BEGIN {
+  (void)wrapper;
+
+  if (!source_info) {
+    AD_RETURNE (OK);
+  }
+
+  char const * type_name = NULL;
+  AD_TRY (gcc_ext_util::formatTypeNameWithNamespace (AD_ARGS, type, type_name));
+  char const * field_name = NULL;
+  AD_TRY (gcc_ext_util::getFieldName (AD_ARGS, field_decl, field_name));
+
+  // 根据来源类型输出单行摘要
+  LET_SOURCE_FUNCTION_CALL (call, *source_info) {
+    char const * call_type_str = "?";
+    if (call.call_type == ::array_detect_ns::CALL_VIRTUAL) call_type_str = "V";
+    else if (call.call_type == ::array_detect_ns::CALL_DIRECT) call_type_str = "D";
+    else if (call.call_type == ::array_detect_ns::CALL_INDIRECT) call_type_str = "I";
+
+    char const * display_function_name = call.function_name;
+    if (call.call_stmt &&
+        (!call.function_name || strcmp (call.function_name, "<virtual-call>") == 0)) {
+      char const * extracted_name = NULL;
+      if (extractVirtualCallFunctionName (AD_ARGS, call.call_stmt, extracted_name) == OK && extracted_name) {
+        display_function_name = extracted_name;
+      }
+    }
+
+    AD_DEBUG_PRINT ("fieldWrite: %s::%s <- CALL(%s) %s", type_name, field_name, call_type_str,
+                    display_function_name ? display_function_name : "?");
+  } END_LET ()
+  else LET_SOURCE_CONSTANT (constant, *source_info) {
+    AD_DEBUG_PRINT ("fieldWrite: %s::%s <- CONST %s", type_name, field_name,
+                    constant.constant_str ? constant.constant_str : "?");
+  } END_LET ()
+  else LET_SOURCE_FIELD_ACCESS (field_access, *source_info) {
+    AD_DEBUG_PRINT ("fieldWrite: %s::%s <- FIELD %s::%s", type_name, field_name,
+                    field_access.type_name ? field_access.type_name : "?",
+                    field_access.field_name ? field_access.field_name : "?");
+  } END_LET ()
+  else LET_SOURCE_COMPUTATION (comp, *source_info) {
+    AD_DEBUG_PRINT ("fieldWrite: %s::%s <- COMP", type_name, field_name);
+  } END_LET ()
+  else LET_SOURCE_PHI (phi, *source_info) {
+    AD_DEBUG_PRINT ("fieldWrite: %s::%s <- PHI %s", type_name, field_name,
+                    phi.var_name ? phi.var_name : "?");
+  } END_LET ()
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
 // ----------------------------------------------------------------------------
 // 辅助函数：提取虚函数调用的函数名
 // ----------------------------------------------------------------------------

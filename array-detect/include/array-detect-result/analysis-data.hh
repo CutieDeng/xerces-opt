@@ -3,30 +3,33 @@
 // ============================================================================
 // Field 分析数据流总览
 // ============================================================================
-// 本模块定义 Field 分析的核心数据结构
 //
-// 分析数据流（lisp 风格描述）：
+// 数据流变换（详见 doc/FIELD-ANALYSIS-DATAFLOW.md）：
 //
-// [逃逸分析链]
-// field -> (listof field-write-info)                              ; 收集字段写入
-// field-write-info -> write-original-source                       ; 追踪写入来源
-// write-original-source -> (listof source-use)                    ; 收集使用点
-// (listof source-use) -> (listof escaped-use)                     ; 提取逃逸使用
-// source, uses, escaped-uses -> source-escape-conclude            ; 源级逃逸结论
-// field, (listof source) -> field-escape-conclude                 ; 字段级逃逸结论
+// [写入级分析]
+// collect-writes : field -> (listof write-info)
+// trace-source   : write-info -> write-source
+// analyze-uses   : write-source -> use-analysis
+// conclude-escape: use-analysis -> escape-conclude
+// analyze-move   : write-info, write-source -> move-analysis
 //
-// [所有权分析链]
-// field-write-info, write-original-source -> ownership-move       ; 所有权转移分析
-// field, (listof ownership-move) -> ownership-conclude            ; 所有权结论
+// [字段级分析]
+// conclude-field : (listof write-analysis) -> field-conclude
 //
-// 结构名称映射：
-// - FieldWriteInfo          : 字段写入信息
-// - WriteOriginalSource     : 写入原始来源
-// - SourceUseResult         : 源使用分析结果
-// - EscapedUseResult        : 逃逸使用结果
-// - SourceEscapeConclude    : 源逃逸结论
-// - FieldEscapeConclude     : 字段逃逸结论
-// - OwnershipMoveResult     : 所有权转移结果
+// 聚合结构：
+// - WriteAnalysis : 单次写入的完整分析（聚合所有一对一关系）
+// - FieldAnalysis : 字段级分析（聚合多个 WriteAnalysis）
+//
+// 新命名（简化）-> 旧命名（兼容）：
+// - WriteInfo      -> FieldWriteInfo
+// - WriteSource    -> WriteOriginalSource
+// - UseInfo        -> SourceUseInfo
+// - UseAnalysis    -> SourceUseResult
+// - EscapeConclude -> SourceEscapeConclude
+// - MoveAnalysis   -> OwnershipMoveResult
+// - WriteAnalysis  -> FieldWriteAnalysisRecord
+// - FieldConclude  -> FieldEscapeConclude
+// - FieldAnalysis  -> TypeFieldAnalysisData
 // ============================================================================
 
 #include "gcc-common.hh"
@@ -144,5 +147,14 @@ struct FunctionAnalysisResult {
   vec<tree>* field_decls;              // 字段声明列表
   vec<FieldAnalysisResult*>* field_results; // 对应的分析结果列表
 };
+
+// ============================================================================
+// 简化命名别名
+// ============================================================================
+// 新的简化命名，更清晰地反映数据流关系
+// 详见 field-analysis.hh 中的完整聚合结构定义
+
+// WriteInfo 是 FieldWriteInfo 的简化别名
+typedef FieldWriteInfo WriteInfo;
 
 } // namespace array_detect_ns

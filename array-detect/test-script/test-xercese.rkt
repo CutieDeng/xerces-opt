@@ -8,4 +8,7 @@
   (define rconfig (read))
   (define cxx (dict-ref rconfig 'cxx))
   (define cflags (dict-ref rconfig 'cflags '()))
-  (run-test config cxx cflags "../test/test-xercese"))
+  (define root-path "../test/test-xercese")
+  ;; 添加 test-xercese 特定的 include 路径
+  (define cflags-with-include (append cflags (list (string-append "-I" root-path))))
+  (run-test config cxx cflags-with-include root-path))

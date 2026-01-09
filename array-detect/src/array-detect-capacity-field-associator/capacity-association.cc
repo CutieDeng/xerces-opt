@@ -317,23 +317,26 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
 
   vec_alloc (analysis->evidences, 4);
 
-  if (pointer_field_data->write_analysis_records) {
-    unsigned int write_count = pointer_field_data->write_analysis_records->length ();
+  // 遍历写入分析 Wrapper 列表
+  if (pointer_field_data->writes) {
+    unsigned int write_count = pointer_field_data->writes->length ();
 
     for (unsigned int i = 0; i < write_count; i++) {
-      FieldWriteAnalysisRecord* record = (*pointer_field_data->write_analysis_records)[i];
-      if (!record || !record->source_info) continue;
+      FieldWriteAnalysisWrapper* wrapper = (*pointer_field_data->writes)[i];
+      if (!wrapper) continue;
 
-      LET_SOURCE_FUNCTION_CALL (func_call, *record->source_info) {
+      // 检查来源是否为函数调用
+      if (wrapper->source_kind == field_analysis::FIELD_SRC_FUNCTION_CALL) {
+        field_analysis::FieldFunctionCallData const &func_call = wrapper->source_data.function_call;
         CapacityAssociationEvidence* evidence = NULL;
-        AD_TRY (analyzeMallocSizeSource (AD_ARGS, func_call.call_stmt,
+        AD_TRY (analyzeMallocSizeSource (AD_ARGS, func_call.stmt,
                                           candidate_field, evidence));
 
         if (evidence) {
           analysis->evidence_bitmap |= CAP_EVID_MALLOC_SIZE_ARG;
           vec_safe_push (analysis->evidences, evidence);
         }
-      } END_LET()
+      }
     }
   }
 

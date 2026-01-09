@@ -195,6 +195,77 @@ ArrayDetectErrorCode extractSourceFromRhs (
   }
 } AD_FUNCTION_END
 
+// 辅助函数：将 SourceType 转换为 FieldSourceKind
+static field_analysis::FieldSourceKind convertSourceType (SourceType st) {
+  switch (st) {
+    case SOURCE_FUNCTION_CALL: return field_analysis::FIELD_SRC_FUNCTION_CALL;
+    case SOURCE_CONSTANT:      return field_analysis::FIELD_SRC_CONSTANT;
+    case SOURCE_FIELD_ACCESS:  return field_analysis::FIELD_SRC_FIELD_ACCESS;
+    case SOURCE_COMPUTATION:   return field_analysis::FIELD_SRC_COMPUTATION;
+    case SOURCE_PHI:           return field_analysis::FIELD_SRC_PHI;
+    default:                   return field_analysis::FIELD_SRC_UNKNOWN;
+  }
+}
+
+// 辅助函数：将旧的 source_info 数据复制到 wrapper 的 source_data 中
+static void copySourceDataToWrapper (FieldWriteAnalysisWrapper *wrapper, FieldSourceInfo const *source_info) {
+  if (!wrapper || !source_info) return;
+
+  wrapper->source_kind = convertSourceType (source_info->source_type);
+
+  switch (source_info->source_type) {
+    case SOURCE_FUNCTION_CALL: {
+      FunctionCallSource const &src = source_info->data.function_call;
+      wrapper->source_data.function_call.stmt = src.call_stmt;
+      wrapper->source_data.function_call.call_kind =
+        (src.call_type == CALL_VIRTUAL) ? field_analysis::FIELD_CALL_VIRTUAL :
+        (src.call_type == CALL_DIRECT)  ? field_analysis::FIELD_CALL_DIRECT :
+        (src.call_type == CALL_INDIRECT) ? field_analysis::FIELD_CALL_INDIRECT :
+        field_analysis::FIELD_CALL_UNKNOWN;
+      wrapper->source_data.function_call.name = src.function_name;
+      wrapper->source_data.function_call.location = src.location;
+      break;
+    }
+    case SOURCE_CONSTANT: {
+      ConstantSource const &src = source_info->data.constant;
+      wrapper->source_data.constant.value = src.constant_value;
+      wrapper->source_data.constant.str = src.constant_str;
+      break;
+    }
+    case SOURCE_FIELD_ACCESS: {
+      FieldAccessSource const &src = source_info->data.field_access;
+      wrapper->source_data.field_access.stmt = src.access_stmt;
+      wrapper->source_data.field_access.field = src.field_decl;
+      wrapper->source_data.field_access.object = src.base_object;
+      wrapper->source_data.field_access.object_type = src.object_type;
+      wrapper->source_data.field_access.field_name = src.field_name;
+      wrapper->source_data.field_access.type_name = src.type_name;
+      wrapper->source_data.field_access.location = src.location;
+      break;
+    }
+    case SOURCE_COMPUTATION: {
+      ComputationSource const &src = source_info->data.computation;
+      wrapper->source_data.computation.stmt = src.compute_stmt;
+      wrapper->source_data.computation.expr = src.compute_expr;
+      wrapper->source_data.computation.desc = src.description;
+      wrapper->source_data.computation.location = src.location;
+      break;
+    }
+    case SOURCE_PHI: {
+      PhiSource const &src = source_info->data.phi;
+      wrapper->source_data.phi.stmt = src.phi_stmt;
+      wrapper->source_data.phi.ssa_name = src.ssa_name;
+      wrapper->source_data.phi.var = src.var_decl;
+      wrapper->source_data.phi.var_name = src.var_name;
+      wrapper->source_data.phi.location = src.location;
+      break;
+    }
+    default:
+      wrapper->source_kind = field_analysis::FIELD_SRC_UNKNOWN;
+      break;
+  }
+}
+
 // 追踪字段赋值：分析字段赋值来源
 ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Tracing field assignments");
@@ -209,42 +280,39 @@ ArrayDetectErrorCode traceFieldAssignments (ArrayDetector &detector, AD_FUNC_ARG
        ++iter) {
     // iter->first 是键（TypeFieldKey），iter->second 是值（TypeFieldWriteOps*）
     TypeFieldWriteOps *tfwo_nullable = (*iter).second;
-    if (!tfwo_nullable || !tfwo_nullable->write_analysis_records) {
+    if (!tfwo_nullable || !tfwo_nullable->writes) {
       continue;
     }
 
-    // === 新设计：遍历写入操作分析记录 ===
-    // 从 write_ops 改为 write_analysis_records
-    for (unsigned int j = 0; j < tfwo_nullable->write_analysis_records->length (); ++j) {
-      FieldWriteAnalysisRecord *record = (*tfwo_nullable->write_analysis_records)[j];
-      if (!record || !record->write_capture) {
+    // 遍历写入分析 Wrapper 列表
+    for (unsigned int j = 0; j < tfwo_nullable->writes->length (); ++j) {
+      FieldWriteAnalysisWrapper *wrapper = (*tfwo_nullable->writes)[j];
+      if (!wrapper) {
         continue;
       }
-
-      FieldWriteCapture &capture = *record->write_capture;
 
       // 提取来源信息
       processed_count++;
 
-      tree rhs = capture.rhs;
-      gimple * stmt = capture.stmt;
-      location_t location = capture.location;
-      tree function = capture.function_decl;
-      basic_block bb = capture.bb;
+      // 从 wrapper 的 FieldWrite 部分读取数据
+      tree rhs = wrapper->rhs;
+      gimple *stmt = wrapper->stmt;
+      location_t location = wrapper->write_location;
+      tree function = wrapper->func;
+      basic_block bb = wrapper->bb;
 
       FieldSourceInfo *source_info;
       AD_TRY (extractSourceFromRhs (
         detector, AD_ARGS, rhs, stmt, location, function, bb, source_info));
 
-      // === 新设计：直接填充到分析记录中 ===
-      // 不再使用 aux 链表，直接填充到 record->source_info
-      record->source_info = source_info;
+      // 将 source_info 数据复制到 wrapper 的 FieldWriteSource 部分
+      copySourceDataToWrapper (wrapper, source_info);
       source_extracted_count++;
 
       TypeFieldKey key = (*iter).first;
 
-      // 调用调试模块的函数输出详细信息
-      AD_TRY (printFieldWriteSourceInfo (AD_ARGS, key.type, key.field_decl, capture, source_info));
+      // 调用调试模块的函数输出详细信息（传递 wrapper 作为兼容 capture）
+      AD_TRY (printFieldWriteSourceInfoFromWrapper (AD_ARGS, key.type, key.field_decl, wrapper, source_info));
     }
   }
 

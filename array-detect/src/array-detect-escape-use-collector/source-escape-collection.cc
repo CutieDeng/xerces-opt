@@ -456,6 +456,88 @@ void printSourceUseResult(
 }
 
 // ============================================================================
+// 辅助函数：将 SourceUseEscapeKind 转换为 FieldEscapeKind
+// ============================================================================
+
+static field_analysis::FieldEscapeKind convertEscapeKind (SourceUseEscapeKind kind) {
+  switch (kind) {
+    case SU_ESCAPE_NONE:          return field_analysis::FIELD_ESC_NONE;
+    case SU_ESCAPE_RETURN:        return field_analysis::FIELD_ESC_RETURN;
+    case SU_ESCAPE_PARAMETER:     return field_analysis::FIELD_ESC_PARAMETER;
+    case SU_ESCAPE_GLOBAL_STORE:  return field_analysis::FIELD_ESC_GLOBAL;
+    case SU_ESCAPE_HEAP_STORE:    return field_analysis::FIELD_ESC_HEAP;
+    case SU_ESCAPE_FIELD_STORE:   return field_analysis::FIELD_ESC_FIELD;
+    case SU_ESCAPE_INDIRECT_CALL: return field_analysis::FIELD_ESC_INDIRECT_CALL;
+    case SU_ESCAPE_VIRTUAL_CALL:  return field_analysis::FIELD_ESC_VIRTUAL_CALL;
+    case SU_ESCAPE_EXTERNAL_CALL: return field_analysis::FIELD_ESC_EXTERNAL_CALL;
+    case SU_ESCAPE_UNKNOWN:       return field_analysis::FIELD_ESC_UNKNOWN;
+    default:                      return field_analysis::FIELD_ESC_UNKNOWN;
+  }
+}
+
+// 辅助函数：将 SourceUseKind 转换为 FieldUseKind
+static field_analysis::FieldUseKind convertUseKind (SourceUseKind kind) {
+  switch (kind) {
+    case SU_USE_LOAD:         return field_analysis::FIELD_USE_LOAD;
+    case SU_USE_STORE:        return field_analysis::FIELD_USE_STORE;
+    case SU_USE_CALL_ARG:     return field_analysis::FIELD_USE_CALL_ARG;
+    case SU_USE_RETURN:       return field_analysis::FIELD_USE_RETURN;
+    case SU_USE_PHI:          return field_analysis::FIELD_USE_PHI;
+    case SU_USE_ASSIGN:       return field_analysis::FIELD_USE_ASSIGN;
+    case SU_USE_ARITHMETIC:   return field_analysis::FIELD_USE_ARITHMETIC;
+    case SU_USE_COMPARISON:   return field_analysis::FIELD_USE_COMPARISON;
+    case SU_USE_ADDRESS_TAKEN: return field_analysis::FIELD_USE_ADDRESS;
+    case SU_USE_CONDITIONAL:  return field_analysis::FIELD_USE_CONDITIONAL;
+    case SU_USE_OTHER:        return field_analysis::FIELD_USE_OTHER;
+    default:                  return field_analysis::FIELD_USE_OTHER;
+  }
+}
+
+// 辅助函数：将 SourceUseResult 数据复制到 Wrapper 的 UseAnalysis 部分
+static void copyUseResultToWrapper (
+  FieldWriteAnalysisWrapper *wrapper,
+  SourceUseAnalysisResult const *use_result
+) {
+  if (!wrapper || !use_result) return;
+
+  wrapper->source_operand = use_result->source_operand;
+  wrapper->source_stmt = use_result->source_stmt;
+  wrapper->total_use_count = use_result->total_use_count;
+  wrapper->max_use_depth = use_result->max_use_depth;
+  wrapper->is_fully_analyzed = use_result->is_fully_analyzed;
+  wrapper->escape_count = use_result->escape_count;
+  wrapper->has_escape = use_result->has_escape;
+
+  // 转换并复制 all_uses
+  if (use_result->all_uses && use_result->all_uses->length () > 0) {
+    wrapper->all_uses = ggc_alloc<vec<field_analysis::FieldUsePoint>> ();
+    wrapper->all_uses->create (use_result->all_uses->length ());
+
+    // 同时创建 escape_uses 列表
+    wrapper->escape_uses = ggc_alloc<vec<field_analysis::FieldUsePoint const*>> ();
+    wrapper->escape_uses->create (0);
+
+    for (unsigned i = 0; i < use_result->all_uses->length (); i++) {
+      SourceUseInfo const &src = (*use_result->all_uses)[i];
+      field_analysis::FieldUsePoint fp;
+      fp.kind = convertUseKind (src.kind);
+      fp.stmt = src.use_stmt;
+      fp.operand = src.use_operand;
+      fp.location = src.source_location;
+      fp.bb_index = src.bb_index;
+      fp.escape_kind = convertEscapeKind (src.escape_kind);
+      fp.escape_target = src.escape_target;
+      wrapper->all_uses->safe_push (fp);
+
+      // 如果是逃逸使用，添加到 escape_uses
+      if (src.is_escape ()) {
+        wrapper->escape_uses->safe_push (&(*wrapper->all_uses)[wrapper->all_uses->length () - 1]);
+      }
+    }
+  }
+}
+
+// ============================================================================
 // Pipeline 接口实现
 // ============================================================================
 
@@ -478,16 +560,19 @@ ArrayDetectErrorCode collectAllFieldEscapes (
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     TypeFieldWriteOps * write_ops = (*iter).second;
-    if (!write_ops || !write_ops->write_analysis_records) continue;
+    if (!write_ops || !write_ops->writes) continue;
 
-    for (unsigned i = 0; i < write_ops->write_analysis_records->length (); i++) {
-      FieldWriteAnalysisRecord * record = (*write_ops->write_analysis_records)[i];
-      if (!record || !record->write_capture) continue;
+    for (unsigned i = 0; i < write_ops->writes->length (); i++) {
+      FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+      if (!wrapper) continue;
 
-      FieldWriteCapture * capture = record->write_capture;
+      // 从 wrapper 的 FieldWrite 部分提取数据进行分析
+      tree source_operand = wrapper->rhs;
+      gimple * source_stmt = wrapper->stmt;
+      gimple * exclude_stmt = wrapper->stmt;
 
       SourceUseAnalysisResult * use_result = NULL;
-      AD_TRY (collectFieldWriteEscapes (AD_ARGS, capture, use_result));
+      AD_TRY (collectSourceOperandEscapes (AD_ARGS, source_operand, source_stmt, exclude_stmt, use_result));
 
       if (use_result) {
         total_analyzed++;
@@ -495,9 +580,8 @@ ArrayDetectErrorCode collectAllFieldEscapes (
           total_escaped++;
         }
 
-        // === 新设计：直接填充到分析记录中 ===
-        // 不再使用 aux 链表，直接填充到 record->escape_analysis
-        record->escape_analysis = use_result;
+        // 将 use_result 数据复制到 wrapper 的 FieldUseAnalysis 部分
+        copyUseResultToWrapper (wrapper, use_result);
 
         // 输出所有收集到的 escape 信息
         printSourceUseAnalysisResult (use_result, ctx.debug_file);

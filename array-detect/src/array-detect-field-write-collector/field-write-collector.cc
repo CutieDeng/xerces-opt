@@ -91,12 +91,12 @@ static ArrayDetectErrorCode findOrCreateTypeFieldWriteOps (
   tfwo->type = type;
   tfwo->field_decl = field_decl;
 
-  // 初始化新的分析记录列表
-  tfwo->write_analysis_records = ggc_alloc<vec<FieldWriteAnalysisRecord*>>();
-  if (!tfwo->write_analysis_records) {
+  // 初始化写入分析 Wrapper 列表
+  tfwo->writes = ggc_alloc<vec<FieldWriteAnalysisWrapper*>>();
+  if (!tfwo->writes) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  tfwo->write_analysis_records->create (0);
+  tfwo->writes->create (0);
 
   // 初始化字段级别分析结果
   tfwo->has_rejecting_evidence = false;
@@ -182,57 +182,53 @@ ArrayDetectErrorCode collectTypesAndFields (ArrayDetector &detector, AD_FUNC_ARG
       tree containing_type = TYPE_MAIN_VARIANT (object_type);
       if (!containing_type) continue;
       
-      // Pipeline 第一步：只捕获字段写入信息，不向下解析
-      // 创建字段写入捕获记录
-      FieldWriteCapture * capture = ggc_alloc<FieldWriteCapture>();
-      if (!capture) {
+      // Pipeline 第一步：创建 FieldWriteAnalysisWrapper，填充 FieldWrite 部分
+      FieldWriteAnalysisWrapper * wrapper = ggc_alloc<FieldWriteAnalysisWrapper>();
+      if (!wrapper) {
         AD_RETURNE (MEMORY_ERROR);
       }
-      memset (capture, 0, sizeof (FieldWriteCapture));
-      
-      // 核心信息：类型和字段
-      capture->type = containing_type;
-      capture->field_decl = field_decl;
-      
-      // 上下文信息：函数和基本块
-      capture->function_decl = func_decl;
-      capture->bb = bb;
-      capture->function_name = func_name ? ggc_strdup (func_name) : NULL;
-      capture->bb_index = bb ? bb->index : -1;
-      
-      // GIMPLE 语句信息
-      capture->stmt = stmt;
-      capture->lhs = lhs;  // MEM
-      capture->rhs = rhs;  // SSA_NAME
-      
-      // 源码位置
-      capture->location = gimple_location (stmt);
-      
-      // 通用用途功能指针：废弃 aux，保留以兼容，但不再使用
-      capture->aux = NULL;
+      memset (wrapper, 0, sizeof (FieldWriteAnalysisWrapper));
 
-      // === 新设计：创建统一的分析记录 ===
-      FieldWriteAnalysisRecord * analysis_record = ggc_alloc<FieldWriteAnalysisRecord>();
-      if (!analysis_record) {
-        AD_RETURNE (MEMORY_ERROR);
-      }
-      memset (analysis_record, 0, sizeof (FieldWriteAnalysisRecord));
+      // ========== FieldWrite 部分：字段写入基本信息 ==========
+      wrapper->type = containing_type;
+      wrapper->field = field_decl;
+      wrapper->func = func_decl;
+      wrapper->bb = bb;
+      wrapper->stmt = stmt;
+      wrapper->lhs = lhs;  // MEM_REF/COMPONENT_REF
+      wrapper->rhs = rhs;  // SSA_NAME
+      wrapper->write_location = gimple_location (stmt);
 
-      // 填充基本写入信息
-      analysis_record->write_capture = capture;
-      // 其他分析结果初始化为 NULL，由后续模块填充
-      analysis_record->source_info = NULL;
-      analysis_record->escape_analysis = NULL;
-      analysis_record->escape_evidence = NULL;
-      analysis_record->ownership_transfer = NULL;
-      analysis_record->reserved = NULL;
+      // ========== FieldWriteSource 部分：由 trace-source 模块填充 ==========
+      wrapper->source_kind = field_analysis::FIELD_SRC_UNKNOWN;
+      // source_data union 已由 memset 清零
+
+      // ========== FieldUseAnalysis 部分：由 analyze-uses 模块填充 ==========
+      wrapper->source_operand = NULL_TREE;
+      wrapper->source_stmt = NULL;
+      wrapper->all_uses = NULL;
+      wrapper->total_use_count = 0;
+      wrapper->max_use_depth = 0;
+      wrapper->is_fully_analyzed = false;
+      wrapper->escape_uses = NULL;
+      wrapper->escape_count = 0;
+      wrapper->has_escape = false;
+
+      // ========== FieldEscapeConclude 部分：由 conclude-escape 模块填充 ==========
+      wrapper->total_escapes = 0;
+      wrapper->safe_debug_escapes = 0;
+      wrapper->rejecting_escapes = 0;
+      wrapper->has_rejecting_evidence = false;
+
+      // ========== FieldMoveAnalysis 部分：由 analyze-move 模块填充（可选）==========
+      wrapper->move = NULL;
 
       // 查找或创建 type -> field 的写入操作列表
       TypeFieldWriteOps * tfwo = NULL;
       AD_TRY (findOrCreateTypeFieldWriteOps (AD_ARGS, &detector.m_type_field_writes, containing_type, field_decl, &tfwo));
 
-      // 添加分析记录到列表
-      tfwo->write_analysis_records->safe_push (analysis_record);
+      // 添加 Wrapper 到列表
+      tfwo->writes->safe_push (wrapper);
       write_op_count++;
       
       // 打印字段写入捕获调试信息（类型名、字段名、字段类型名）

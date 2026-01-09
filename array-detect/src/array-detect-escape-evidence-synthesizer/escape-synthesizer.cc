@@ -199,64 +199,55 @@ ArrayDetectErrorCode summarizeFieldEscape (
   summary->field_decl = field_data->field_decl;
 
   // 分配证据引用向量
-  summary->all_evidences = ggc_alloc<vec<EscapeEvidenceResult*>> ();
-  summary->all_evidences->create (0);
+  summary->all_source_concludes = ggc_alloc<vec<SourceEscapeConclude*>> ();
+  summary->all_source_concludes->create (0);
 
-  // 遍历所有字段写入操作记录
-  if (field_data->write_analysis_records) {
-    for (unsigned int i = 0; i < field_data->write_analysis_records->length (); i++) {
-      array_detector::FieldWriteAnalysisRecord * record =
-        (*field_data->write_analysis_records)[i];
-      if (!record) continue;
+  // 遍历所有字段写入分析 Wrapper
+  if (field_data->writes) {
+    for (unsigned int i = 0; i < field_data->writes->length (); i++) {
+      array_detector::FieldWriteAnalysisWrapper * wrapper =
+        (*field_data->writes)[i];
+      if (!wrapper) continue;
 
       summary->total_field_writes++;
 
-      // 统计来源类型分布
-      if (record->source_info) {
-        switch (record->source_info->source_type) {
-          case array_detector::SOURCE_FUNCTION_CALL:
-            summary->source_function_call++;
-            break;
-          case array_detector::SOURCE_FIELD_ACCESS:
-            summary->source_field_access++;
-            break;
-          case array_detector::SOURCE_CONSTANT:
-            summary->source_constant++;
-            break;
-          case array_detector::SOURCE_COMPUTATION:
-            summary->source_computation++;
-            break;
-          case array_detector::SOURCE_PHI:
-            summary->source_phi++;
-            break;
-          case array_detector::SOURCE_UNKNOWN:
-          default:
-            summary->source_unknown++;
-            break;
-        }
-      } else {
-        summary->field_writes_without_analysis++;
-        summary->source_unknown++;
+      // 统计来源类型分布（从 wrapper 的 FieldWriteSource 部分读取）
+      switch (wrapper->source_kind) {
+        case field_analysis::FIELD_SRC_FUNCTION_CALL:
+          summary->source_function_call++;
+          break;
+        case field_analysis::FIELD_SRC_FIELD_ACCESS:
+          summary->source_field_access++;
+          break;
+        case field_analysis::FIELD_SRC_CONSTANT:
+          summary->source_constant++;
+          break;
+        case field_analysis::FIELD_SRC_COMPUTATION:
+          summary->source_computation++;
+          break;
+        case field_analysis::FIELD_SRC_PHI:
+          summary->source_phi++;
+          break;
+        case field_analysis::FIELD_SRC_UNKNOWN:
+        default:
+          summary->source_unknown++;
+          break;
       }
 
-      // 统计逃逸
-      if (record->escape_evidence) {
-        EscapeEvidenceResult * evidence = record->escape_evidence;
+      // 统计逃逸（从 wrapper 的 FieldEscapeConclude 部分读取）
+      summary->total_escapes += wrapper->total_escapes;
+      summary->safe_debug_escapes += wrapper->safe_debug_escapes;
+      summary->rejecting_escapes += wrapper->rejecting_escapes;
 
-        summary->total_escapes += evidence->total_escapes;
-        summary->safe_debug_escapes += evidence->safe_debug_escapes;
-        summary->rejecting_escapes += evidence->rejecting_escapes;
+      if (wrapper->total_escapes > 0) {
+        summary->field_writes_with_escape++;
+      }
+      if (wrapper->has_rejecting_evidence) {
+        summary->field_writes_with_rejecting++;
+      }
 
-        if (evidence->total_escapes > 0) {
-          summary->field_writes_with_escape++;
-        }
-        if (evidence->has_rejecting_evidence) {
-          summary->field_writes_with_rejecting++;
-        }
-
-        // 添加到证据引用列表
-        summary->all_evidences->safe_push (evidence);
-      } else {
+      // 检查是否完全分析
+      if (!wrapper->is_fully_analyzed) {
         summary->field_writes_without_analysis++;
       }
     }
@@ -270,6 +261,27 @@ ArrayDetectErrorCode summarizeFieldEscape (
 
   AD_RETURNO (summary);
 } AD_FUNCTION_END
+
+// ============================================================================
+// 辅助函数：判断 FieldUsePoint 是否为安全调试逃逸
+// ============================================================================
+
+static bool isFieldUsePointSafeDebugEscape (
+  AD_FUNC_ARGS,
+  field_analysis::FieldUsePoint const * use_point
+) {
+  if (!use_point || use_point->escape_kind == field_analysis::FIELD_ESC_NONE) {
+    return false;
+  }
+
+  // 只有参数传递和外部调用可能是调试调用
+  if (use_point->escape_kind != field_analysis::FIELD_ESC_PARAMETER &&
+      use_point->escape_kind != field_analysis::FIELD_ESC_EXTERNAL_CALL) {
+    return false;
+  }
+
+  return isKnownSafeDebugFunction (AD_ARGS, use_point->escape_target);
+}
 
 // ============================================================================
 // 组合接口：综合所有字段的逃逸信息
@@ -301,55 +313,113 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
     array_detector::TypeFieldKey const &key = (*iter).first;
     array_detector::TypeFieldWriteOps * write_ops = (*iter).second;
 
-    if (!write_ops || !write_ops->write_analysis_records) continue;
+    if (!write_ops || !write_ops->writes) continue;
 
     // 字段级别是否存在拒绝证据
     bool field_has_rejecting = false;
 
-    // 遍历该 (type, field) 的所有写入操作
-    for (unsigned i = 0; i < write_ops->write_analysis_records->length (); i++) {
-      array_detector::FieldWriteAnalysisRecord * record = (*write_ops->write_analysis_records)[i];
-      if (!record || !record->write_capture) continue;
+    // 遍历该 (type, field) 的所有写入分析 Wrapper
+    for (unsigned i = 0; i < write_ops->writes->length (); i++) {
+      array_detector::FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+      if (!wrapper) continue;
 
-      // 从 record->escape_analysis 读取逃逸分析结果
-      SourceUseAnalysisResult * raw_result = record->escape_analysis;
-      if (!raw_result) {
+      // 从 wrapper 的 FieldUseAnalysis 部分读取数据
+      if (!wrapper->is_fully_analyzed && wrapper->total_use_count == 0) {
+        // 未分析的写入操作
         continue;
       }
 
-      // 获取写入位置
-      location_t write_loc = gimple_location (raw_result->source_stmt);
+      // 直接在 wrapper 上计算逃逸结论
+      // 遍历 escape_uses 统计调试逃逸和拒绝逃逸
+      unsigned int safe_debug_count = 0;
+      unsigned int rejecting_count = 0;
 
-      // 第一层：提取逃逸
-      EscapeExtractionResult * extraction = NULL;
-      AD_TRY (extractEscapes (AD_ARGS, raw_result, extraction));
-
-      if (!extraction) {
-        continue;
-      }
-
-      // 第二层：生成证据
-      EscapeEvidenceResult * evidence = NULL;
-      AD_TRY (generateEscapeEvidence (AD_ARGS, extraction, key.type, key.field_decl, write_loc, evidence));
-
-      if (evidence) {
-        record->escape_evidence = evidence;
-        evidence_results->safe_push (evidence);
-        total_synthesized++;
-
-        if (evidence->has_rejecting_evidence) {
-          field_has_rejecting = true;
+      if (wrapper->escape_uses) {
+        for (unsigned j = 0; j < wrapper->escape_uses->length (); j++) {
+          field_analysis::FieldUsePoint const * escape_use = (*wrapper->escape_uses)[j];
+          if (isFieldUsePointSafeDebugEscape (AD_ARGS, escape_use)) {
+            safe_debug_count++;
+          } else {
+            rejecting_count++;
+          }
         }
+      }
+
+      // 填充 wrapper 的 FieldEscapeConclude 部分
+      wrapper->total_escapes = wrapper->escape_count;
+      wrapper->safe_debug_escapes = safe_debug_count;
+      wrapper->rejecting_escapes = rejecting_count;
+      wrapper->has_rejecting_evidence = (rejecting_count > 0);
+
+      total_synthesized++;
+
+      if (wrapper->has_rejecting_evidence) {
+        field_has_rejecting = true;
       }
     }
 
     // 更新字段级别拒绝标志
     write_ops->has_rejecting_evidence = field_has_rejecting;
 
-    // 第三层：生成 (type, field) 级别汇总
-    TypeFieldEscapeSummary * summary = NULL;
-    AD_TRY (summarizeTypeFieldEscapes (AD_ARGS, write_ops, summary));
-    write_ops->escape_summary = summary;
+    // 生成 (type, field) 级别汇总并存储到 conclude
+    field_analysis::FieldConclude * conclude = ggc_alloc<field_analysis::FieldConclude> ();
+    if (conclude) {
+      memset (conclude, 0, sizeof (field_analysis::FieldConclude));
+
+      // 汇总统计
+      if (write_ops->writes) {
+        for (unsigned i = 0; i < write_ops->writes->length (); i++) {
+          array_detector::FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+          if (!wrapper) continue;
+
+          conclude->total_writes++;
+
+          // 统计来源类型分布
+          switch (wrapper->source_kind) {
+            case field_analysis::FIELD_SRC_FUNCTION_CALL:
+              conclude->src_function_call++;
+              break;
+            case field_analysis::FIELD_SRC_FIELD_ACCESS:
+              conclude->src_field_access++;
+              break;
+            case field_analysis::FIELD_SRC_CONSTANT:
+              conclude->src_constant++;
+              break;
+            case field_analysis::FIELD_SRC_COMPUTATION:
+              conclude->src_computation++;
+              break;
+            case field_analysis::FIELD_SRC_PHI:
+              conclude->src_phi++;
+              break;
+            default:
+              conclude->src_unknown++;
+              break;
+          }
+
+          // 汇总逃逸
+          conclude->total_escapes += wrapper->total_escapes;
+          conclude->safe_escapes += wrapper->safe_debug_escapes;
+          conclude->rejecting_escapes += wrapper->rejecting_escapes;
+
+          if (wrapper->has_escape) {
+            conclude->writes_with_escape++;
+          }
+          if (wrapper->has_rejecting_evidence) {
+            conclude->writes_with_rejecting++;
+          }
+          if (!wrapper->is_fully_analyzed) {
+            conclude->writes_without_analysis++;
+          }
+        }
+      }
+
+      conclude->has_rejecting = field_has_rejecting;
+      conclude->rejection_ratio = (conclude->total_writes > 0)
+        ? (float)conclude->writes_with_rejecting / (float)conclude->total_writes
+        : 0.0f;
+
+      write_ops->conclude = conclude;
+    }
   }
 
   AD_DEBUG_PRINT ("escapeSynth: %u evidence results", total_synthesized);

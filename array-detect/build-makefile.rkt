@@ -212,7 +212,7 @@
   (match-define (Config _ cc _ _ output-so _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) config)
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "test-xercese: ~a~n" output-so)
-  (define input `((cxx . ,(~a cc)) (cflags ,plugin-arg)))
+  (define input `((cxx . ,(~s (~a (force cc)))) (cflags ,plugin-arg)))
   (printf "\t@echo ~s | racket test-script/test-xercese.rkt~n" (~s input))
   (printf "~n"))
 
@@ -324,14 +324,14 @@
 (define (write-test-impl cc output-so name)
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags . ,(list plugin-arg))))
+  (define input `((cxx . ,(~s (~a (force cc)))) (cflags . ,(list plugin-arg))))
   (printf "\t@echo ~s | racket test-script/~a.rkt~n" (~s input) name)
   (printf "~n"))
 
 (define (write-lto-test-impl cc output-so name script-file)
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a cc)) (cflags . ,(list plugin-arg "-flto"))))
+  (define input `((cxx . ,(~s (~a (force cc)))) (cflags . ,(list plugin-arg "-flto"))))
   (printf "\t@echo ~s | racket ~a~n" (~s input) (build-path "test-script" script-file))
   (printf "~n"))
 
@@ -486,7 +486,7 @@
 ;; ============================================================================
 
 (define default-config-promise
-  (delay (make-config-with-cc "plugin-array-detect" (find-executable-path "gcc-15") 4)))
+  (delay (make-config-with-cc "plugin-array-detect" (find-executable-path "g++-15") 4)))
 
 (define (get-default-config)
   (force default-config-promise))
