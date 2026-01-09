@@ -5,7 +5,7 @@
 // 数据流：FieldWriteInfo -> WriteOriginalSource
 // ============================================================================
 
-#include "../../include/ad-write-source/write-source.hh"
+#include "write-source.hh"
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
 #include "field-analysis.hh"
@@ -16,8 +16,14 @@ namespace array_detector {
 using namespace ::array_detect_ns;
 
 // ============================================================================
-// traceWriteSource_reduceTrivialMoves
+// 内部实现
 // ============================================================================
+
+namespace {
+
+// ----------------------------------------------------------------------------
+// traceWriteSource_reduceTrivialMoves
+// ----------------------------------------------------------------------------
 // 追踪 SSA 使用-定义链，跳过简单的赋值
 
 ArrayDetectErrorCode traceWriteSource_reduceTrivialMoves (
@@ -110,22 +116,15 @@ ArrayDetectErrorCode traceWriteSource_reduceTrivialMoves (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromCall
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromCall
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromCall (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromCall (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   gimple* call_stmt,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -159,22 +158,15 @@ ArrayDetectErrorCode traceWriteSource_extractFromCall (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromConstant
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromConstant
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromConstant (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromConstant (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   tree constant_value,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -198,26 +190,17 @@ ArrayDetectErrorCode traceWriteSource_extractFromConstant (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromFieldAccess
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromFieldAccess
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromFieldAccess (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromFieldAccess (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   tree field_ref,
   gimple* final_stmt,
-  gimple* original_stmt,
   location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)original_stmt;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -271,26 +254,17 @@ ArrayDetectErrorCode traceWriteSource_extractFromFieldAccess (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromComputation
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromComputation
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromComputation (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromComputation (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   tree expr,
   gimple* final_stmt,
-  gimple* original_stmt,
   location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)original_stmt;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -310,24 +284,17 @@ ArrayDetectErrorCode traceWriteSource_extractFromComputation (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromPhi
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromPhi
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromPhi (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromPhi (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   gimple* phi_stmt,
   tree ssa_name,
   location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -351,25 +318,14 @@ ArrayDetectErrorCode traceWriteSource_extractFromPhi (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource_extractFromUnknown
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceWriteSource_extractSource_extractFromUnknown
+// ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode traceWriteSource_extractFromUnknown (
+ArrayDetectErrorCode traceWriteSource_extractSource_extractFromUnknown (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree value,
-  location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
-  (void)detector;
-  (void)value;
-  (void)location;
-  (void)function;
-  (void)bb;
-
   WriteOriginalSource * source = ggc_alloc<WriteOriginalSource>();
   if (!source) {
     AD_RETURNE (MEMORY_ERROR);
@@ -382,109 +338,57 @@ ArrayDetectErrorCode traceWriteSource_extractFromUnknown (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // traceWriteSource_extractSource
-// ============================================================================
+// ----------------------------------------------------------------------------
+// 从最终值提取来源
 
 ArrayDetectErrorCode traceWriteSource_extractSource (
   AD_FUNC_ARGS,
-  ArrayDetector& detector,
   tree final_value,
   gimple* final_stmt,
-  gimple* original_stmt,
   location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 ) AD_FUNCTION_BEGIN {
   // SSA_NAME 且有函数调用定义
   if (TREE_CODE (final_value) == SSA_NAME) {
     if (final_stmt && gimple_code (final_stmt) == GIMPLE_CALL) {
-      basic_block call_bb = gimple_bb (final_stmt);
-      AD_ASSERT_GCC_LOGIC (call_bb, "gimple_bb returned NULL for call_stmt");
-      AD_TRY (traceWriteSource_extractFromCall (
-        AD_ARGS, detector, final_stmt, function, call_bb, result));
+      AD_TRY (traceWriteSource_extractSource_extractFromCall (
+        AD_ARGS, final_stmt, result));
       AD_RETURNE (OK);
     }
     // 无法追踪到明确来源
-    AD_TRY (traceWriteSource_extractFromUnknown (
-      AD_ARGS, detector, final_value, location, function, bb, result));
+    AD_TRY (traceWriteSource_extractSource_extractFromUnknown (AD_ARGS, result));
     AD_RETURNE (OK);
   }
 
   // 常量
   if (CONSTANT_CLASS_P (final_value)) {
-    AD_TRY (traceWriteSource_extractFromConstant (
-      AD_ARGS, detector, final_value, function, bb, result));
+    AD_TRY (traceWriteSource_extractSource_extractFromConstant (
+      AD_ARGS, final_value, result));
     AD_RETURNE (OK);
   }
 
   // 字段访问
   enum tree_code final_code = TREE_CODE (final_value);
   if (final_code == COMPONENT_REF || final_code == MEM_REF) {
-    AD_TRY (traceWriteSource_extractFromFieldAccess (
-      AD_ARGS, detector, final_value, final_stmt, original_stmt,
-      location, function, bb, result));
+    AD_TRY (traceWriteSource_extractSource_extractFromFieldAccess (
+      AD_ARGS, final_value, final_stmt, location, result));
     AD_RETURNE (OK);
   }
 
   // 其他计算表达式
-  AD_TRY (traceWriteSource_extractFromComputation (
-    AD_ARGS, detector, final_value, final_stmt, original_stmt,
-    location, function, bb, result));
+  AD_TRY (traceWriteSource_extractSource_extractFromComputation (
+    AD_ARGS, final_value, final_stmt, location, result));
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// traceWriteSource
-// ============================================================================
-// 主入口：追踪写入来源
+// ----------------------------------------------------------------------------
+// traceFieldAssignments_convertSourceType
+// ----------------------------------------------------------------------------
+// 将 SourceType 转换为 FieldSourceKind
 
-ArrayDetectErrorCode traceWriteSource (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  FieldWriteInfo* write_info,
-  WriteOriginalSource*& result
-) AD_FUNCTION_BEGIN {
-  if (!write_info) {
-    AD_RETURNE (INVALID_ARGUMENT);
-  }
-
-  tree rhs = write_info->rhs;
-  gimple* stmt = write_info->stmt;
-  location_t location = write_info->location;
-  tree function = write_info->function_decl;
-  basic_block bb = write_info->bb;
-
-  // 约减平凡赋值
-  tree final_value;
-  gimple* final_stmt;
-  bool is_phi = false;
-
-  AD_TRY (traceWriteSource_reduceTrivialMoves (
-    AD_ARGS, detector, rhs, function, bb,
-    final_value, final_stmt, is_phi));
-
-  // PHI 节点特殊处理
-  if (is_phi) {
-    AD_TRY (traceWriteSource_extractFromPhi (
-      AD_ARGS, detector, final_stmt, final_value, location, function, bb, result));
-    AD_RETURNE (OK);
-  }
-
-  // 从最终值提取来源
-  AD_TRY (traceWriteSource_extractSource (
-    AD_ARGS, detector, final_value, final_stmt, stmt,
-    location, function, bb, result));
-
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// ============================================================================
-// 辅助函数：将 SourceType 转换为 FieldSourceKind
-// ============================================================================
-
-static field_analysis::FieldSourceKind convertSourceType (SourceType st) {
+field_analysis::FieldSourceKind traceFieldAssignments_convertSourceType (SourceType st) {
   switch (st) {
     case SOURCE_FUNCTION_CALL: return field_analysis::FIELD_SRC_FUNCTION_CALL;
     case SOURCE_CONSTANT:      return field_analysis::FIELD_SRC_CONSTANT;
@@ -495,17 +399,18 @@ static field_analysis::FieldSourceKind convertSourceType (SourceType st) {
   }
 }
 
-// ============================================================================
-// 辅助函数：将 source_info 数据复制到 wrapper 的 source_data 中
-// ============================================================================
+// ----------------------------------------------------------------------------
+// traceFieldAssignments_copySourceDataToWrapper
+// ----------------------------------------------------------------------------
+// 将 source_info 数据复制到 wrapper 的 source_data 中
 
-static void copySourceDataToWrapper (
+void traceFieldAssignments_copySourceDataToWrapper (
   FieldWriteAnalysisWrapper* wrapper,
   WriteOriginalSource const* source_info
 ) {
   if (!wrapper || !source_info) return;
 
-  wrapper->source_kind = convertSourceType (source_info->source_type);
+  wrapper->source_kind = traceFieldAssignments_convertSourceType (source_info->source_type);
 
   switch (source_info->source_type) {
     case SOURCE_FUNCTION_CALL: {
@@ -560,9 +465,59 @@ static void copySourceDataToWrapper (
   }
 }
 
+} // anonymous namespace
+
 // ============================================================================
+// 公开接口实现
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// traceWriteSource
+// ----------------------------------------------------------------------------
+// 主入口：追踪写入来源
+
+ArrayDetectErrorCode traceWriteSource (
+  AD_FUNC_ARGS,
+  ArrayDetector& detector,
+  FieldWriteInfo* write_info,
+  WriteOriginalSource*& result
+) AD_FUNCTION_BEGIN {
+  if (!write_info) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
+
+  tree rhs = write_info->rhs;
+  gimple* stmt = write_info->stmt;
+  location_t location = write_info->location;
+  tree function = write_info->function_decl;
+  basic_block bb = write_info->bb;
+
+  // 约减平凡赋值
+  tree final_value;
+  gimple* final_stmt;
+  bool is_phi = false;
+
+  AD_TRY (traceWriteSource_reduceTrivialMoves (
+    AD_ARGS, detector, rhs, function, bb,
+    final_value, final_stmt, is_phi));
+
+  // PHI 节点特殊处理
+  if (is_phi) {
+    AD_TRY (traceWriteSource_extractSource_extractFromPhi (
+      AD_ARGS, final_stmt, final_value, location, result));
+    AD_RETURNE (OK);
+  }
+
+  // 从最终值提取来源
+  AD_TRY (traceWriteSource_extractSource (
+    AD_ARGS, final_value, final_stmt, location, result));
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
+// ----------------------------------------------------------------------------
 // traceFieldAssignments
-// ============================================================================
+// ----------------------------------------------------------------------------
 // Pipeline 接口：追踪所有字段赋值
 
 ArrayDetectErrorCode traceFieldAssignments (
@@ -611,7 +566,7 @@ ArrayDetectErrorCode traceFieldAssignments (
       AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info, source_info));
 
       if (source_info) {
-        copySourceDataToWrapper (wrapper, source_info);
+        traceFieldAssignments_copySourceDataToWrapper (wrapper, source_info);
         source_extracted_count++;
 
         // 调试输出

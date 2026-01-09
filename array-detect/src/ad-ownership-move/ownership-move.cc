@@ -5,7 +5,7 @@
 // 数据流：field-write-info, write-original-source -> ownership-move-result
 // ============================================================================
 
-#include "../../include/ad-ownership-move/ownership-move.hh"
+#include "ownership-move.hh"
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
 #include "info-print.hh"
@@ -16,11 +16,17 @@ namespace array_detect_ns {
 using namespace ::array_detector;
 
 // ============================================================================
-// analyzeOwnershipMove_isInvalidationStatement
+// 内部实现
 // ============================================================================
+
+namespace {
+
+// ----------------------------------------------------------------------------
+// analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement
+// ----------------------------------------------------------------------------
 // 判断语句是否为销毁语句
 
-ArrayDetectErrorCode analyzeOwnershipMove_isInvalidationStatement (
+ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement (
   AD_FUNC_ARGS,
   gimple* stmt,
   tree source_field,
@@ -107,9 +113,9 @@ ArrayDetectErrorCode analyzeOwnershipMove_isInvalidationStatement (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeOwnershipMove_findInvalidationPoints_searchBlock
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 递归搜索基本块中的销毁点
 
 ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
@@ -132,7 +138,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
     gimple* stmt = gsi_stmt (gsi);
 
     InvalidationKind kind;
-    AD_TRY (analyzeOwnershipMove_isInvalidationStatement (AD_ARGS, stmt, source_field, source_object, kind));
+    AD_TRY (analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement (AD_ARGS, stmt, source_field, source_object, kind));
 
     if (kind != INVALIDATION_NONE) {
       // 找到销毁点，记录
@@ -184,9 +190,9 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeOwnershipMove_findInvalidationPoints
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 查找从当前语句到函数出口的所有销毁点
 
 ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
@@ -217,12 +223,11 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// analyzeOwnershipMove_analyzePaths 辅助函数
-// ============================================================================
-
-namespace {
+// ----------------------------------------------------------------------------
+// analyzeOwnershipMove_analyzePaths_checkPathsImpl
+// ----------------------------------------------------------------------------
 // 检查从当前基本块到出口是否必然经过销毁点
+
 ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths_checkPathsImpl (
   AD_FUNC_ARGS,
   basic_block bb,
@@ -270,11 +275,10 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths_checkPathsImpl (
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-} // anonymous namespace
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeOwnershipMove_analyzePaths
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 分析从当前基本块到函数出口的路径
 
 ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
@@ -329,9 +333,9 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeOwnershipMove_determineVerdict
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 确定所有权转移结论
 
 ArrayDetectErrorCode analyzeOwnershipMove_determineVerdict (
@@ -362,9 +366,33 @@ ArrayDetectErrorCode analyzeOwnershipMove_determineVerdict (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
+// ----------------------------------------------------------------------------
+// analyzeAllOwnershipMoves_convertVerdict
+// ----------------------------------------------------------------------------
+// 转换判定类型
+
+field_analysis::FieldMoveVerdict analyzeAllOwnershipMoves_convertVerdict (OwnershipMoveVerdict verdict) {
+  switch (verdict) {
+    case MOVE_CERTAIN:
+      return field_analysis::FIELD_MOVE_CERTAIN;
+    case MOVE_IMPOSSIBLE:
+      return field_analysis::FIELD_MOVE_IMPOSSIBLE;
+    case MOVE_CONDITIONAL:
+      return field_analysis::FIELD_MOVE_CONDITIONAL;
+    default:
+      return field_analysis::FIELD_MOVE_NOT_APPLICABLE;
+  }
+}
+
+} // anonymous namespace
+
 // ============================================================================
+// 公开接口实现
+// ============================================================================
+
+// ----------------------------------------------------------------------------
 // analyzeOwnershipMove
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 主入口：分析单个字段写入的所有权转移
 
 ArrayDetectErrorCode analyzeOwnershipMove (
@@ -436,9 +464,9 @@ ArrayDetectErrorCode analyzeOwnershipMove (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeAllOwnershipMoves
-// ============================================================================
+// ----------------------------------------------------------------------------
 // Pipeline 接口：分析所有字段写入操作的所有权转移
 
 ArrayDetectErrorCode analyzeAllOwnershipMoves (
@@ -516,23 +544,8 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
           field_move->source_object = move_result->source_object;
           field_move->transfer_stmt = move_result->transfer_stmt;
           field_move->transfer_location = move_result->transfer_location;
-          // 转换销毁点（简化：不复制，标记为 NULL）
           field_move->invalidations = NULL;
-          // 转换判定
-          switch (move_result->verdict) {
-            case MOVE_CERTAIN:
-              field_move->verdict = field_analysis::FIELD_MOVE_CERTAIN;
-              break;
-            case MOVE_IMPOSSIBLE:
-              field_move->verdict = field_analysis::FIELD_MOVE_IMPOSSIBLE;
-              break;
-            case MOVE_CONDITIONAL:
-              field_move->verdict = field_analysis::FIELD_MOVE_CONDITIONAL;
-              break;
-            default:
-              field_move->verdict = field_analysis::FIELD_MOVE_NOT_APPLICABLE;
-              break;
-          }
+          field_move->verdict = analyzeAllOwnershipMoves_convertVerdict (move_result->verdict);
           field_move->paths_with = move_result->paths_with_invalidation;
           field_move->paths_without = move_result->paths_without_invalidation;
           field_move->total_paths = move_result->total_exit_paths;
@@ -556,9 +569,9 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // printOwnershipMoveResult
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 打印所有权转移结果
 
 void printOwnershipMoveResult (

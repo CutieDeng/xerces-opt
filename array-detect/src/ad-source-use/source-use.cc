@@ -5,7 +5,7 @@
 // 数据流：source_operand -> SourceUseResult
 // ============================================================================
 
-#include "../../include/ad-source-use/source-use.hh"
+#include "source-use.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "field-analysis.hh"
@@ -23,48 +23,17 @@ namespace array_detect_ns {
 using namespace ::array_detector;
 
 // ============================================================================
-// 辅助函数：字符串转换
+// 内部实现
 // ============================================================================
 
-char const * getEscapeKindString (SourceUseEscapeKind kind) {
-  switch (kind) {
-    case SU_ESCAPE_NONE:          return "NONE";
-    case SU_ESCAPE_RETURN:        return "RETURN";
-    case SU_ESCAPE_PARAMETER:     return "PARAMETER";
-    case SU_ESCAPE_GLOBAL_STORE:  return "GLOBAL_STORE";
-    case SU_ESCAPE_HEAP_STORE:    return "HEAP_STORE";
-    case SU_ESCAPE_FIELD_STORE:   return "FIELD_STORE";
-    case SU_ESCAPE_INDIRECT_CALL: return "INDIRECT_CALL";
-    case SU_ESCAPE_VIRTUAL_CALL:  return "VIRTUAL_CALL";
-    case SU_ESCAPE_EXTERNAL_CALL: return "EXTERNAL_CALL";
-    case SU_ESCAPE_UNKNOWN:       return "UNKNOWN";
-    default:                      return "<invalid>";
-  }
-}
+namespace {
 
-char const * getUseKindString (SourceUseKind kind) {
-  switch (kind) {
-    case SU_USE_LOAD:         return "LOAD";
-    case SU_USE_STORE:        return "STORE";
-    case SU_USE_CALL_ARG:     return "CALL_ARG";
-    case SU_USE_RETURN:       return "RETURN";
-    case SU_USE_PHI:          return "PHI";
-    case SU_USE_ASSIGN:       return "ASSIGN";
-    case SU_USE_ARITHMETIC:   return "ARITHMETIC";
-    case SU_USE_COMPARISON:   return "COMPARISON";
-    case SU_USE_ADDRESS_TAKEN: return "ADDRESS_TAKEN";
-    case SU_USE_CONDITIONAL:  return "CONDITIONAL";
-    case SU_USE_OTHER:        return "OTHER";
-    default:                  return "<invalid>";
-  }
-}
-
-// ============================================================================
-// analyzeSourceUse_classifyUseKind
-// ============================================================================
+// ----------------------------------------------------------------------------
+// analyzeSourceUse_traceSSAUseChain_classifyUseKind
+// ----------------------------------------------------------------------------
 // 分类 SSA 使用类型
 
-ArrayDetectErrorCode analyzeSourceUse_classifyUseKind (
+ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_classifyUseKind (
   AD_FUNC_ARGS,
   gimple * use_stmt,
   tree ssa_name,
@@ -130,12 +99,12 @@ ArrayDetectErrorCode analyzeSourceUse_classifyUseKind (
   AD_RETURNO (SU_USE_OTHER);
 } AD_FUNCTION_END
 
-// ============================================================================
-// analyzeSourceUse_isFunctionExternal
-// ============================================================================
+// ----------------------------------------------------------------------------
+// analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal
+// ----------------------------------------------------------------------------
 // 判断函数是否为外部函数
 
-ArrayDetectErrorCode analyzeSourceUse_isFunctionExternal (
+ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal (
   AD_FUNC_ARGS,
   tree function_decl,
   bool & result
@@ -152,12 +121,12 @@ ArrayDetectErrorCode analyzeSourceUse_isFunctionExternal (
   AD_RETURNO (false);
 } AD_FUNCTION_END
 
-// ============================================================================
-// analyzeSourceUse_detectEscapeKind
-// ============================================================================
+// ----------------------------------------------------------------------------
+// analyzeSourceUse_traceSSAUseChain_detectEscapeKind
+// ----------------------------------------------------------------------------
 // 检测逃逸类型
 
-ArrayDetectErrorCode analyzeSourceUse_detectEscapeKind (
+ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind (
   AD_FUNC_ARGS,
   SourceUseInfo const & use_info,
   SourceUseEscapeKind & result
@@ -186,7 +155,7 @@ ArrayDetectErrorCode analyzeSourceUse_detectEscapeKind (
 
       tree fn_decl = TREE_OPERAND (fn, 0);
       bool is_external = false;
-      AD_TRY (analyzeSourceUse_isFunctionExternal (AD_ARGS, fn_decl, is_external));
+      AD_TRY (analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal (AD_ARGS, fn_decl, is_external));
 
       if (is_external) {
         AD_RETURNO (SU_ESCAPE_EXTERNAL_CALL);
@@ -222,12 +191,12 @@ ArrayDetectErrorCode analyzeSourceUse_detectEscapeKind (
   AD_RETURNO (SU_ESCAPE_NONE);
 } AD_FUNCTION_END
 
-// ============================================================================
-// analyzeSourceUse_recordUsePoint
-// ============================================================================
+// ----------------------------------------------------------------------------
+// analyzeSourceUse_traceSSAUseChain_recordUsePoint
+// ----------------------------------------------------------------------------
 // 记录使用点
 
-ArrayDetectErrorCode analyzeSourceUse_recordUsePoint (
+ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   AD_FUNC_ARGS,
   gimple * use_stmt,
   tree use_operand,
@@ -262,9 +231,9 @@ ArrayDetectErrorCode analyzeSourceUse_recordUsePoint (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 递归追踪 SSA 使用链
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
@@ -298,7 +267,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
 
       // 分类使用类型
       SourceUseKind use_kind = SU_USE_OTHER;
-      AD_TRY (analyzeSourceUse_classifyUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
+      AD_TRY (analyzeSourceUse_traceSSAUseChain_classifyUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
 
       // 创建初始 use_info 用于逃逸检测
       SourceUseInfo temp_info;
@@ -313,7 +282,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
 
       // 检测逃逸类型
       SourceUseEscapeKind escape_kind = SU_ESCAPE_NONE;
-      AD_TRY (analyzeSourceUse_detectEscapeKind (AD_ARGS, temp_info, escape_kind));
+      AD_TRY (analyzeSourceUse_traceSSAUseChain_detectEscapeKind (AD_ARGS, temp_info, escape_kind));
 
       // 确定逃逸目标
       char const * escape_target = NULL;
@@ -352,7 +321,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
       }
 
       // 记录使用点
-      AD_TRY (analyzeSourceUse_recordUsePoint (
+      AD_TRY (analyzeSourceUse_traceSSAUseChain_recordUsePoint (
         AD_ARGS, use_stmt, ssa_name, use_kind, escape_kind,
         escape_target, target_info, result
       ));
@@ -372,9 +341,146 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
+// ----------------------------------------------------------------------------
+// collectAllFieldEscapes_convertEscapeKind
+// ----------------------------------------------------------------------------
+// 类型转换辅助函数
+
+field_analysis::FieldEscapeKind collectAllFieldEscapes_convertEscapeKind (SourceUseEscapeKind kind) {
+  switch (kind) {
+    case SU_ESCAPE_NONE:          return field_analysis::FIELD_ESC_NONE;
+    case SU_ESCAPE_RETURN:        return field_analysis::FIELD_ESC_RETURN;
+    case SU_ESCAPE_PARAMETER:     return field_analysis::FIELD_ESC_PARAMETER;
+    case SU_ESCAPE_GLOBAL_STORE:  return field_analysis::FIELD_ESC_GLOBAL;
+    case SU_ESCAPE_HEAP_STORE:    return field_analysis::FIELD_ESC_HEAP;
+    case SU_ESCAPE_FIELD_STORE:   return field_analysis::FIELD_ESC_FIELD;
+    case SU_ESCAPE_INDIRECT_CALL: return field_analysis::FIELD_ESC_INDIRECT_CALL;
+    case SU_ESCAPE_VIRTUAL_CALL:  return field_analysis::FIELD_ESC_VIRTUAL_CALL;
+    case SU_ESCAPE_EXTERNAL_CALL: return field_analysis::FIELD_ESC_EXTERNAL_CALL;
+    case SU_ESCAPE_UNKNOWN:       return field_analysis::FIELD_ESC_UNKNOWN;
+    default:                      return field_analysis::FIELD_ESC_UNKNOWN;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// collectAllFieldEscapes_convertUseKind
+// ----------------------------------------------------------------------------
+
+field_analysis::FieldUseKind collectAllFieldEscapes_convertUseKind (SourceUseKind kind) {
+  switch (kind) {
+    case SU_USE_LOAD:         return field_analysis::FIELD_USE_LOAD;
+    case SU_USE_STORE:        return field_analysis::FIELD_USE_STORE;
+    case SU_USE_CALL_ARG:     return field_analysis::FIELD_USE_CALL_ARG;
+    case SU_USE_RETURN:       return field_analysis::FIELD_USE_RETURN;
+    case SU_USE_PHI:          return field_analysis::FIELD_USE_PHI;
+    case SU_USE_ASSIGN:       return field_analysis::FIELD_USE_ASSIGN;
+    case SU_USE_ARITHMETIC:   return field_analysis::FIELD_USE_ARITHMETIC;
+    case SU_USE_COMPARISON:   return field_analysis::FIELD_USE_COMPARISON;
+    case SU_USE_ADDRESS_TAKEN: return field_analysis::FIELD_USE_ADDRESS;
+    case SU_USE_CONDITIONAL:  return field_analysis::FIELD_USE_CONDITIONAL;
+    case SU_USE_OTHER:        return field_analysis::FIELD_USE_OTHER;
+    default:                  return field_analysis::FIELD_USE_OTHER;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// collectAllFieldEscapes_copyUseResultToWrapper
+// ----------------------------------------------------------------------------
+// 将 SourceUseResult 数据复制到 Wrapper 的 UseAnalysis 部分
+
+void collectAllFieldEscapes_copyUseResultToWrapper (
+  FieldWriteAnalysisWrapper *wrapper,
+  SourceUseAnalysisResult const *use_result
+) {
+  if (!wrapper || !use_result) return;
+
+  wrapper->source_operand = use_result->source_operand;
+  wrapper->source_stmt = use_result->source_stmt;
+  wrapper->total_use_count = use_result->total_use_count;
+  wrapper->max_use_depth = use_result->max_use_depth;
+  wrapper->is_fully_analyzed = use_result->is_fully_analyzed;
+  wrapper->escape_count = use_result->escape_count;
+  wrapper->has_escape = use_result->has_escape;
+
+  // 转换并复制 all_uses
+  if (use_result->all_uses && use_result->all_uses->length () > 0) {
+    wrapper->all_uses = ggc_alloc<vec<field_analysis::FieldUsePoint>> ();
+    wrapper->all_uses->create (use_result->all_uses->length ());
+
+    // 同时创建 escape_uses 列表
+    wrapper->escape_uses = ggc_alloc<vec<field_analysis::FieldUsePoint const*>> ();
+    wrapper->escape_uses->create (0);
+
+    for (unsigned i = 0; i < use_result->all_uses->length (); i++) {
+      SourceUseInfo const &src = (*use_result->all_uses)[i];
+      field_analysis::FieldUsePoint fp;
+      fp.kind = collectAllFieldEscapes_convertUseKind (src.kind);
+      fp.stmt = src.use_stmt;
+      fp.operand = src.use_operand;
+      fp.location = src.source_location;
+      fp.bb_index = src.bb_index;
+      fp.escape_kind = collectAllFieldEscapes_convertEscapeKind (src.escape_kind);
+      fp.escape_target = src.escape_target;
+      wrapper->all_uses->safe_push (fp);
+
+      // 如果是逃逸使用，添加到 escape_uses
+      if (src.is_escape ()) {
+        wrapper->escape_uses->safe_push (&(*wrapper->all_uses)[wrapper->all_uses->length () - 1]);
+      }
+    }
+  }
+}
+
+} // anonymous namespace
+
 // ============================================================================
+// 公开接口实现
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// getEscapeKindString
+// ----------------------------------------------------------------------------
+
+char const * getEscapeKindString (SourceUseEscapeKind kind) {
+  switch (kind) {
+    case SU_ESCAPE_NONE:          return "NONE";
+    case SU_ESCAPE_RETURN:        return "RETURN";
+    case SU_ESCAPE_PARAMETER:     return "PARAMETER";
+    case SU_ESCAPE_GLOBAL_STORE:  return "GLOBAL_STORE";
+    case SU_ESCAPE_HEAP_STORE:    return "HEAP_STORE";
+    case SU_ESCAPE_FIELD_STORE:   return "FIELD_STORE";
+    case SU_ESCAPE_INDIRECT_CALL: return "INDIRECT_CALL";
+    case SU_ESCAPE_VIRTUAL_CALL:  return "VIRTUAL_CALL";
+    case SU_ESCAPE_EXTERNAL_CALL: return "EXTERNAL_CALL";
+    case SU_ESCAPE_UNKNOWN:       return "UNKNOWN";
+    default:                      return "<invalid>";
+  }
+}
+
+// ----------------------------------------------------------------------------
+// getUseKindString
+// ----------------------------------------------------------------------------
+
+char const * getUseKindString (SourceUseKind kind) {
+  switch (kind) {
+    case SU_USE_LOAD:         return "LOAD";
+    case SU_USE_STORE:        return "STORE";
+    case SU_USE_CALL_ARG:     return "CALL_ARG";
+    case SU_USE_RETURN:       return "RETURN";
+    case SU_USE_PHI:          return "PHI";
+    case SU_USE_ASSIGN:       return "ASSIGN";
+    case SU_USE_ARITHMETIC:   return "ARITHMETIC";
+    case SU_USE_COMPARISON:   return "COMPARISON";
+    case SU_USE_ADDRESS_TAKEN: return "ADDRESS_TAKEN";
+    case SU_USE_CONDITIONAL:  return "CONDITIONAL";
+    case SU_USE_OTHER:        return "OTHER";
+    default:                  return "<invalid>";
+  }
+}
+
+// ----------------------------------------------------------------------------
 // analyzeSourceUse
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 主入口：分析源操作数的所有使用
 
 ArrayDetectErrorCode analyzeSourceUse (
@@ -417,9 +523,9 @@ ArrayDetectErrorCode analyzeSourceUse (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // collectFieldWriteEscapes
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 从字段写入中收集源使用信息
 
 ArrayDetectErrorCode collectFieldWriteEscapes (
@@ -450,90 +556,9 @@ ArrayDetectErrorCode collectFieldWriteEscapes (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// 辅助函数：类型转换
-// ============================================================================
-
-static field_analysis::FieldEscapeKind convertEscapeKind (SourceUseEscapeKind kind) {
-  switch (kind) {
-    case SU_ESCAPE_NONE:          return field_analysis::FIELD_ESC_NONE;
-    case SU_ESCAPE_RETURN:        return field_analysis::FIELD_ESC_RETURN;
-    case SU_ESCAPE_PARAMETER:     return field_analysis::FIELD_ESC_PARAMETER;
-    case SU_ESCAPE_GLOBAL_STORE:  return field_analysis::FIELD_ESC_GLOBAL;
-    case SU_ESCAPE_HEAP_STORE:    return field_analysis::FIELD_ESC_HEAP;
-    case SU_ESCAPE_FIELD_STORE:   return field_analysis::FIELD_ESC_FIELD;
-    case SU_ESCAPE_INDIRECT_CALL: return field_analysis::FIELD_ESC_INDIRECT_CALL;
-    case SU_ESCAPE_VIRTUAL_CALL:  return field_analysis::FIELD_ESC_VIRTUAL_CALL;
-    case SU_ESCAPE_EXTERNAL_CALL: return field_analysis::FIELD_ESC_EXTERNAL_CALL;
-    case SU_ESCAPE_UNKNOWN:       return field_analysis::FIELD_ESC_UNKNOWN;
-    default:                      return field_analysis::FIELD_ESC_UNKNOWN;
-  }
-}
-
-static field_analysis::FieldUseKind convertUseKind (SourceUseKind kind) {
-  switch (kind) {
-    case SU_USE_LOAD:         return field_analysis::FIELD_USE_LOAD;
-    case SU_USE_STORE:        return field_analysis::FIELD_USE_STORE;
-    case SU_USE_CALL_ARG:     return field_analysis::FIELD_USE_CALL_ARG;
-    case SU_USE_RETURN:       return field_analysis::FIELD_USE_RETURN;
-    case SU_USE_PHI:          return field_analysis::FIELD_USE_PHI;
-    case SU_USE_ASSIGN:       return field_analysis::FIELD_USE_ASSIGN;
-    case SU_USE_ARITHMETIC:   return field_analysis::FIELD_USE_ARITHMETIC;
-    case SU_USE_COMPARISON:   return field_analysis::FIELD_USE_COMPARISON;
-    case SU_USE_ADDRESS_TAKEN: return field_analysis::FIELD_USE_ADDRESS;
-    case SU_USE_CONDITIONAL:  return field_analysis::FIELD_USE_CONDITIONAL;
-    case SU_USE_OTHER:        return field_analysis::FIELD_USE_OTHER;
-    default:                  return field_analysis::FIELD_USE_OTHER;
-  }
-}
-
-// 辅助函数：将 SourceUseResult 数据复制到 Wrapper 的 UseAnalysis 部分
-static void copyUseResultToWrapper (
-  FieldWriteAnalysisWrapper *wrapper,
-  SourceUseAnalysisResult const *use_result
-) {
-  if (!wrapper || !use_result) return;
-
-  wrapper->source_operand = use_result->source_operand;
-  wrapper->source_stmt = use_result->source_stmt;
-  wrapper->total_use_count = use_result->total_use_count;
-  wrapper->max_use_depth = use_result->max_use_depth;
-  wrapper->is_fully_analyzed = use_result->is_fully_analyzed;
-  wrapper->escape_count = use_result->escape_count;
-  wrapper->has_escape = use_result->has_escape;
-
-  // 转换并复制 all_uses
-  if (use_result->all_uses && use_result->all_uses->length () > 0) {
-    wrapper->all_uses = ggc_alloc<vec<field_analysis::FieldUsePoint>> ();
-    wrapper->all_uses->create (use_result->all_uses->length ());
-
-    // 同时创建 escape_uses 列表
-    wrapper->escape_uses = ggc_alloc<vec<field_analysis::FieldUsePoint const*>> ();
-    wrapper->escape_uses->create (0);
-
-    for (unsigned i = 0; i < use_result->all_uses->length (); i++) {
-      SourceUseInfo const &src = (*use_result->all_uses)[i];
-      field_analysis::FieldUsePoint fp;
-      fp.kind = convertUseKind (src.kind);
-      fp.stmt = src.use_stmt;
-      fp.operand = src.use_operand;
-      fp.location = src.source_location;
-      fp.bb_index = src.bb_index;
-      fp.escape_kind = convertEscapeKind (src.escape_kind);
-      fp.escape_target = src.escape_target;
-      wrapper->all_uses->safe_push (fp);
-
-      // 如果是逃逸使用，添加到 escape_uses
-      if (src.is_escape ()) {
-        wrapper->escape_uses->safe_push (&(*wrapper->all_uses)[wrapper->all_uses->length () - 1]);
-      }
-    }
-  }
-}
-
-// ============================================================================
+// ----------------------------------------------------------------------------
 // collectAllFieldEscapes
-// ============================================================================
+// ----------------------------------------------------------------------------
 // Pipeline 接口：收集所有字段的逃逸信息
 
 ArrayDetectErrorCode collectAllFieldEscapes (
@@ -576,10 +601,10 @@ ArrayDetectErrorCode collectAllFieldEscapes (
         }
 
         // 将 use_result 数据复制到 wrapper 的 FieldUseAnalysis 部分
-        copyUseResultToWrapper (wrapper, use_result);
+        collectAllFieldEscapes_copyUseResultToWrapper (wrapper, use_result);
 
         // 输出所有收集到的 escape 信息
-        printSourceUseAnalysisResult (use_result, ctx.debug_file);
+        printSourceUseResult (use_result, ctx.debug_file);
       }
     }
   }
@@ -587,9 +612,10 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
+// ----------------------------------------------------------------------------
+// printSourceUseResult
+// ----------------------------------------------------------------------------
 // 调试输出
-// ============================================================================
 
 void printSourceUseResult (
   SourceUseResult const * result,

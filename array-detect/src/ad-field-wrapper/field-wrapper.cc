@@ -5,13 +5,13 @@
 // 数据流：各分析阶段结果 -> FieldWriteAnalysisWrapper
 // ============================================================================
 
-#include "../../include/ad-field-wrapper/field-wrapper.hh"
-#include "../../include/ad-field-write/field-write.hh"
-#include "../../include/ad-write-source/write-source.hh"
-#include "../../include/ad-source-use/source-use.hh"
-#include "../../include/ad-escaped-use/escaped-use.hh"
-#include "../../include/ad-source-escape/source-escape.hh"
-#include "../../include/ad-ownership-move/ownership-move.hh"
+#include "field-wrapper.hh"
+#include "field-write.hh"
+#include "write-source.hh"
+#include "source-use.hh"
+#include "escaped-use.hh"
+#include "source-escape.hh"
+#include "ownership-move.hh"
 
 namespace array_detect_ns {
 
@@ -19,8 +19,63 @@ using namespace ::array_detector;
 using namespace ::field_analysis;
 
 // ============================================================================
-// createFieldWriteWrapper
+// 内部实现
 // ============================================================================
+
+namespace {
+
+// ----------------------------------------------------------------------------
+// fillWrapperUseAnalysis_convertEscapeKind
+// ----------------------------------------------------------------------------
+// 转换逃逸类型
+
+FieldEscapeKind fillWrapperUseAnalysis_convertEscapeKind (SourceUseEscapeKind kind) {
+  switch (kind) {
+    case SU_ESCAPE_NONE:          return FIELD_ESC_NONE;
+    case SU_ESCAPE_RETURN:        return FIELD_ESC_RETURN;
+    case SU_ESCAPE_PARAMETER:     return FIELD_ESC_PARAMETER;
+    case SU_ESCAPE_GLOBAL_STORE:  return FIELD_ESC_GLOBAL;
+    case SU_ESCAPE_HEAP_STORE:    return FIELD_ESC_HEAP;
+    case SU_ESCAPE_FIELD_STORE:   return FIELD_ESC_FIELD;
+    case SU_ESCAPE_INDIRECT_CALL: return FIELD_ESC_INDIRECT_CALL;
+    case SU_ESCAPE_VIRTUAL_CALL:  return FIELD_ESC_VIRTUAL_CALL;
+    case SU_ESCAPE_EXTERNAL_CALL: return FIELD_ESC_EXTERNAL_CALL;
+    case SU_ESCAPE_UNKNOWN:       return FIELD_ESC_UNKNOWN;
+    default:                      return FIELD_ESC_UNKNOWN;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// fillWrapperUseAnalysis_convertUseKind
+// ----------------------------------------------------------------------------
+// 转换使用类型
+
+FieldUseKind fillWrapperUseAnalysis_convertUseKind (SourceUseKind kind) {
+  switch (kind) {
+    case SU_USE_LOAD:         return FIELD_USE_LOAD;
+    case SU_USE_STORE:        return FIELD_USE_STORE;
+    case SU_USE_CALL_ARG:     return FIELD_USE_CALL_ARG;
+    case SU_USE_RETURN:       return FIELD_USE_RETURN;
+    case SU_USE_PHI:          return FIELD_USE_PHI;
+    case SU_USE_ASSIGN:       return FIELD_USE_ASSIGN;
+    case SU_USE_ARITHMETIC:   return FIELD_USE_ARITHMETIC;
+    case SU_USE_COMPARISON:   return FIELD_USE_COMPARISON;
+    case SU_USE_ADDRESS_TAKEN: return FIELD_USE_ADDRESS;
+    case SU_USE_CONDITIONAL:  return FIELD_USE_CONDITIONAL;
+    case SU_USE_OTHER:        return FIELD_USE_OTHER;
+    default:                  return FIELD_USE_OTHER;
+  }
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// 公开接口实现
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// createFieldWriteWrapper
+// ----------------------------------------------------------------------------
 // 创建并初始化空的 Wrapper
 
 ArrayDetectErrorCode createFieldWriteWrapper (
@@ -154,46 +209,9 @@ ArrayDetectErrorCode fillWrapperSource (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ============================================================================
-// 辅助函数：类型转换
-// ============================================================================
-
-static FieldEscapeKind convertEscapeKind (SourceUseEscapeKind kind) {
-  switch (kind) {
-    case SU_ESCAPE_NONE:          return FIELD_ESC_NONE;
-    case SU_ESCAPE_RETURN:        return FIELD_ESC_RETURN;
-    case SU_ESCAPE_PARAMETER:     return FIELD_ESC_PARAMETER;
-    case SU_ESCAPE_GLOBAL_STORE:  return FIELD_ESC_GLOBAL;
-    case SU_ESCAPE_HEAP_STORE:    return FIELD_ESC_HEAP;
-    case SU_ESCAPE_FIELD_STORE:   return FIELD_ESC_FIELD;
-    case SU_ESCAPE_INDIRECT_CALL: return FIELD_ESC_INDIRECT_CALL;
-    case SU_ESCAPE_VIRTUAL_CALL:  return FIELD_ESC_VIRTUAL_CALL;
-    case SU_ESCAPE_EXTERNAL_CALL: return FIELD_ESC_EXTERNAL_CALL;
-    case SU_ESCAPE_UNKNOWN:       return FIELD_ESC_UNKNOWN;
-    default:                      return FIELD_ESC_UNKNOWN;
-  }
-}
-
-static FieldUseKind convertUseKind (SourceUseKind kind) {
-  switch (kind) {
-    case SU_USE_LOAD:         return FIELD_USE_LOAD;
-    case SU_USE_STORE:        return FIELD_USE_STORE;
-    case SU_USE_CALL_ARG:     return FIELD_USE_CALL_ARG;
-    case SU_USE_RETURN:       return FIELD_USE_RETURN;
-    case SU_USE_PHI:          return FIELD_USE_PHI;
-    case SU_USE_ASSIGN:       return FIELD_USE_ASSIGN;
-    case SU_USE_ARITHMETIC:   return FIELD_USE_ARITHMETIC;
-    case SU_USE_COMPARISON:   return FIELD_USE_COMPARISON;
-    case SU_USE_ADDRESS_TAKEN: return FIELD_USE_ADDRESS;
-    case SU_USE_CONDITIONAL:  return FIELD_USE_CONDITIONAL;
-    case SU_USE_OTHER:        return FIELD_USE_OTHER;
-    default:                  return FIELD_USE_OTHER;
-  }
-}
-
-// ============================================================================
+// ----------------------------------------------------------------------------
 // fillWrapperUseAnalysis
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 填充使用分析部分
 
 ArrayDetectErrorCode fillWrapperUseAnalysis (
@@ -237,12 +255,12 @@ ArrayDetectErrorCode fillWrapperUseAnalysis (
     for (unsigned i = 0; i < use_result->all_uses->length (); i++) {
       SourceUseInfo const& src = (*use_result->all_uses)[i];
       FieldUsePoint fp;
-      fp.kind = convertUseKind (src.kind);
+      fp.kind = fillWrapperUseAnalysis_convertUseKind (src.kind);
       fp.stmt = src.use_stmt;
       fp.operand = src.use_operand;
       fp.location = src.source_location;
       fp.bb_index = src.bb_index;
-      fp.escape_kind = convertEscapeKind (src.escape_kind);
+      fp.escape_kind = fillWrapperUseAnalysis_convertEscapeKind (src.escape_kind);
       fp.escape_target = src.escape_target;
       wrapper->all_uses->safe_push (fp);
 

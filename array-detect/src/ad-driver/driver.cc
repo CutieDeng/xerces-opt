@@ -6,8 +6,8 @@
 // 调用各子分析模块：write-source, source-use, escaped-use, source-escape, ownership-move
 // ============================================================================
 
-#include "../../include/ad-driver/driver.hh"
-#include "../../include/ad-field-wrapper/field-wrapper.hh"
+#include "driver.hh"
+#include "field-wrapper.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 

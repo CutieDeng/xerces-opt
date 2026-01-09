@@ -7,8 +7,43 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 字段逃逸结论汇总：TypeFieldAnalysisData -> FieldEscapeConclude
+// 内部实现
 // ============================================================================
+
+namespace {
+
+// ----------------------------------------------------------------------------
+// synthesizeAllFieldEscapes_isFieldUsePointSafeDebugEscape
+// ----------------------------------------------------------------------------
+// 判断 FieldUsePoint 是否为安全调试逃逸
+
+bool synthesizeAllFieldEscapes_isFieldUsePointSafeDebugEscape (
+  AD_FUNC_ARGS,
+  field_analysis::FieldUsePoint const * use_point
+) {
+  if (!use_point || use_point->escape_kind == field_analysis::FIELD_ESC_NONE) {
+    return false;
+  }
+
+  // 只有参数传递和外部调用可能是调试调用
+  if (use_point->escape_kind != field_analysis::FIELD_ESC_PARAMETER &&
+      use_point->escape_kind != field_analysis::FIELD_ESC_EXTERNAL_CALL) {
+    return false;
+  }
+
+  return isKnownSafeDebugFunction (AD_ARGS, use_point->escape_target);
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// 公开接口实现
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// summarizeFieldEscape
+// ----------------------------------------------------------------------------
+// 字段逃逸结论汇总：TypeFieldAnalysisData -> FieldEscapeConclude
 
 ArrayDetectErrorCode summarizeFieldEscape (
   AD_FUNC_ARGS,
@@ -94,30 +129,10 @@ ArrayDetectErrorCode summarizeFieldEscape (
   AD_RETURNO (summary);
 } AD_FUNCTION_END
 
-// ============================================================================
-// 辅助函数：判断 FieldUsePoint 是否为安全调试逃逸
-// ============================================================================
-
-static bool isFieldUsePointSafeDebugEscape (
-  AD_FUNC_ARGS,
-  field_analysis::FieldUsePoint const * use_point
-) {
-  if (!use_point || use_point->escape_kind == field_analysis::FIELD_ESC_NONE) {
-    return false;
-  }
-
-  // 只有参数传递和外部调用可能是调试调用
-  if (use_point->escape_kind != field_analysis::FIELD_ESC_PARAMETER &&
-      use_point->escape_kind != field_analysis::FIELD_ESC_EXTERNAL_CALL) {
-    return false;
-  }
-
-  return isKnownSafeDebugFunction (AD_ARGS, use_point->escape_target);
-}
-
-// ============================================================================
+// ----------------------------------------------------------------------------
+// synthesizeAllFieldEscapes
+// ----------------------------------------------------------------------------
 // 组合接口：综合所有字段的逃逸信息
-// ============================================================================
 
 ArrayDetectErrorCode synthesizeAllFieldEscapes (
   AD_FUNC_ARGS,
@@ -170,7 +185,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       if (wrapper->escape_uses) {
         for (unsigned j = 0; j < wrapper->escape_uses->length (); j++) {
           field_analysis::FieldUsePoint const * escape_use = (*wrapper->escape_uses)[j];
-          if (isFieldUsePointSafeDebugEscape (AD_ARGS, escape_use)) {
+          if (synthesizeAllFieldEscapes_isFieldUsePointSafeDebugEscape (AD_ARGS, escape_use)) {
             safe_debug_count++;
           } else {
             rejecting_count++;

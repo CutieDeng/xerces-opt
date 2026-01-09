@@ -15,8 +15,7 @@
 // - owned-verdict, capacity-assoc, array-access, bound-condition, result-aggregator
 // ============================================================================
 
-// 使用相对路径确保包含正确的头文件
-#include "../../include/ad-pipeline/pipeline.hh"
+#include "pipeline.hh"
 #include "field-write-collector.hh"
 #include "write-operation-trace.hh"
 #include "source-escape-collection.hh"
@@ -30,13 +29,18 @@ namespace array_detect_ns {
 using namespace ::array_detector;
 
 // ============================================================================
-// 全局 Pipeline 状态
+// 公开接口实现
 // ============================================================================
 
+// 全局 Pipeline 状态（模块内部使用）
 static PipelineState g_pipeline_state = {
   PHASE_COLLECT_WRITES,
   0, 0, 0, 0, 0
 };
+
+// ----------------------------------------------------------------------------
+// getPipelineState
+// ----------------------------------------------------------------------------
 
 PipelineState* getPipelineState (AD_FUNC_ARGS) {
   (void)ctx; (void)gcc_ctx;

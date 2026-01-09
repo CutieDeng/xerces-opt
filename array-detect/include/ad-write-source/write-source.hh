@@ -169,7 +169,7 @@ typedef WriteOriginalSource FieldSourceInfo;
 } // namespace array_detector
 
 // ============================================================================
-// 追踪函数声明
+// 公开接口声明
 // ============================================================================
 // 数据流：FieldWriteInfo -> WriteOriginalSource
 
@@ -183,101 +183,6 @@ ArrayDetectErrorCode traceWriteSource (
   AD_FUNC_ARGS,
   ArrayDetector& detector,
   FieldWriteInfo* write_info,
-  WriteOriginalSource*& result
-);
-
-// 子函数：约减平凡赋值
-// 追踪 SSA 使用-定义链，跳过简单的赋值（NOP_EXPR, CONVERT_EXPR 等）
-ArrayDetectErrorCode traceWriteSource_reduceTrivialMoves (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree value,
-  tree function,
-  basic_block bb,
-  tree& final_value,
-  gimple*& final_stmt,
-  bool& is_phi
-);
-
-// 子函数：从最终值提取来源
-ArrayDetectErrorCode traceWriteSource_extractSource (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree final_value,
-  gimple* final_stmt,
-  gimple* original_stmt,
-  location_t location,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从函数调用提取来源
-ArrayDetectErrorCode traceWriteSource_extractFromCall (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  gimple* call_stmt,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从常量提取来源
-ArrayDetectErrorCode traceWriteSource_extractFromConstant (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree constant_value,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从字段访问提取来源
-ArrayDetectErrorCode traceWriteSource_extractFromFieldAccess (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree field_ref,
-  gimple* final_stmt,
-  gimple* original_stmt,
-  location_t location,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从计算表达式提取来源
-ArrayDetectErrorCode traceWriteSource_extractFromComputation (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree expr,
-  gimple* final_stmt,
-  gimple* original_stmt,
-  location_t location,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从 PHI 节点提取来源
-ArrayDetectErrorCode traceWriteSource_extractFromPhi (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  gimple* phi_stmt,
-  tree ssa_name,
-  location_t location,
-  tree function,
-  basic_block bb,
-  WriteOriginalSource*& result
-);
-
-// 子函数：从未知来源提取
-ArrayDetectErrorCode traceWriteSource_extractFromUnknown (
-  AD_FUNC_ARGS,
-  ArrayDetector& detector,
-  tree value,
-  location_t location,
-  tree function,
-  basic_block bb,
   WriteOriginalSource*& result
 );
 

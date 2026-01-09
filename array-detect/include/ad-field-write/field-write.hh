@@ -174,51 +174,26 @@ namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
 
-// 主入口：收集所有字段写入
-// 遍历编译单元中的所有函数，收集字段写入操作
+// ============================================================================
+// 公开接口
+// ============================================================================
+
+// 主入口：收集编译单元中所有字段写入操作
+// 语义：whole-program -> (mapof (type, field) (listof wrapper))
+// 结果存入 detector.m_type_field_writes
 ArrayDetectErrorCode collectAllFieldWrites (
   AD_FUNC_ARGS,
   ArrayDetector& detector
 );
 
-// 子函数：扫描单个函数
-ArrayDetectErrorCode collectAllFieldWrites_scanFunction (
-  AD_FUNC_ARGS,
-  struct cgraph_node* node,
-  ArrayDetector& detector,
-  unsigned int& write_count
-);
-
-// 子函数：扫描基本块
-ArrayDetectErrorCode collectAllFieldWrites_scanBasicBlock (
-  AD_FUNC_ARGS,
-  basic_block bb,
-  tree func_decl,
-  ArrayDetector& detector,
-  unsigned int& write_count
-);
-
-// 子函数：检查语句是否为字段写入
-// 返回 OK 并设置 result 为 FieldWriteInfo 指针，如果不是字段写入则 result 为 NULL
+// 检查语句是否为字段写入
+// 若是则返回 FieldWriteInfo，否则 result 为 NULL
 ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
   AD_FUNC_ARGS,
   gimple* stmt,
   basic_block bb,
   tree func_decl,
   FieldWriteInfo*& result
-);
-
-// 子函数：创建 FieldWriteInfo 并添加到 detector
-ArrayDetectErrorCode collectAllFieldWrites_createWriteInfo (
-  AD_FUNC_ARGS,
-  gimple* stmt,
-  tree lhs,
-  tree rhs,
-  tree field_decl,
-  tree containing_type,
-  basic_block bb,
-  tree func_decl,
-  ArrayDetector& detector
 );
 
 } // namespace array_detect_ns
