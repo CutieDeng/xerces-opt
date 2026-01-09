@@ -173,7 +173,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock (
     gimple* stmt = gsi_stmt (gsi);
 
     FieldWriteInfo* write_info = NULL;
-    AD_TRY (collectAllFieldWrites_checkStatement (AD_ARGS, stmt, bb, func_decl, write_info));
+    AD_TRY (collectAllFieldWrites_scanFunction_scanBasicBlock_checkStatement (AD_ARGS, stmt, bb, func_decl, write_info));
 
     if (write_info) {
       AD_TRY (collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper (
@@ -204,13 +204,20 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction (
   hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* map,
   unsigned int& write_count
 ) AD_FUNCTION_BEGIN {
+  // 跳过内联克隆：其代码已复制到目标函数，扫描会导致重复收集。
+  // 依据：gcc/cgraph.h:1443 "For inline clones this points to the function they will be inlined into."
   if (node->inlined_to) {
     AD_RETURNE (OK);
   }
+
+  // 跳过无 GIMPLE 体的函数：外部声明、thunk 等没有 GIMPLE 表示，无语句可分析。
+  // 依据：gcc/cgraph.h:1309 "Functions can also be define externally or they can be thunks with no Gimple representation."
   if (!node->has_gimple_body_p ()) {
     AD_RETURNE (OK);
   }
 
+  // WPA 阶段函数体可能不在内存中，get_fun() 返回 NULL。
+  // 依据：gcc/cgraph.h:1313 "Note that at WPA stage, the function body may not be present in memory."
   function* fn = node->get_fun ();
   if (!fn) {
     AD_RETURNE (OK);
@@ -241,7 +248,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction (
 // collectAllFieldWrites_checkStatement
 // ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
+ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_checkStatement(
   AD_FUNC_ARGS,
   gimple* stmt,
   basic_block bb,
@@ -250,6 +257,8 @@ ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
 ) AD_FUNCTION_BEGIN {
   result = NULL;
 
+  // 字段写入必须是赋值语句；GIMPLE_CALL 等其他语句不直接写入字段。
+  // 依据：GCC GIMPLE 规范，字段存储通过 GIMPLE_ASSIGN 的 LHS 为 COMPONENT_REF/MEM_REF 实现。
   if (gimple_code (stmt) != GIMPLE_ASSIGN) {
     AD_RETURNE (OK);
   }
@@ -262,6 +271,7 @@ ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
   bool is_field_access0;
   AD_TRY (gcc_ext_util::is_field_access (AD_ARGS, lhs, &field_decl, &object, is_field_access0));
 
+  // 非字段访问（如局部变量赋值）不是本模块的收集目标。
   if (!is_field_access0 || !field_decl || !object) {
     AD_RETURNE (OK);
   }
@@ -271,6 +281,8 @@ ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
     AD_RETURNE (OK);
   }
 
+  // 解引用指针/引用类型：obj->field 的 object 类型是 T*，需要获取 T。
+  // 依据：GCC tree 类型系统，POINTER_TYPE/REFERENCE_TYPE 是包装类型，TREE_TYPE 获取被指向类型。
   if (TREE_CODE (object_type) == REFERENCE_TYPE) {
     object_type = TREE_TYPE (object_type);
     if (!object_type) {
@@ -284,6 +296,8 @@ ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
     }
   }
 
+  // 使用 TYPE_MAIN_VARIANT 去除 cv-qualifiers，确保 const T 和 T 映射到同一键。
+  // 依据：gcc/tree.h:2352 TYPE_MAIN_VARIANT 返回类型的无限定符主变体。
   tree containing_type = TYPE_MAIN_VARIANT (object_type);
   if (!containing_type) {
     AD_RETURNE (OK);
