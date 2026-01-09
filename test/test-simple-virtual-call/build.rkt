@@ -1,12 +1,21 @@
 #lang racket
 
-(define r (read))
+(require "../../array-detect/test-script/test-lib.rkt")
+(require "../../array-detect/test-script/test-lib2.rkt")
 
-(define cxx (or (dict-ref r 'cxx #f) (find-executable-path "g++-15")))
-(define cflags (dict-ref r 'cflags '()))
+(define ut-compile-task-files
+  '(("vcall.cc" "test-out/vcall.o")))
 
-(define (compile)
-  (apply system* (cons cxx (append '("vcall.cc" "-c" "-o" "obj/vcall.o") cflags)))
-)
+(define (pre root)
+  (system* (find-executable-path "mkdir") "-p" (build-path root "test-out")))
 
-(compile)
+(provide config)
+
+(define config
+  (test-config
+    "test-simple-virtual-call"
+    pre
+    (lambda (_) (void))
+    (get-ut-compile-task-files/list ut-compile-task-files '())
+    #f
+    (lazy #f)))

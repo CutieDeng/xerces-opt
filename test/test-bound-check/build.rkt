@@ -1,13 +1,22 @@
 #lang racket
 
-(define r (read))
+(require "../../array-detect/test-script/test-lib.rkt")
+(require "../../array-detect/test-script/test-lib2.rkt")
 
-(define cxx (or (dict-ref r 'cxx #f) (find-executable-path "g++-15")))
-(define cflags (dict-ref r 'cflags '()))
+(define ut-compile-task-files
+  '(("basic_test.cpp" "test-out/basic_test.o")
+    ("complex_test.cpp" "test-out/complex_test.o")))
 
-(define (compile name)
-  (make-directory* "obj")
-  (apply system* (cons cxx (append `(,(format "~a.cpp" name) "-c" "-o" ,(format "obj/~a.o" name)) cflags))))
+(define (pre root)
+  (system* (find-executable-path "mkdir") "-p" (build-path root "test-out")))
 
-(compile "basic_test")
-(compile "complex_test")
+(provide config)
+
+(define config
+  (test-config
+    "test-bound-check"
+    pre
+    (lambda (_) (void))
+    (get-ut-compile-task-files/list ut-compile-task-files '())
+    #f
+    (lazy #f)))

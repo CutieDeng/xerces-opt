@@ -1,13 +1,21 @@
 #lang racket
 
-(define r (read))
+(require "../../array-detect/test-script/test-lib.rkt")
+(require "../../array-detect/test-script/test-lib2.rkt")
 
-(define cxx (or (dict-ref r 'cxx #f) (find-executable-path "g++-15")))
-(define cflags (dict-ref r 'cflags '()))
+(define ut-compile-task-files
+  '(("ptr-copy.cc" "test-out/ptr-copy.o")))
 
-(define (compile)
-  (make-directory* "obj")
-  (apply system* (cons cxx (append '("ptr-copy.cc" "-c" "-o" "obj/ptr-copy.o") cflags)))
-)
+(define (pre root)
+  (system* (find-executable-path "mkdir") "-p" (build-path root "test-out")))
 
-(compile)
+(provide config)
+
+(define config
+  (test-config
+    "test-simple-ptr-copy-escape"
+    pre
+    (lambda (_) (void))
+    (get-ut-compile-task-files/list ut-compile-task-files '())
+    #f
+    (lazy #f)))

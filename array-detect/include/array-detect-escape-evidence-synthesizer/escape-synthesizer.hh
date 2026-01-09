@@ -18,34 +18,57 @@ namespace array_detector {
 namespace array_detect_ns {
 
 // ============================================================================
-// 逃逸综合分析模块 (Escape Synthesizer) - 两层架构
+// 逃逸综合分析模块 (Escape Synthesizer)
 // ============================================================================
-// 第一层：逃逸提取模块 - 从 all_uses 中提取逃逸使用
-// 第二层：逃逸证据模块 - 统计非调试逃逸，生成 owned 判定证据
+// 数据流关系：
+// - (listof source-use) -> (listof escaped-use)       [EscapedUseResult]
+// - source, uses, escaped-uses -> source-escape-conclude [SourceEscapeConclude]
+// - field, (listof source) -> field-escape-conclude   [FieldEscapeConclude]
 // ============================================================================
 
 // ============================================================================
-// 第一层：逃逸提取结果 (Escape Extraction Result)
+// 逃逸使用结果 (EscapedUseResult)
 // ============================================================================
-// 从 SourceUseAnalysisResult 中提取所有逃逸使用，形成汇总列表
+// 数据流位置：(listof source-use) -> (listof escaped-use)
+// 从 SourceUseResult.all_uses 中提取所有逃逸使用
+//
+// (escaped-use-result
+//   source-operand : tree
+//   escapes        : (listof use-info*)  ; 指向 all-uses 中逃逸元素
+//   escape-count   : nat)
+// ============================================================================
 
-struct EscapeExtractionResult {
+struct EscapedUseResult {
   tree source_operand;              // 源操作数
   gimple * source_stmt;             // 源语句
 
-  vec<SourceUseInfo const *> * escapes;  // 所有逃逸使用（指向原 all_uses 中的元素）
+  vec<SourceUseInfo const *> * escapes;  // 所有逃逸使用
   unsigned int escape_count;        // 逃逸数量
 
   void * aux;
-  void * original_write_info;       // 原始写入信息（FieldWriteCapture*）
+  void * original_write_info;       // 原始 FieldWriteInfo*
 };
 
-// ============================================================================
-// 第二层：逃逸证据结果 (Escape Evidence Result)
-// ============================================================================
-// 统计非调试逃逸数目，生成 (type, field, write-location) 的证据
+// 向后兼容别名
+typedef EscapedUseResult EscapeExtractionResult;
 
-struct EscapeEvidenceResult {
+// ============================================================================
+// 源逃逸结论 (SourceEscapeConclude)
+// ============================================================================
+// 数据流位置：source, uses, escaped-uses -> source-escape-conclude
+// 对单个 write-original-source 的逃逸证据进行统计和判定
+//
+// (source-escape-conclude
+//   type              : tree
+//   field-decl        : tree
+//   write-location    : location_t
+//   total-escapes     : nat
+//   safe-debug-escapes: nat
+//   rejecting-escapes : nat          ; = total - safe-debug
+//   has-rejecting     : bool)        ; rejecting > 0
+// ============================================================================
+
+struct SourceEscapeConclude {
   // 写入位置标识
   tree type;
   tree field_decl;
@@ -54,32 +77,45 @@ struct EscapeEvidenceResult {
   // 证据统计
   unsigned int total_escapes;           // 总逃逸数
   unsigned int safe_debug_escapes;      // 调试逃逸数
-  unsigned int rejecting_escapes;       // 非法逃逸数（= total - safe_debug）
+  unsigned int rejecting_escapes;       // 拒绝性逃逸数
 
   // 核心判定
   bool has_rejecting_evidence;          // rejecting_escapes > 0
 
   void * aux;
-  void * original_write_info;           // 原始写入信息（FieldWriteCapture*）
+  void * original_write_info;           // 原始 FieldWriteInfo*
 };
 
-// ============================================================================
-// 第三层：(type, field) 级别逃逸汇总 (Type Field Escape Summary)
-// ============================================================================
-// 汇总单个 (type, field) 的所有写入操作的逃逸信息
+// 向后兼容别名
+typedef SourceEscapeConclude EscapeEvidenceResult;
 
-struct TypeFieldEscapeSummary {
+// ============================================================================
+// 字段逃逸结论 (FieldEscapeConclude)
+// ============================================================================
+// 数据流位置：field, (listof write-original-source) -> field-escape-conclude
+// 汇总单个 (type, field) 的所有写入操作的逃逸信息
+//
+// (field-escape-conclude
+//   type                    : tree
+//   field-decl              : tree
+//   total-field-writes      : nat
+//   writes-with-rejecting   : nat
+//   has-rejecting-evidence  : bool
+//   all-source-concludes    : (listof source-escape-conclude*))
+// ============================================================================
+
+struct FieldEscapeConclude {
   // === 标识 ===
   tree type;
   tree field_decl;
 
   // === 字段写入操作统计 ===
-  unsigned int total_field_writes;              // 总字段写入操作数
-  unsigned int field_writes_with_escape;        // 有逃逸的字段写入操作数
-  unsigned int field_writes_with_rejecting;     // 有拒绝证据的字段写入操作数
-  unsigned int field_writes_without_analysis;   // 未分析的字段写入操作数
+  unsigned int total_field_writes;              // 总写入操作数
+  unsigned int field_writes_with_escape;        // 有逃逸的写入数
+  unsigned int field_writes_with_rejecting;     // 有拒绝证据的写入数
+  unsigned int field_writes_without_analysis;   // 未分析的写入数
 
-  // === 逃逸统计（聚合所有写入操作）===
+  // === 逃逸统计（聚合）===
   unsigned int total_escapes;             // 总逃逸数
   unsigned int safe_debug_escapes;        // 调试逃逸数
   unsigned int rejecting_escapes;         // 拒绝性逃逸数
@@ -93,70 +129,76 @@ struct TypeFieldEscapeSummary {
   unsigned int source_unknown;            // 未知来源数
 
   // === 核心判定 ===
-  bool has_rejecting_evidence;            // 是否存在拒绝证据
-  float rejection_ratio;                  // 拒绝比例 = field_writes_with_rejecting / total_field_writes
+  bool has_rejecting_evidence;            // 存在拒绝证据
+  float rejection_ratio;                  // 拒绝比例
 
-  // === 详细记录引用 ===
-  vec<EscapeEvidenceResult*> * all_evidences;  // 所有写入操作的证据列表
+  // === 所有源级结论 ===
+  vec<SourceEscapeConclude*> * all_source_concludes;
 };
 
+// 向后兼容别名
+typedef FieldEscapeConclude TypeFieldEscapeSummary;
+
 // ============================================================================
-// 第三层模块接口：(type, field) 级别汇总
+// 接口函数
 // ============================================================================
 
-// 对单个 (type, field) 的所有写入操作进行逃逸汇总
-// 输入：field_data - 类型字段分析数据（包含所有写入操作记录）
-// 输出：result - 汇总结果（GC 管理）
-ArrayDetectErrorCode summarizeTypeFieldEscapes (
+// 汇总字段级逃逸结论
+// field_data -> FieldEscapeConclude
+ArrayDetectErrorCode summarizeFieldEscape (
   AD_FUNC_ARGS,
   array_detector::TypeFieldAnalysisData * field_data,
-  TypeFieldEscapeSummary * &result
+  FieldEscapeConclude * &result
 );
 
-// ============================================================================
-// 第一层模块接口：逃逸提取
-// ============================================================================
+// 向后兼容别名
+inline ArrayDetectErrorCode summarizeTypeFieldEscapes (
+  AD_FUNC_ARGS_DECL,
+  array_detector::TypeFieldAnalysisData * field_data,
+  FieldEscapeConclude * &result
+) { return summarizeFieldEscape(AD_FUNC_ARGS_CALL, field_data, result); }
 
-// 从 SourceUseAnalysisResult 中提取所有逃逸使用
-// 输入：raw_result - 原始使用分析结果
-// 输出：result - 逃逸提取结果（GC 管理）
-ArrayDetectErrorCode extractEscapes (
+// 提取逃逸使用
+// SourceUseResult -> EscapedUseResult
+ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  SourceUseAnalysisResult * raw_result,
-  EscapeExtractionResult * &result
+  SourceUseResult * use_result,
+  EscapedUseResult * &result
 );
 
-// ============================================================================
-// 第二层模块接口：逃逸证据生成
-// ============================================================================
+// 向后兼容别名
+inline ArrayDetectErrorCode extractEscapes (
+  AD_FUNC_ARGS_DECL,
+  SourceUseResult * use_result,
+  EscapedUseResult * &result
+) { return extractEscapedUses(AD_FUNC_ARGS_CALL, use_result, result); }
 
-// 根据逃逸提取结果，生成 owned 判定证据
-// 输入：extraction - 逃逸提取结果
-//       type - 类型
-//       field_decl - 字段声明
-//       write_location - 写入位置
-// 输出：result - 逃逸证据结果（GC 管理）
-ArrayDetectErrorCode generateEscapeEvidence (
+// 生成源级逃逸结论
+// EscapedUseResult -> SourceEscapeConclude
+ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  EscapeExtractionResult * extraction,
+  EscapedUseResult * escaped_uses,
   tree type,
   tree field_decl,
   location_t write_location,
-  EscapeEvidenceResult * &result
+  SourceEscapeConclude * &result
 );
 
-// ============================================================================
-// 组合接口：综合所有字段的逃逸信息
-// ============================================================================
+// 向后兼容别名
+inline ArrayDetectErrorCode generateEscapeEvidence (
+  AD_FUNC_ARGS_DECL,
+  EscapedUseResult * escaped_uses,
+  tree type,
+  tree field_decl,
+  location_t write_location,
+  SourceEscapeConclude * &result
+) { return generateSourceEscapeConclude(AD_FUNC_ARGS_CALL, escaped_uses, type, field_decl, write_location, result); }
 
-// 综合所有字段的逃逸信息（调用两层模块）
-// 输入：detector - 包含逃逸收集结果的检测器
-// 输出：evidence_results - 证据结果列表
-//       total_synthesized - 总综合数量
+// 综合所有字段的逃逸信息
 ArrayDetectErrorCode synthesizeAllFieldEscapes (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<EscapeEvidenceResult*> * &evidence_results,
+  vec<SourceEscapeConclude*> * &evidence_results,
   unsigned int &total_synthesized
 );
 
@@ -182,16 +224,25 @@ bool isSafeDebugEscape (
 // 调试输出
 // ============================================================================
 
-// 打印逃逸提取结果（调试用）
-void printEscapeExtractionResult (
-  EscapeExtractionResult const * result,
+void printEscapedUseResult (
+  EscapedUseResult const * result,
   FILE * output
 );
 
-// 打印逃逸证据结果（调试用）
-void printEscapeEvidenceResult (
-  EscapeEvidenceResult const * result,
+void printSourceEscapeConclude (
+  SourceEscapeConclude const * result,
   FILE * output
 );
+
+// 向后兼容别名
+inline void printEscapeExtractionResult (
+  EscapedUseResult const * result,
+  FILE * output
+) { printEscapedUseResult(result, output); }
+
+inline void printEscapeEvidenceResult (
+  SourceEscapeConclude const * result,
+  FILE * output
+) { printSourceEscapeConclude(result, output); }
 
 } // namespace array_detect_ns

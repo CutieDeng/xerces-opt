@@ -11,21 +11,37 @@
 // ============================================================================
 // 前置声明：各分析模块的结果类型
 // ============================================================================
-// 这些类型的完整定义在各自的模块中，这里只做前置声明
-// 避免循环依赖，保持模块解耦
+// 数据流关系（lisp 风格描述）：
+// - field -> (listof field-write-info)              [FieldWriteInfo]
+// - field-write-info -> write-original-source       [WriteOriginalSource]
+// - write-original-source -> (listof source-use)    [SourceUseResult]
+// - (listof source-use) -> (listof escaped-use)     [EscapedUseResult]
+// - source, uses, escaped -> source-escape-conclude [SourceEscapeConclude]
+// - field, (listof source) -> field-escape-conclude [FieldEscapeConclude]
+// - field-write-info, source -> ownership-move      [OwnershipMoveResult]
+// ============================================================================
 
 namespace array_detect_ns {
-  struct FieldWriteCapture;                 // 字段写入捕获（field-write-collector）
-  struct SourceUseAnalysisResult;           // 源使用分析结果（source-escape-collection）
-  struct EscapeExtractionResult;            // 逃逸提取结果（escape-synthesizer 第一层）
-  struct EscapeEvidenceResult;              // 逃逸证据结果（escape-synthesizer 第二层）
-  struct TypeFieldEscapeSummary;            // (type, field) 级别逃逸汇总（escape-synthesizer 第三层）
-  struct OwnershipTransferAnalysisResult;   // 所有权转移分析结果（ownership-transfer）
+  struct FieldWriteInfo;              // 字段写入信息
+  struct SourceUseResult;             // 源使用分析结果
+  struct EscapedUseResult;            // 逃逸使用结果
+  struct SourceEscapeConclude;        // 源逃逸结论
+  struct FieldEscapeConclude;         // 字段逃逸结论
+  struct OwnershipMoveResult;         // 所有权转移结果
+
+  // 向后兼容别名
+  typedef FieldWriteInfo FieldWriteCapture;
+  typedef SourceUseResult SourceUseAnalysisResult;
+  typedef EscapedUseResult EscapeExtractionResult;
+  typedef SourceEscapeConclude EscapeEvidenceResult;
+  typedef FieldEscapeConclude TypeFieldEscapeSummary;
+  typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
 }
 
 namespace array_detector {
 
-  struct FieldSourceInfo;         // 字段源信息（write-operation-trace）
+  struct WriteOriginalSource;  // 写入原始来源
+  typedef WriteOriginalSource FieldSourceInfo;  // 向后兼容
 
 using namespace ::array_detect_ns;
 
@@ -56,61 +72,79 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS);
 namespace array_detector {
 
 // ============================================================================
-// 统一结果记录结构：单个字段写入操作的完整分析链
+// 字段写入分析记录 (FieldWriteAnalysisRecord)
 // ============================================================================
-// 将原来通过 aux 链表连接的异构数据，拍平为清晰的并列字段
-// 每个分析阶段填充对应的结果指针，实现模块解耦和类型安全
+// 单个字段写入操作的完整分析链
+// 数据流：field-write-info -> write-original-source -> uses -> escape-conclude
+//
+// (field-write-analysis-record
+//   write-info        : field-write-info*
+//   source            : write-original-source*
+//   use-result        : source-use-result*
+//   escape-conclude   : source-escape-conclude*
+//   ownership-move    : ownership-move-result*)
+// ============================================================================
 
 struct FieldWriteAnalysisRecord {
-  // === 核心写入信息（必需，由 field-write-collector 生成）===
-  FieldWriteCapture* write_capture;           // 字段写入捕获：基本的 IR 信息
-                                               // 包含：语句、位置、类型、字段、赋值表达式等
+  // 字段写入信息
+  FieldWriteInfo* write_info;
 
-  // === 源操作数分析（可选，由 write-operation-trace 生成）===
-  FieldSourceInfo* source_info;               // 字段源信息：源操作数的来源分析
-                                               // 包含：函数调用、字段访问、常量、计算等
+  // 写入原始来源
+  WriteOriginalSource* source;
 
-  // === 逃逸分析（可选，由 source-escape-collection 生成）===
-  SourceUseAnalysisResult* escape_analysis;   // 源使用分析结果：源操作数的逃逸分析
-                                               // 包含：所有使用、逃逸位置、逃逸类型等
+  // 源使用分析结果
+  SourceUseResult* use_result;
 
-  // === 逃逸证据（可选，由 escape-synthesizer 生成）===
-  EscapeEvidenceResult* escape_evidence;       // 逃逸证据结果：非调试逃逸统计
-                                               // 包含：逃逸总数、调试逃逸数、拒绝证据标志
+  // 源逃逸结论
+  SourceEscapeConclude* escape_conclude;
 
-  // === 所有权转移分析（可选，由 ownership-transfer 生成）===
-  OwnershipTransferAnalysisResult* ownership_transfer; // 所有权转移分析结果：字段赋值的所有权转移判定
-                                               // 包含：销毁点、路径统计、转移判定（CERTAIN/IMPOSSIBLE/CONDITIONAL）等
+  // 所有权转移结果
+  OwnershipMoveResult* ownership_move;
 
-  // === 元数据 ===
-  void* reserved;                              // 保留字段，供未来扩展使用
+  // 保留字段
+  void* reserved;
+
+  // 向后兼容字段别名（内联访问器）
+  FieldWriteCapture* get_write_capture() { return write_info; }
+  FieldSourceInfo* get_source_info() { return source; }
+  SourceUseAnalysisResult* get_escape_analysis() { return use_result; }
+  EscapeEvidenceResult* get_escape_evidence() { return escape_conclude; }
+  OwnershipTransferAnalysisResult* get_ownership_transfer() { return ownership_move; }
 };
 
 // ============================================================================
-// 类型字段分析数据：单个 (type, field) 的完整分析结果
+// 类型字段分析数据 (TypeFieldAnalysisData)
 // ============================================================================
-// 包含该字段的所有写入操作记录，以及字段级别的综合分析结果
+// 单个 (type, field) 的完整分析结果
+// 数据流：field -> (listof field-write-analysis-record) -> field-escape-conclude
+//
+// (type-field-analysis-data
+//   type                   : tree
+//   field-decl             : tree
+//   write-records          : (listof field-write-analysis-record*)
+//   escape-conclude        : field-escape-conclude*)
+// ============================================================================
 
 struct TypeFieldAnalysisData {
-  // === 标识信息 ===
-  tree type;                                   // 类型（TYPE_MAIN_VARIANT）
-  tree field_decl;                             // 字段声明（FIELD_DECL）
+  // 标识信息
+  tree type;
+  tree field_decl;
 
-  // === 写入操作分析记录列表 ===
-  vec<FieldWriteAnalysisRecord*>* write_analysis_records;
-                                               // 该字段的所有写入操作的完整分析记录
+  // 写入操作分析记录列表
+  vec<FieldWriteAnalysisRecord*>* write_records;
 
-  // === 字段级别综合分析（可选）===
-  // 基于所有写入操作的逃逸证据结果，判定字段是否为 owned 指针
-  // 目前简化为：任意写入操作存在非调试逃逸 => 非 owned
-  bool has_rejecting_evidence;                // 是否存在拒绝 owned 的证据
+  // 是否存在拒绝证据
+  bool has_rejecting_evidence;
 
-  // === (type, field) 级别逃逸汇总（可选，由 escape-synthesizer 第三层生成）===
-  TypeFieldEscapeSummary* escape_summary;     // 详细的逃逸汇总信息
-                                               // 包含：写入操作统计、逃逸统计、来源类型分布等
+  // 字段逃逸结论
+  FieldEscapeConclude* escape_conclude;
 
-  // === 元数据 ===
-  void* reserved;                              // 保留字段，供未来扩展使用
+  // 保留字段
+  void* reserved;
+
+  // 向后兼容字段别名
+  vec<FieldWriteAnalysisRecord*>* get_write_analysis_records() { return write_records; }
+  FieldEscapeConclude* get_escape_summary() { return escape_conclude; }
 };
 
 // ============================================================================

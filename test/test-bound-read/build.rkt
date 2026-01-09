@@ -1,13 +1,21 @@
-#!/usr/bin/env racket
 #lang racket
 
-(define r (read))
+(require "../../array-detect/test-script/test-lib.rkt")
+(require "../../array-detect/test-script/test-lib2.rkt")
 
-(define cxx (or (dict-ref r 'cxx #f) (find-executable-path "g++-15")))
-(define cflags (dict-ref r 'cflags '()))
+(define ut-compile-task-files
+  '(("demo.cc" "test-out/demo.o")))
 
-(define (compile name)
-  (make-directory* "obj")
-  (apply system* (cons cxx (append `(,(format "~a.cc" name) "-c" "-o" ,(format "obj/~a.o" name)) cflags))))
+(define (pre root)
+  (system* (find-executable-path "mkdir") "-p" (build-path root "test-out")))
 
-(compile "demo")
+(provide config)
+
+(define config
+  (test-config
+    "test-bound-read"
+    pre
+    (lambda (_) (void))
+    (get-ut-compile-task-files/list ut-compile-task-files '())
+    #f
+    (lazy #f)))

@@ -12,22 +12,26 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 所有权转移分析模块 (Ownership Transfer Analysis)
+// 所有权转移分析模块 (Ownership Move Analysis)
 // ============================================================================
-// 分析字段复制情形（如 a.ptr = b.ptr）中源字段是否被销毁，
-// 以判断这是"所有权转移"还是"所有权共享"
+// 数据流位置：field-write-info, write-original-source -> ownership-move
+// 分析字段复制（如 a.ptr = b.ptr）中源字段是否被销毁
+//
+// (ownership-move-result
+//   source-field      : tree           ; 源字段 (b.ptr)
+//   source-object     : tree           ; 源对象 (b)
+//   transfer-stmt     : gimple*        ; 转移语句
+//   verdict           : ownership-verdict ; CERTAIN/IMPOSSIBLE/CONDITIONAL
+//   invalidation-points : (listof invalidation-point*))
 // ============================================================================
 
-// ============================================================================
-// 销毁类型定义
-// ============================================================================
-
+// 销毁类型枚举
 enum InvalidationKind {
   INVALIDATION_NONE = 0,           // 无销毁
   INVALIDATION_NULL_ASSIGN,        // 赋值为 NULL
   INVALIDATION_CLOBBER_FIELD,      // 字段 clobber
   INVALIDATION_CLOBBER_OBJECT,     // 对象 clobber
-  INVALIDATION_OTHER_ASSIGN        // 其他赋值（覆盖）
+  INVALIDATION_OTHER_ASSIGN        // 其他赋值
 };
 
 // ============================================================================
@@ -43,70 +47,91 @@ struct InvalidationPoint {
 };
 
 // ============================================================================
-// 所有权转移结论
+// 所有权转移结论枚举
 // ============================================================================
 
-enum OwnershipTransferVerdict {
-  TRANSFER_CERTAIN,                // 必然转移（所有路径都有销毁点）
-  TRANSFER_IMPOSSIBLE,             // 不可能转移（没有路径有销毁点）
-  TRANSFER_CONDITIONAL,            // 条件转移（某些路径有销毁点）
-  TRANSFER_NOT_APPLICABLE          // 不适用（非字段访问源）
+enum OwnershipMoveVerdict {
+  MOVE_CERTAIN,                    // 必然转移（所有路径都有销毁点）
+  MOVE_IMPOSSIBLE,                 // 不可能转移（无销毁点）
+  MOVE_CONDITIONAL,                // 条件转移（部分路径有销毁点）
+  MOVE_NOT_APPLICABLE              // 不适用（非字段访问源）
 };
 
+// 向后兼容别名
+typedef OwnershipMoveVerdict OwnershipTransferVerdict;
+constexpr OwnershipMoveVerdict TRANSFER_CERTAIN = MOVE_CERTAIN;
+constexpr OwnershipMoveVerdict TRANSFER_IMPOSSIBLE = MOVE_IMPOSSIBLE;
+constexpr OwnershipMoveVerdict TRANSFER_CONDITIONAL = MOVE_CONDITIONAL;
+constexpr OwnershipMoveVerdict TRANSFER_NOT_APPLICABLE = MOVE_NOT_APPLICABLE;
+
 // ============================================================================
-// 所有权转移分析结果
+// 所有权转移结果 (OwnershipMoveResult)
 // ============================================================================
 
-struct OwnershipTransferAnalysisResult {
+struct OwnershipMoveResult {
   // === 基本信息 ===
   tree source_field;                              // 源字段（b.ptr）
   tree source_object;                             // 源对象（b）
   tree source_field_decl;                         // 源字段声明
   char const* source_field_name;                  // 源字段名
-  gimple* transfer_stmt;                          // 转移语句（a.ptr = b.ptr）
+  gimple* transfer_stmt;                          // 转移语句
   location_t transfer_location;                   // 转移位置
 
   // === 销毁点信息 ===
-  vec<InvalidationPoint*, va_gc>* invalidation_points; // 所有销毁点
+  vec<InvalidationPoint*, va_gc>* invalidation_points;
 
   // === 分析结论 ===
-  OwnershipTransferVerdict verdict;               // 转移结论
+  OwnershipMoveVerdict verdict;
 
   // === 路径统计 ===
-  unsigned int paths_with_invalidation;           // 有销毁点的路径数
-  unsigned int paths_without_invalidation;        // 无销毁点的路径数
-  unsigned int total_exit_paths;                  // 总出口路径数
+  unsigned int paths_with_invalidation;
+  unsigned int paths_without_invalidation;
+  unsigned int total_exit_paths;
 
   // === 元数据 ===
-  bool is_analyzed;                               // 是否已分析
-  char const* verdict_description;                // 结论描述
+  bool is_analyzed;
+  char const* verdict_description;
 };
+
+// 向后兼容别名
+typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
 
 // ============================================================================
 // 核心分析函数
 // ============================================================================
 
-// 分析单个字段写入操作的所有权转移情况
-// 输入：write_capture - 字段写入捕获信息
-//       source_info - 源操作数信息（需要是字段访问类型）
-// 输出：result - 所有权转移分析结果
-ArrayDetectErrorCode analyzeOwnershipTransfer (
+// 分析单个字段写入的所有权转移
+// field-write-info, write-original-source -> ownership-move-result
+ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
-  array_detect_ns::FieldWriteCapture* write_capture,
-  array_detector::FieldSourceInfo* source_info,
-  OwnershipTransferAnalysisResult*& result
+  FieldWriteInfo* write_info,
+  array_detector::WriteOriginalSource* source,
+  OwnershipMoveResult*& result
 );
 
+// 向后兼容别名
+inline ArrayDetectErrorCode analyzeOwnershipTransfer (
+  AD_FUNC_ARGS_DECL,
+  FieldWriteInfo* write_info,
+  array_detector::WriteOriginalSource* source,
+  OwnershipMoveResult*& result
+) { return analyzeOwnershipMove(AD_FUNC_ARGS_CALL, write_info, source, result); }
+
 // 分析所有字段写入操作的所有权转移
-// 输入：detector - ArrayDetector 对象
-// 输出：total_analyzed - 分析的总数
-//       total_transfers - 发现的转移数
-ArrayDetectErrorCode analyzeAllOwnershipTransfers (
+ArrayDetectErrorCode analyzeAllOwnershipMoves (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
   unsigned int &total_analyzed,
-  unsigned int &total_certain_transfers
+  unsigned int &total_certain_moves
 );
+
+// 向后兼容别名
+inline ArrayDetectErrorCode analyzeAllOwnershipTransfers (
+  AD_FUNC_ARGS_DECL,
+  array_detector::ArrayDetector &detector,
+  unsigned int &total_analyzed,
+  unsigned int &total_certain_moves
+) { return analyzeAllOwnershipMoves(AD_FUNC_ARGS_CALL, detector, total_analyzed, total_certain_moves); }
 
 // ============================================================================
 // 辅助函数
@@ -141,11 +166,18 @@ ArrayDetectErrorCode analyzePathsToExit (
   unsigned int& total_paths
 );
 
-// 打印所有权转移分析结果
-void printOwnershipTransferResult (
+// 打印所有权转移结果
+void printOwnershipMoveResult (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipTransferAnalysisResult* result
+  OwnershipMoveResult* result
 );
+
+// 向后兼容别名
+inline void printOwnershipTransferResult (
+  AD_FUNC_ARGS_DECL,
+  FILE* out,
+  OwnershipMoveResult* result
+) { printOwnershipMoveResult(AD_FUNC_ARGS_CALL, out, result); }
 
 } // namespace array_detect_ns

@@ -9,22 +9,33 @@ namespace array_detector {
 using namespace ::array_detect_ns;
 
 // ============================================================================
-// 字段来源信息 Variant 类型（不使用 C++ variant）
+// 写入原始来源 (WriteOriginalSource)
 // ============================================================================
-// 使用 union + enum 实现类似 variant 的功能
+// 数据流位置：field-write-info -> write-original-source
+// 分析 field-write-info.rhs 的语义来源
+//
+// (write-original-source
+//   source-type : source-type-enum  ; discriminator
+//   data        : (union             ; 根据 source-type 选择
+//                   function-call-source
+//                   constant-source
+//                   field-access-source
+//                   computation-source
+//                   phi-source))
 // ============================================================================
 
-// 字段来源类型枚举
-// 注意：已移除 SOURCE_VARIABLE，原因见 OPT.md
-// SOURCE_VARIABLE 语义模糊（可能是函数参数或追踪失败），无法提供有价值的 owned 判定信息
-enum FieldSourceType {
-  SOURCE_UNKNOWN,        // 未知来源（追踪失败或无法分类）
-  SOURCE_FUNCTION_CALL,  // 函数调用（包括虚函数、直接调用、间接调用）
+// 来源类型枚举
+enum SourceType {
+  SOURCE_UNKNOWN,        // 未知来源（追踪失败）
+  SOURCE_FUNCTION_CALL,  // 函数调用
   SOURCE_CONSTANT,       // 常量
-  SOURCE_FIELD_ACCESS,   // 字段访问（对另一对象的字段读取，如 b.ptr）
+  SOURCE_FIELD_ACCESS,   // 字段访问（如 b.ptr）
   SOURCE_COMPUTATION,    // 计算表达式
-  SOURCE_PHI             // PHI 节点（分支合并点，多个来源）
+  SOURCE_PHI             // PHI 节点
 };
+
+// 向后兼容别名
+typedef SourceType FieldSourceType;
 
 // 函数调用来源信息
 struct FunctionCallSource {
@@ -69,9 +80,9 @@ struct PhiSource {
   location_t location;         // PHI 节点位置（GCC 内部管理）
 };
 
-// 字段来源信息 Variant（使用 union 实现）
-struct FieldSourceInfo {
-  FieldSourceType source_type;  // 来源类型（discriminator）
+// 写入原始来源 Variant（使用 union 实现）
+struct WriteOriginalSource {
+  SourceType source_type;  // 来源类型（discriminator）
   union {
     FunctionCallSource function_call;  // 函数调用来源
     ConstantSource constant;           // 常量来源
@@ -81,91 +92,77 @@ struct FieldSourceInfo {
   } data;
 };
 
+// 向后兼容别名
+typedef WriteOriginalSource FieldSourceInfo;
+
 // ============================================================================
-// Variant 访问宏（安全访问，参考 CallMatchResult 的模式）
+// Variant 访问宏
 // ============================================================================
 
 // 检查来源类型
-#define FIELD_SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == ::array_detector::SOURCE_FUNCTION_CALL)
-#define FIELD_SOURCE_IS_CONSTANT(src) ((src).source_type == ::array_detector::SOURCE_CONSTANT)
-#define FIELD_SOURCE_IS_FIELD_ACCESS(src) ((src).source_type == ::array_detector::SOURCE_FIELD_ACCESS)
-#define FIELD_SOURCE_IS_COMPUTATION(src) ((src).source_type == ::array_detector::SOURCE_COMPUTATION)
-#define FIELD_SOURCE_IS_PHI(src) ((src).source_type == ::array_detector::SOURCE_PHI)
-#define FIELD_SOURCE_IS_UNKNOWN(src) ((src).source_type == ::array_detector::SOURCE_UNKNOWN)
+#define SOURCE_IS_FUNCTION_CALL(src) ((src).source_type == ::array_detector::SOURCE_FUNCTION_CALL)
+#define SOURCE_IS_CONSTANT(src) ((src).source_type == ::array_detector::SOURCE_CONSTANT)
+#define SOURCE_IS_FIELD_ACCESS(src) ((src).source_type == ::array_detector::SOURCE_FIELD_ACCESS)
+#define SOURCE_IS_COMPUTATION(src) ((src).source_type == ::array_detector::SOURCE_COMPUTATION)
+#define SOURCE_IS_PHI(src) ((src).source_type == ::array_detector::SOURCE_PHI)
+#define SOURCE_IS_UNKNOWN(src) ((src).source_type == ::array_detector::SOURCE_UNKNOWN)
 
-// 安全访问函数调用来源
-#define FIELD_SOURCE_GET_FUNCTION_CALL(src) \
-  (FIELD_SOURCE_IS_FUNCTION_CALL (src) ? &((src).data.function_call) : nullptr)
+// 向后兼容宏
+#define FIELD_SOURCE_IS_FUNCTION_CALL(src) SOURCE_IS_FUNCTION_CALL(src)
+#define FIELD_SOURCE_IS_CONSTANT(src) SOURCE_IS_CONSTANT(src)
+#define FIELD_SOURCE_IS_FIELD_ACCESS(src) SOURCE_IS_FIELD_ACCESS(src)
+#define FIELD_SOURCE_IS_COMPUTATION(src) SOURCE_IS_COMPUTATION(src)
+#define FIELD_SOURCE_IS_PHI(src) SOURCE_IS_PHI(src)
+#define FIELD_SOURCE_IS_UNKNOWN(src) SOURCE_IS_UNKNOWN(src)
 
-// 安全访问常量来源
-#define FIELD_SOURCE_GET_CONSTANT(src) \
-  (FIELD_SOURCE_IS_CONSTANT (src) ? &((src).data.constant) : nullptr)
+// 安全访问来源数据
+#define SOURCE_GET_FUNCTION_CALL(src) \
+  (SOURCE_IS_FUNCTION_CALL(src) ? &((src).data.function_call) : nullptr)
+#define SOURCE_GET_CONSTANT(src) \
+  (SOURCE_IS_CONSTANT(src) ? &((src).data.constant) : nullptr)
+#define SOURCE_GET_FIELD_ACCESS(src) \
+  (SOURCE_IS_FIELD_ACCESS(src) ? &((src).data.field_access) : nullptr)
+#define SOURCE_GET_COMPUTATION(src) \
+  (SOURCE_IS_COMPUTATION(src) ? &((src).data.computation) : nullptr)
+#define SOURCE_GET_PHI(src) \
+  (SOURCE_IS_PHI(src) ? &((src).data.phi) : nullptr)
 
-// 安全访问字段访问来源
-#define FIELD_SOURCE_GET_FIELD_ACCESS(src) \
-  (FIELD_SOURCE_IS_FIELD_ACCESS (src) ? &((src).data.field_access) : nullptr)
-
-// 安全访问计算来源
-#define FIELD_SOURCE_GET_COMPUTATION(src) \
-  (FIELD_SOURCE_IS_COMPUTATION (src) ? &((src).data.computation) : nullptr)
-
-// 安全访问 PHI 来源
-#define FIELD_SOURCE_GET_PHI(src) \
-  (FIELD_SOURCE_IS_PHI (src) ? &((src).data.phi) : nullptr)
+// 向后兼容 GET 宏
+#define FIELD_SOURCE_GET_FUNCTION_CALL(src) SOURCE_GET_FUNCTION_CALL(src)
+#define FIELD_SOURCE_GET_CONSTANT(src) SOURCE_GET_CONSTANT(src)
+#define FIELD_SOURCE_GET_FIELD_ACCESS(src) SOURCE_GET_FIELD_ACCESS(src)
+#define FIELD_SOURCE_GET_COMPUTATION(src) SOURCE_GET_COMPUTATION(src)
+#define FIELD_SOURCE_GET_PHI(src) SOURCE_GET_PHI(src)
 
 // ============================================================================
-// Variant 模式匹配宏（类似 Rust 的 if let，使用引用）
+// Variant 模式匹配宏（类似 Rust 的 if let）
 // ============================================================================
 // 用法：
-//   LET_SOURCE_FUNCTION_CALL (func_call, source_info) {
-//     // 使用 func_call，类型为 FunctionCallSource&
-//     AD_DEBUG_PRINT ("Function: %s", func_call.function_name);
-//   } END_LET ()
-// 
-// 展开为：
-//   if (FIELD_SOURCE_IS_FUNCTION_CALL (source_info)) {
-//     FunctionCallSource& func_call = source_info.data.function_call;
-//     // 使用 func_call
-//   }
+//   LET_SOURCE_FUNCTION_CALL(func_call, source) {
+//     // 使用 func_call : FunctionCallSource&
+//   } END_LET()
 // ============================================================================
 
-// 函数调用来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_FUNCTION_CALL(VAR, SRC) \
-  if (FIELD_SOURCE_IS_FUNCTION_CALL (SRC)) { \
+  if (SOURCE_IS_FUNCTION_CALL(SRC)) { \
     ::array_detector::FunctionCallSource& VAR = (SRC).data.function_call;
 
-// 常量来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_CONSTANT(VAR, SRC) \
-  if (FIELD_SOURCE_IS_CONSTANT (SRC)) { \
+  if (SOURCE_IS_CONSTANT(SRC)) { \
     ::array_detector::ConstantSource& VAR = (SRC).data.constant;
 
-// 字段访问来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_FIELD_ACCESS(VAR, SRC) \
-  if (FIELD_SOURCE_IS_FIELD_ACCESS (SRC)) { \
+  if (SOURCE_IS_FIELD_ACCESS(SRC)) { \
     ::array_detector::FieldAccessSource& VAR = (SRC).data.field_access;
 
-// 计算来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_COMPUTATION(VAR, SRC) \
-  if (FIELD_SOURCE_IS_COMPUTATION (SRC)) { \
+  if (SOURCE_IS_COMPUTATION(SRC)) { \
     ::array_detector::ComputationSource& VAR = (SRC).data.computation;
 
-// PHI 来源模式匹配
-// VAR: 变量名（引用类型）
-// SRC: FieldSourceInfo 对象（值或引用）
 #define LET_SOURCE_PHI(VAR, SRC) \
-  if (FIELD_SOURCE_IS_PHI (SRC)) { \
+  if (SOURCE_IS_PHI(SRC)) { \
     ::array_detector::PhiSource& VAR = (SRC).data.phi;
 
-// 结束模式匹配块
-// 展开为：}
 #define END_LET() \
   }
 

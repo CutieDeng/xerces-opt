@@ -407,8 +407,8 @@ void freeSourceUseAnalysisResult(SourceUseAnalysisResult * result) {
 // 调试输出
 // ============================================================================
 
-void printSourceUseAnalysisResult(
-  const SourceUseAnalysisResult * result,
+void printSourceUseResult(
+  const SourceUseResult * result,
   FILE * output
 ) {
   if (!result || !output) return;

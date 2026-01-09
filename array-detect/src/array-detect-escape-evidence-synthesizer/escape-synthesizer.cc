@@ -75,14 +75,16 @@ bool isSafeDebugEscape (
 }
 
 // ============================================================================
-// 第一层模块：逃逸提取
+// 逃逸使用提取：SourceUseResult -> EscapedUseResult
 // ============================================================================
 
-ArrayDetectErrorCode extractEscapes (
+ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  SourceUseAnalysisResult * raw_result,
-  EscapeExtractionResult * &result
+  SourceUseResult * use_result,
+  EscapedUseResult * &result
 ) AD_FUNCTION_BEGIN {
+  // 向后兼容：使用旧变量名
+  SourceUseResult * raw_result = use_result;
   if (!raw_result) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -119,17 +121,19 @@ ArrayDetectErrorCode extractEscapes (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 第二层模块：逃逸证据生成
+// 源逃逸结论生成：EscapedUseResult -> SourceEscapeConclude
 // ============================================================================
 
-ArrayDetectErrorCode generateEscapeEvidence (
+ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  EscapeExtractionResult * extraction,
+  EscapedUseResult * escaped_uses,
   tree type,
   tree field_decl,
   location_t write_location,
-  EscapeEvidenceResult * &result
+  SourceEscapeConclude * &result
 ) AD_FUNCTION_BEGIN {
+  // 向后兼容：使用旧变量名
+  EscapedUseResult * extraction = escaped_uses;
   if (!extraction) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -171,13 +175,13 @@ ArrayDetectErrorCode generateEscapeEvidence (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 第三层模块：(type, field) 级别汇总
+// 字段逃逸结论汇总：TypeFieldAnalysisData -> FieldEscapeConclude
 // ============================================================================
 
-ArrayDetectErrorCode summarizeTypeFieldEscapes (
+ArrayDetectErrorCode summarizeFieldEscape (
   AD_FUNC_ARGS,
   array_detector::TypeFieldAnalysisData * field_data,
-  TypeFieldEscapeSummary * &result
+  FieldEscapeConclude * &result
 ) AD_FUNCTION_BEGIN {
   if (!field_data) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -356,14 +360,14 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 // 调试输出
 // ============================================================================
 
-void printEscapeExtractionResult (
-  EscapeExtractionResult const * result,
+void printEscapedUseResult (
+  EscapedUseResult const * result,
   FILE * output
 ) {
   if (!result || !output) return;
 
   fprintf (output, "\n");
-  fprintf (output, "=== Escape Extraction Result ===\n");
+  fprintf (output, "=== Escaped Use Result ===\n");
   fprintf (output, "Escape count: %u\n", result->escape_count);
 
   if (result->escapes) {
@@ -376,17 +380,17 @@ void printEscapeExtractionResult (
     }
   }
 
-  fprintf (output, "================================\n");
+  fprintf (output, "==========================\n");
 }
 
-void printEscapeEvidenceResult (
-  EscapeEvidenceResult const * result,
+void printSourceEscapeConclude (
+  SourceEscapeConclude const * result,
   FILE * output
 ) {
   if (!result || !output) return;
 
   fprintf (output, "\n");
-  fprintf (output, "=== Escape Evidence Result ===\n");
+  fprintf (output, "=== Source Escape Conclude ===\n");
   fprintf (output, "Write location: %s:%d\n",
            LOCATION_FILE (result->write_location),
            LOCATION_LINE (result->write_location));

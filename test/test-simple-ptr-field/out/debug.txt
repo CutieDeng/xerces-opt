@@ -1,0 +1,290 @@
+[src/array-detect-pipeline/pipeline.cc +89] runArrayDetectorAnalysis: Starting array member detection analysis
+[src/array-detect-core/array-detector.cc +33] init: ArrayDetector initialized (eager)
+[src/array-detect-pipeline/pipeline.cc +24] runArrayDetectionPipeline: === Starting Array Detection Pipeline ===
+[src/array-detect-pipeline/pipeline.cc +27] runArrayDetectionPipeline: Step 1: Extracting field information
+[src/array-detect-collection/field-write-collector.cc +115] collectTypesAndFields: Collecting all types and fields (new implementation)
+[src/array-detect-collection/field-write-collector.cc +121] collectTypesAndFields: Starting function traversal...
+[src/array-detect-collection/field-write-collector.cc +133] collectTypesAndFields: Processing function 1: fuzz2
+[src/array-detect-gcc/gcc-ext-util.cc +257] logFieldWriteCapture:   Captured field write: type=PtrFieldFuzz, field=x, field_type=int*
+[src/array-detect-collection/field-write-collector.cc +236] collectTypesAndFields: Function process end, 1: fuzz2
+[src/array-detect-collection/field-write-collector.cc +133] collectTypesAndFields: Processing function 2: fuzz
+[src/array-detect-gcc/gcc-ext-util.cc +257] logFieldWriteCapture:   Captured field write: type=PtrFieldFuzz, field=k, field_type=void*
+[src/array-detect-collection/field-write-collector.cc +236] collectTypesAndFields: Function process end, 2: fuzz
+[src/array-detect-collection/field-write-collector.cc +239] collectTypesAndFields: Collection complete: 2 functions processed, 2 write operations found
+[src/array-detect-pipeline/pipeline.cc +31] runArrayDetectionPipeline: Step 2: Analyzing field assignments
+[src/array-detect-write-trace/write-operation-trace.cc +199] traceFieldAssignments: Tracing field assignments
+[src/array-detect-write-trace/write-operation-trace-driver.cc +47] extractSourceFromCall: [extractSourceFromCall] gimple_call_fn tree code: addr_expr
+[src/array-detect-utils/info-print.cc +399] printFieldWriteSourceInfo: Extracted source for field write:
+[src/array-detect-utils/info-print.cc +400] printFieldWriteSourceInfo:   Type: PtrFieldFuzz
+[src/array-detect-utils/info-print.cc +401] printFieldWriteSourceInfo:   Field: x
+[src/array-detect-utils/info-print.cc +402] printFieldWriteSourceInfo:   Function: fuzz2
+[src/array-detect-utils/info-print.cc +403] printFieldWriteSourceInfo:   BB index: 2
+[src/array-detect-utils/info-print.cc +410] printFieldWriteSourceInfo:   Location: ptr-field.cc +16 7
+[src/array-detect-utils/info-print.cc +420] printFieldWriteSourceInfo:   Source type: FUNCTION_CALL (INDIRECT)
+[src/array-detect-utils/info-print.cc +434] printFieldWriteSourceInfo:   Call function name: createIntPtr
+[src/array-detect-write-trace/write-operation-trace-driver.cc +47] extractSourceFromCall: [extractSourceFromCall] gimple_call_fn tree code: addr_expr
+[src/array-detect-utils/info-print.cc +399] printFieldWriteSourceInfo: Extracted source for field write:
+[src/array-detect-utils/info-print.cc +400] printFieldWriteSourceInfo:   Type: PtrFieldFuzz
+[src/array-detect-utils/info-print.cc +401] printFieldWriteSourceInfo:   Field: k
+[src/array-detect-utils/info-print.cc +402] printFieldWriteSourceInfo:   Function: fuzz
+[src/array-detect-utils/info-print.cc +403] printFieldWriteSourceInfo:   BB index: 2
+[src/array-detect-utils/info-print.cc +410] printFieldWriteSourceInfo:   Location: ptr-field.cc +11 7
+[src/array-detect-utils/info-print.cc +420] printFieldWriteSourceInfo:   Source type: FUNCTION_CALL (INDIRECT)
+[src/array-detect-utils/info-print.cc +434] printFieldWriteSourceInfo:   Call function name: createPtr
+[src/array-detect-write-trace/write-operation-trace.cc +250] traceFieldAssignments: Tracing complete: 2 write operations processed, 2 sources extracted
+[src/array-detect-pipeline/pipeline.cc +35] runArrayDetectionPipeline: Step 3: Collecting source operand escape information
+[src/array-detect-source-escape-collection/source-escape-collection.cc +598] collectAllFieldEscapes: Collecting all field escapes (full analysis mode)
+[src/array-detect-source-escape-collection/source-escape-collection.cc +461] collectFieldWriteEscapes: Collecting field write escapes
+[src/array-detect-source-escape-collection/source-escape-collection.cc +405] collectSourceOperandEscapes: Collecting source operand escapes
+[src/array-detect-source-escape-collection/source-escape-collection.cc +433] collectSourceOperandEscapes: Source operand is SSA_NAME, starting escape trace
+[src/array-detect-source-escape-collection/source-escape-collection.cc +282] traceSSAUseChainEscapes: Tracing SSA use chain escapes at depth 0
+[src/array-detect-source-escape-collection/source-escape-collection.cc +299] traceSSAUseChainEscapes:   Skipping use (excluded write stmt itself)
+[src/array-detect-source-escape-collection/source-escape-collection.cc +394] traceSSAUseChainEscapes: SSA use chain analysis complete: 0 uses found
+[src/array-detect-source-escape-collection/source-escape-collection.cc +502] collectFieldWriteEscapes: Write capture analysis complete: 0 uses, 0 escapes, 0 escape locations
+=== Source Use Analysis Result ===
+Source operand: _2
+Total uses: 0
+Escape count: 0
+Has escape: NO
+Escape locations count: 0
+
+--- All Uses (Detailed) ---
+
+--- Escape Locations (Detailed) ---
+
+Fully analyzed: YES
+===================================
+[src/array-detect-source-escape-collection/source-escape-collection.cc +461] collectFieldWriteEscapes: Collecting field write escapes
+[src/array-detect-source-escape-collection/source-escape-collection.cc +405] collectSourceOperandEscapes: Collecting source operand escapes
+[src/array-detect-source-escape-collection/source-escape-collection.cc +433] collectSourceOperandEscapes: Source operand is SSA_NAME, starting escape trace
+[src/array-detect-source-escape-collection/source-escape-collection.cc +282] traceSSAUseChainEscapes: Tracing SSA use chain escapes at depth 0
+[src/array-detect-source-escape-collection/source-escape-collection.cc +299] traceSSAUseChainEscapes:   Skipping use (excluded write stmt itself)
+[src/array-detect-source-escape-collection/source-escape-collection.cc +394] traceSSAUseChainEscapes: SSA use chain analysis complete: 0 uses found
+[src/array-detect-source-escape-collection/source-escape-collection.cc +502] collectFieldWriteEscapes: Write capture analysis complete: 0 uses, 0 escapes, 0 escape locations
+=== Source Use Analysis Result ===
+Source operand: _1
+Total uses: 0
+Escape count: 0
+Has escape: NO
+Escape locations count: 0
+
+--- All Uses (Detailed) ---
+
+--- Escape Locations (Detailed) ---
+
+Fully analyzed: YES
+===================================
+[src/array-detect-pipeline/pipeline.cc +39] runArrayDetectionPipeline: Escape collection complete: 2 writes collected, 0 with escapes
+[src/array-detect-pipeline/pipeline.cc +43] runArrayDetectionPipeline: Step 4: Synthesizing escape information
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +421] synthesizeAllFieldEscapes: Synthesizing all field escapes
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +453] synthesizeAllFieldEscapes:   Processing (type=PtrFieldFuzz, field=x): 1 write operations
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +358] synthesizeEscapeInfo: [synthesizeEscapeInfo] Synthesizing escape info
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +490] synthesizeAllFieldEscapes:     Write #0: Synthesized - categories=0x1, uses=0, escapes=0
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +497] synthesizeAllFieldEscapes:   Printing detailed escape synthesis results for (type=PtrFieldFuzz, field=x)
+
+=== Field Escape Synthesis Results ===
+Type: PtrFieldFuzz
+Field: x
+Total write operations: 1
+
+--- Write Operation #0 ---
+  Categories (bitmap: 0x1):
+    - NO_ESCAPE (single field access, no escape)
+  Statistics:
+    Total uses: 0
+    Total escapes: 0
+    Category count: 1
+
+======================================
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +503] synthesizeAllFieldEscapes:   Performing ownership analysis for (type=PtrFieldFuzz, field=x)
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +510] synthesizeAllFieldEscapes:   Ownership analysis complete: verdict=SUPPORTED (no objection)
+
+=== Ownership Analysis Result ===
+Type: PtrFieldFuzz
+Field: x
+
+Verdict: SUPPORTED (no objection)
+Description: No evidence against owned pointer (supported)
+
+Statistics:
+  Total writes: 1
+  Supporting writes (no objection): 1
+  Rejecting writes (with objection): 0
+  Uncertain writes: 0
+
+No rejection reasons (all writes support owned pointer assumption)
+=================================
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +453] synthesizeAllFieldEscapes:   Processing (type=PtrFieldFuzz, field=k): 1 write operations
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +358] synthesizeEscapeInfo: [synthesizeEscapeInfo] Synthesizing escape info
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +490] synthesizeAllFieldEscapes:     Write #0: Synthesized - categories=0x1, uses=0, escapes=0
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +497] synthesizeAllFieldEscapes:   Printing detailed escape synthesis results for (type=PtrFieldFuzz, field=k)
+
+=== Field Escape Synthesis Results ===
+Type: PtrFieldFuzz
+Field: k
+Total write operations: 1
+
+--- Write Operation #0 ---
+  Categories (bitmap: 0x1):
+    - NO_ESCAPE (single field access, no escape)
+  Statistics:
+    Total uses: 0
+    Total escapes: 0
+    Category count: 1
+
+======================================
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +503] synthesizeAllFieldEscapes:   Performing ownership analysis for (type=PtrFieldFuzz, field=k)
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +510] synthesizeAllFieldEscapes:   Ownership analysis complete: verdict=SUPPORTED (no objection)
+
+=== Ownership Analysis Result ===
+Type: PtrFieldFuzz
+Field: k
+
+Verdict: SUPPORTED (no objection)
+Description: No evidence against owned pointer (supported)
+
+Statistics:
+  Total writes: 1
+  Supporting writes (no objection): 1
+  Rejecting writes (with objection): 0
+  Uncertain writes: 0
+
+No rejection reasons (all writes support owned pointer assumption)
+=================================
+[src/array-detect-escape-synthesizer/escape-synthesizer.cc +516] synthesizeAllFieldEscapes: Synthesis complete: 2 results
+[src/array-detect-pipeline/pipeline.cc +47] runArrayDetectionPipeline: Escape synthesis complete: 2 results synthesized
+[src/array-detect-pipeline/pipeline.cc +50] runArrayDetectionPipeline: Step 5: Analyzing ownership transfers
+[src/array-detect-ownership-transfer/ownership-transfer-analysis.cc +451] analyzeAllOwnershipTransfers: Analyzing all ownership transfers
+[src/array-detect-ownership-transfer/ownership-transfer-analysis.cc +502] analyzeAllOwnershipTransfers: Transfer analysis complete: 0 analyzed, 0 certain transfers
+[src/array-detect-pipeline/pipeline.cc +54] runArrayDetectionPipeline: Ownership transfer analysis complete: 0 analyzed, 0 certain transfers
+[src/array-detect-pipeline/pipeline.cc +58] runArrayDetectionPipeline: Step 6: Analyzing field owned conclusions
+[src/array-detect-owned-conclusion/owned-conclusion.cc +426] analyzeAllFieldOwnedConclusions: Analyzing all field owned conclusions
+[src/array-detect-owned-conclusion/owned-conclusion.cc +472] analyzeAllFieldOwnedConclusions: Field owned conclusion analysis complete: 2 fields, 2 YES, 0 NO, 0 undetermined
+[src/array-detect-pipeline/pipeline.cc +61] runArrayDetectionPipeline: Field owned conclusion analysis complete
+[src/array-detect-pipeline/pipeline.cc +64] runArrayDetectionPipeline: Step 6.5: Analyzing pointer-capacity associations
+[src/array-detect-capacity-association/capacity-association.cc +597] analyzeAllCapacityAssociations: Analyzing capacity associations for owned pointer fields
+[src/array-detect-capacity-association/capacity-association.cc +486] analyzePointerCapacityAssociation: [analyzePointerCapacityAssociation] Analyzing pointer field 'PtrFieldFuzz::x'
+
+=== CAPACITY ASSOCIATION ANALYSIS ===
+Pointer Field: PtrFieldFuzz::x
+
+[src/array-detect-capacity-association/capacity-association.cc +113] collectIntegerCandidates: [collectIntegerCandidates] Scanning type 'PtrFieldFuzz' for integer fields
+[src/array-detect-capacity-association/capacity-association.cc +143] collectIntegerCandidates: [collectIntegerCandidates] Skip non-integer field: PtrFieldFuzz::k (type code: pointer_type)
+[src/array-detect-capacity-association/capacity-association.cc +143] collectIntegerCandidates: [collectIntegerCandidates] Skip non-integer field: PtrFieldFuzz::x (type code: pointer_type)
+[src/array-detect-capacity-association/capacity-association.cc +149] collectIntegerCandidates: [collectIntegerCandidates] Type 'PtrFieldFuzz': 2 total fields, 0 integer candidates
+[src/array-detect-capacity-association/capacity-association.cc +503] analyzePointerCapacityAssociation: [analyzePointerCapacityAssociation] No integer candidates found for type 'PtrFieldFuzz'
+No integer candidate fields found in type 'PtrFieldFuzz'
+[src/array-detect-capacity-association/capacity-association.cc +486] analyzePointerCapacityAssociation: [analyzePointerCapacityAssociation] Analyzing pointer field 'PtrFieldFuzz::k'
+
+=== CAPACITY ASSOCIATION ANALYSIS ===
+Pointer Field: PtrFieldFuzz::k
+
+[src/array-detect-capacity-association/capacity-association.cc +113] collectIntegerCandidates: [collectIntegerCandidates] Scanning type 'PtrFieldFuzz' for integer fields
+[src/array-detect-capacity-association/capacity-association.cc +143] collectIntegerCandidates: [collectIntegerCandidates] Skip non-integer field: PtrFieldFuzz::k (type code: pointer_type)
+[src/array-detect-capacity-association/capacity-association.cc +143] collectIntegerCandidates: [collectIntegerCandidates] Skip non-integer field: PtrFieldFuzz::x (type code: pointer_type)
+[src/array-detect-capacity-association/capacity-association.cc +149] collectIntegerCandidates: [collectIntegerCandidates] Type 'PtrFieldFuzz': 2 total fields, 0 integer candidates
+[src/array-detect-capacity-association/capacity-association.cc +503] analyzePointerCapacityAssociation: [analyzePointerCapacityAssociation] No integer candidates found for type 'PtrFieldFuzz'
+No integer candidate fields found in type 'PtrFieldFuzz'
+[src/array-detect-capacity-association/capacity-association.cc +640] analyzeAllCapacityAssociations: Capacity association analysis complete: 2 fields analyzed, 0 with capacity fields
+[src/array-detect-pipeline/pipeline.cc +67] runArrayDetectionPipeline: Pointer-capacity association analysis complete
+[src/array-detect-pipeline/pipeline.cc +70] runArrayDetectionPipeline: Step 7: Printing final results
+
+================================================================================
+                    FIELD OWNED CONCLUSION ANALYSIS RESULTS
+================================================================================
+
+=== Field Owned Conclusion ===
+Type: PtrFieldFuzz
+Field: x
+
+Verdict: YES (may be owned)
+Description: Field may be owned pointer (all evidence supports)
+
+Statistics:
+  Total writes: 1
+  Supporting writes: 1
+  Rejecting writes: 0
+
+Supporting Evidence:
+  [0] ptr-field.cc:16:7
+      Source: function call
+      Uses: 0, Escapes: 0, Categories: 0x1
+
+==============================
+
+=== Field Owned Conclusion ===
+Type: PtrFieldFuzz
+Field: k
+
+Verdict: YES (may be owned)
+Description: Field may be owned pointer (all evidence supports)
+
+Statistics:
+  Total writes: 1
+  Supporting writes: 1
+  Rejecting writes: 0
+
+Supporting Evidence:
+  [0] ptr-field.cc:11:7
+      Source: function call
+      Uses: 0, Escapes: 0, Categories: 0x1
+
+==============================
+
+================================================================================
+Summary:
+  Total fields analyzed: 2
+  YES (may be owned): 2
+  NO (cannot be owned): 0
+  UNDETERMINED: 0
+================================================================================
+
+
+================================================================================
+                 POINTER-CAPACITY ASSOCIATION ANALYSIS RESULTS
+================================================================================
+
+=== Pointer-Capacity Association ===
+Type: PtrFieldFuzz
+Pointer Field: x
+
+Statistics:
+  Related candidates: 0
+  Unrelated candidates: 0
+  Undetermined candidates: 0
+
+=====================================
+
+=== Pointer-Capacity Association ===
+Type: PtrFieldFuzz
+Pointer Field: k
+
+Statistics:
+  Related candidates: 0
+  Unrelated candidates: 0
+  Undetermined candidates: 0
+
+=====================================
+
+================================================================================
+Summary:
+  Total pointer fields analyzed: 2
+  With capacity association: 0
+  Without capacity association: 2
+================================================================================
+
+[src/array-detect-utils/info-print.cc +18] printResults: Printing results
+[src/array-detect-core/array-detector.cc +205] getFieldCount: ArrayDetector field count retrieved successfully
+[src/array-detect-utils/info-print.cc +28] printResults: Processing total fields in detector
+[src/array-detect-pipeline/pipeline.cc +76] runArrayDetectionPipeline: Step 8: Writing Racket datum results
+[src/array-detect-owned-conclusion/owned-conclusion.cc +710] writeResultsToRacketDatum: Writing results to Racket datum file: out/result.rktd
+[src/array-detect-owned-conclusion/owned-conclusion.cc +797] writeResultsToRacketDatum: Successfully wrote 152 bytes (2 conclusions) to result file
+[src/array-detect-capacity-association/capacity-association.cc +941] writeCapacityAssociationsToRacketDatum: [writeCapacityAssociationsToRacketDatum] Writing to: out/result.rktd
+[src/array-detect-capacity-association/capacity-association.cc +1029] writeCapacityAssociationsToRacketDatum: [writeCapacityAssociationsToRacketDatum] Added entry for PtrFieldFuzz::x: malloc=0, read=0, write=0
+[src/array-detect-capacity-association/capacity-association.cc +1029] writeCapacityAssociationsToRacketDatum: [writeCapacityAssociationsToRacketDatum] Added entry for PtrFieldFuzz::k: malloc=0, read=0, write=0
+[src/array-detect-capacity-association/capacity-association.cc +1060] writeCapacityAssociationsToRacketDatum: [writeCapacityAssociationsToRacketDatum] Successfully wrote 258 bytes to result file
+[src/array-detect-pipeline/pipeline.cc +80] runArrayDetectionPipeline: === Array Detection Pipeline Completed ===
+[src/array-detect-core/array-detector.cc +167] deinit: ArrayDetector deinitialized: m_fields released
+[src/array-detect-core/array-detector.cc +174] deinit: ArrayDetector deinitialized: m_type_field_writes cleared
+[src/array-detect-core/array-detector.cc +178] deinit: ArrayDetector already deinitialized or was never initialized
+[src/array-detect-pipeline/pipeline.cc +95] runArrayDetectorAnalysis: Array member detection analysis completed

@@ -306,15 +306,18 @@ ArrayDetectErrorCode analyzePathsToExit (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 核心分析函数
+// 所有权转移分析：FieldWriteInfo, WriteOriginalSource -> OwnershipMoveResult
 // ============================================================================
 
-ArrayDetectErrorCode analyzeOwnershipTransfer (
+ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
-  array_detect_ns::FieldWriteCapture* write_capture,
-  array_detector::FieldSourceInfo* source_info,
-  OwnershipTransferAnalysisResult*& result
+  FieldWriteInfo* write_info,
+  array_detector::WriteOriginalSource* source,
+  OwnershipMoveResult*& result
 ) AD_FUNCTION_BEGIN {
+  // 向后兼容：使用旧变量名
+  FieldWriteInfo* write_capture = write_info;
+  array_detector::WriteOriginalSource* source_info = source;
   if (!write_capture || !source_info) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
@@ -390,17 +393,17 @@ ArrayDetectErrorCode analyzeOwnershipTransfer (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 集成函数：分析所有字段写入操作
+// 分析所有字段写入操作的所有权转移
 // ============================================================================
 
-ArrayDetectErrorCode analyzeAllOwnershipTransfers (
+ArrayDetectErrorCode analyzeAllOwnershipMoves (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
   unsigned int &total_analyzed,
-  unsigned int &total_certain_transfers
+  unsigned int &total_certain_moves
 ) AD_FUNCTION_BEGIN {
   total_analyzed = 0;
-  total_certain_transfers = 0;
+  total_certain_moves = 0;
 
   if (!detector.m_type_field_writes) {
     AD_RETURNE (OK);
@@ -412,44 +415,44 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     TypeFieldWriteOps* tfwo = (*iter).second;
-    if (!tfwo || !tfwo->write_analysis_records) continue;
+    if (!tfwo || !tfwo->write_records) continue;
 
-    for (unsigned int i = 0; i < tfwo->write_analysis_records->length (); i++) {
-      FieldWriteAnalysisRecord* record = (*tfwo->write_analysis_records)[i];
-      if (!record || !record->write_capture || !record->source_info) continue;
+    for (unsigned int i = 0; i < tfwo->write_records->length (); i++) {
+      FieldWriteAnalysisRecord* record = (*tfwo->write_records)[i];
+      if (!record || !record->write_info || !record->source) continue;
 
       // 只分析字段访问源
-      if (record->source_info->source_type != SOURCE_FIELD_ACCESS) {
+      if (record->source->source_type != SOURCE_FIELD_ACCESS) {
         continue;
       }
 
       total_analyzed++;
 
       // 执行分析
-      OwnershipTransferAnalysisResult* transfer_result = NULL;
-      AD_TRY (analyzeOwnershipTransfer (
+      OwnershipMoveResult* move_result = NULL;
+      AD_TRY (analyzeOwnershipMove (
         AD_ARGS,
-        record->write_capture,
-        record->source_info,
-        transfer_result
+        record->write_info,
+        record->source,
+        move_result
       ));
 
-      if (transfer_result) {
+      if (move_result) {
         // 存储结果到 record
-        record->ownership_transfer = transfer_result;
+        record->ownership_move = move_result;
 
         // 打印结果（调试信息）
-        printOwnershipTransferResult (AD_ARGS, ctx.debug_file, transfer_result);
+        printOwnershipMoveResult (AD_ARGS, ctx.debug_file, move_result);
 
-        if (transfer_result->verdict == TRANSFER_CERTAIN) {
-          total_certain_transfers++;
+        if (move_result->verdict == MOVE_CERTAIN) {
+          total_certain_moves++;
         }
       }
     }
   }
 
-  AD_DEBUG_PRINT ("ownershipTransfer: %u analyzed, %u certain",
-                  total_analyzed, total_certain_transfers);
+  AD_DEBUG_PRINT ("ownershipMove: %u analyzed, %u certain",
+                  total_analyzed, total_certain_moves);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -458,10 +461,10 @@ ArrayDetectErrorCode analyzeAllOwnershipTransfers (
 // 调试输出
 // ============================================================================
 
-void printOwnershipTransferResult (
+void printOwnershipMoveResult (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipTransferAnalysisResult* result
+  OwnershipMoveResult* result
 ) {
   (void)ctx;
   (void)gcc_ctx;

@@ -1,5 +1,34 @@
 #pragma once
 
+// ============================================================================
+// Field 分析数据流总览
+// ============================================================================
+// 本模块定义 Field 分析的核心数据结构
+//
+// 分析数据流（lisp 风格描述）：
+//
+// [逃逸分析链]
+// field -> (listof field-write-info)                              ; 收集字段写入
+// field-write-info -> write-original-source                       ; 追踪写入来源
+// write-original-source -> (listof source-use)                    ; 收集使用点
+// (listof source-use) -> (listof escaped-use)                     ; 提取逃逸使用
+// source, uses, escaped-uses -> source-escape-conclude            ; 源级逃逸结论
+// field, (listof source) -> field-escape-conclude                 ; 字段级逃逸结论
+//
+// [所有权分析链]
+// field-write-info, write-original-source -> ownership-move       ; 所有权转移分析
+// field, (listof ownership-move) -> ownership-conclude            ; 所有权结论
+//
+// 结构名称映射：
+// - FieldWriteInfo          : 字段写入信息
+// - WriteOriginalSource     : 写入原始来源
+// - SourceUseResult         : 源使用分析结果
+// - EscapedUseResult        : 逃逸使用结果
+// - SourceEscapeConclude    : 源逃逸结论
+// - FieldEscapeConclude     : 字段逃逸结论
+// - OwnershipMoveResult     : 所有权转移结果
+// ============================================================================
+
 #include "gcc-common.hh"
 #include "state.hh"
 #include "prelude.hh"
@@ -7,36 +36,47 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 数据结构：字段写入捕获（Pipeline 第一步输出）
+// 字段写入信息 (FieldWriteInfo)
 // ============================================================================
-// Pipeline 第一步：只抓取字段写入信息，不向下解析
-// 垃圾回收：所有指针字段使用 ggc_alloc/ggc_strdup 分配，由 GCC 自动管理
+// 数据流位置：field -> (listof field-write-info)
+// 表示单个字段写入操作的 GIMPLE 层信息
+//
+// (field-write-info
+//   type           : tree           ; TYPE_MAIN_VARIANT
+//   field-decl     : tree           ; FIELD_DECL
+//   stmt           : gimple*        ; GIMPLE_ASSIGN
+//   lhs            : tree           ; 左值 (MEM_REF/COMPONENT_REF)
+//   rhs            : tree           ; 右值 (SSA_NAME)
+//   location       : location_t     ; 源码位置)
 // ============================================================================
 
-struct FieldWriteCapture {
+struct FieldWriteInfo {
   // 核心信息：类型和字段
-  tree type;                    // 类型（TYPE_MAIN_VARIANT，GCC 内部管理）
-  tree field_decl;              // 字段声明（FIELD_DECL，GCC 内部管理）
-  
+  tree type;                    // 类型（TYPE_MAIN_VARIANT）
+  tree field_decl;              // 字段声明（FIELD_DECL）
+
   // 上下文信息：函数和基本块
-  tree function_decl;           // 函数声明（GCC 内部管理）
-  basic_block bb;               // 基本块（GCC 内部管理）
-  char const * function_name;    // 所在函数名（ggc_strdup 分配，用于调试）
-  
+  tree function_decl;           // 函数声明
+  basic_block bb;               // 基本块
+  char const * function_name;   // 所在函数名（ggc_strdup）
+
   // GIMPLE 语句信息
-  gimple * stmt;                 // GIMPLE_ASSIGN 语句（GCC 内部管理）
-  tree lhs;                     // 左值表达式（MEM，GCC 内部管理）
-  tree rhs;                     // 右值表达式（SSA_NAME，GCC 内部管理）
-  
+  gimple * stmt;                // GIMPLE_ASSIGN 语句
+  tree lhs;                     // 左值表达式
+  tree rhs;                     // 右值表达式
+
   // 源码位置
-  location_t location;          // 源码位置（GCC 内部管理）
-  
-  // 通用用途功能指针：用于存储有意义的结果（由后续阶段分配和管理）
+  location_t location;          // 源码位置
+
+  // 辅助指针：后续阶段填充 WriteOriginalSource*
   void * aux;
-  
-  // 调试和辅助字段
-  int bb_index;                 // 基本块索引（用于调试）
+
+  // 调试字段
+  int bb_index;                 // 基本块索引
 };
+
+// 向后兼容别名
+typedef FieldWriteInfo FieldWriteCapture;
 
 // ============================================================================
 // 数据结构：逃逸位置信息

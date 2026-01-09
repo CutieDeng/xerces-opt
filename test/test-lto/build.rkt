@@ -28,8 +28,8 @@
     "test-lto"
     pre
     (lambda (_) (void))
-    (get-ut-compile-task-files/list ut-compile-task-files '("-flto"))
-    (get-total-compile-task-files total-compile-task-files '("-flto"))
+    (get-ut-compile-task-files/list ut-compile-task-files '())
+    (get-total-compile-task-files total-compile-task-files '())
     (lazy #f)
   )
 )
