@@ -33,6 +33,9 @@
 
 #include "gcc-common.hh"
 #include "prelude.hh"
+#include "state.hh"
+#include "context.hh"
+#include "array-detect-context-gcc.hh"
 
 namespace field_analysis {
 
@@ -374,4 +377,63 @@ namespace array_detector {
   using WriteSource = field_analysis::FieldWriteAnalysisWrapper;
   using FieldWrite = field_analysis::FieldWriteAnalysisWrapper;
   using FieldWriteAnalysis = field_analysis::FieldWriteAnalysisWrapper;
+
+  // 前向声明（供 field-wrapper 使用）
+  struct WriteOriginalSource;
 }
+
+// ============================================================================
+// Wrapper 组装函数
+// ============================================================================
+// 数据流：各分析阶段结果 -> FieldWriteAnalysisWrapper
+
+namespace array_detect_ns {
+
+using field_analysis::FieldWriteAnalysisWrapper;
+using field_analysis::FieldSourceKind;
+using field_analysis::FieldMoveAnalysis;
+
+// 前向声明
+struct FieldWriteInfo;
+struct SourceUseResult;
+struct EscapedUseResult;
+struct SourceEscapeConclude;
+struct OwnershipMoveResult;
+
+// 创建并初始化空的 Wrapper
+ArrayDetectErrorCode createFieldWriteWrapper (
+  AD_FUNC_ARGS,
+  FieldWriteInfo* write_info,
+  FieldWriteAnalysisWrapper*& wrapper
+);
+
+// 填充来源部分
+ArrayDetectErrorCode fillWrapperSource (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisWrapper* wrapper,
+  array_detector::WriteOriginalSource* source
+);
+
+// 填充使用分析部分
+ArrayDetectErrorCode fillWrapperUseAnalysis (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisWrapper* wrapper,
+  SourceUseResult* use_result,
+  EscapedUseResult* escaped_uses
+);
+
+// 填充逃逸结论部分
+ArrayDetectErrorCode fillWrapperEscapeConclude (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisWrapper* wrapper,
+  SourceEscapeConclude* conclude
+);
+
+// 填充所有权转移部分
+ArrayDetectErrorCode fillWrapperOwnershipMove (
+  AD_FUNC_ARGS,
+  FieldWriteAnalysisWrapper* wrapper,
+  OwnershipMoveResult* move_result
+);
+
+} // namespace array_detect_ns

@@ -100,10 +100,10 @@ struct OwnershipMoveResult {
 typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
 
 // ============================================================================
-// 核心分析函数
+// 核心分析函数（新模块命名）
 // ============================================================================
 
-// 分析单个字段写入的所有权转移
+// 主入口：分析单个字段写入的所有权转移
 // field-write-info, write-original-source -> ownership-move-result
 ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
@@ -112,13 +112,54 @@ ArrayDetectErrorCode analyzeOwnershipMove (
   OwnershipMoveResult*& result
 );
 
-// 向后兼容别名
-inline ArrayDetectErrorCode analyzeOwnershipTransfer (
-  AD_FUNC_ARGS_DECL,
-  FieldWriteInfo* write_info,
-  array_detector::WriteOriginalSource* source,
-  OwnershipMoveResult*& result
-) { return analyzeOwnershipMove(AD_FUNC_ARGS_CALL, write_info, source, result); }
+// 子函数：查找从当前语句到函数出口的所有销毁点
+ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
+  AD_FUNC_ARGS,
+  gimple* start_stmt,
+  basic_block start_bb,
+  tree source_field,
+  tree source_object,
+  vec<InvalidationPoint*, va_gc>*& invalidation_points
+);
+
+// 子函数：递归搜索基本块中的销毁点
+ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
+  AD_FUNC_ARGS,
+  basic_block bb,
+  tree source_field,
+  tree source_object,
+  hash_set<basic_block>& visited,
+  vec<InvalidationPoint*, va_gc>*& invalidation_points
+);
+
+// 子函数：判断语句是否为销毁语句
+ArrayDetectErrorCode analyzeOwnershipMove_isInvalidationStatement (
+  AD_FUNC_ARGS,
+  gimple* stmt,
+  tree source_field,
+  tree source_object,
+  InvalidationKind& kind
+);
+
+// 子函数：分析从当前基本块到函数出口的路径
+ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
+  AD_FUNC_ARGS,
+  basic_block start_bb,
+  vec<InvalidationPoint*, va_gc>* invalidation_points,
+  unsigned int& paths_with,
+  unsigned int& paths_without,
+  unsigned int& total_paths
+);
+
+// 子函数：确定所有权转移结论
+ArrayDetectErrorCode analyzeOwnershipMove_determineVerdict (
+  AD_FUNC_ARGS,
+  OwnershipMoveResult* result
+);
+
+// ============================================================================
+// Pipeline 接口
+// ============================================================================
 
 // 分析所有字段写入操作的所有权转移
 ArrayDetectErrorCode analyzeAllOwnershipMoves (
@@ -128,7 +169,18 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
   unsigned int &total_certain_moves
 );
 
+// ============================================================================
+// 向后兼容接口
+// ============================================================================
+
 // 向后兼容别名
+inline ArrayDetectErrorCode analyzeOwnershipTransfer (
+  AD_FUNC_ARGS_DECL,
+  FieldWriteInfo* write_info,
+  array_detector::WriteOriginalSource* source,
+  OwnershipMoveResult*& result
+) { return analyzeOwnershipMove(AD_FUNC_ARGS_CALL, write_info, source, result); }
+
 inline ArrayDetectErrorCode analyzeAllOwnershipTransfers (
   AD_FUNC_ARGS_DECL,
   array_detector::ArrayDetector &detector,
@@ -136,38 +188,47 @@ inline ArrayDetectErrorCode analyzeAllOwnershipTransfers (
   unsigned int &total_certain_moves
 ) { return analyzeAllOwnershipMoves(AD_FUNC_ARGS_CALL, detector, total_analyzed, total_certain_moves); }
 
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-// 查找从当前语句到函数出口的所有销毁点
-ArrayDetectErrorCode findInvalidationPoints (
+// 旧名称别名（向后兼容）
+inline ArrayDetectErrorCode findInvalidationPoints (
   AD_FUNC_ARGS,
   gimple* start_stmt,
   basic_block start_bb,
   tree source_field,
   tree source_object,
   vec<InvalidationPoint*, va_gc>*& invalidation_points
-);
+) {
+  return analyzeOwnershipMove_findInvalidationPoints (
+    AD_ARGS, start_stmt, start_bb, source_field, source_object, invalidation_points
+  );
+}
 
-// 判断语句是否为销毁语句
-ArrayDetectErrorCode isInvalidationStatement (
+inline ArrayDetectErrorCode isInvalidationStatement (
   AD_FUNC_ARGS,
   gimple* stmt,
   tree source_field,
   tree source_object,
   InvalidationKind& kind
-);
+) {
+  return analyzeOwnershipMove_isInvalidationStatement (AD_ARGS, stmt, source_field, source_object, kind);
+}
 
-// 分析从当前基本块到函数出口的路径
-ArrayDetectErrorCode analyzePathsToExit (
+inline ArrayDetectErrorCode analyzePathsToExit (
   AD_FUNC_ARGS,
   basic_block start_bb,
   vec<InvalidationPoint*, va_gc>* invalidation_points,
   unsigned int& paths_with_invalidation,
   unsigned int& paths_without_invalidation,
   unsigned int& total_paths
-);
+) {
+  return analyzeOwnershipMove_analyzePaths (
+    AD_ARGS, start_bb, invalidation_points,
+    paths_with_invalidation, paths_without_invalidation, total_paths
+  );
+}
+
+// ============================================================================
+// 调试输出
+// ============================================================================
 
 // 打印所有权转移结果
 void printOwnershipMoveResult (

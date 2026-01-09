@@ -33,6 +33,8 @@
 // ============================================================================
 
 #include "gcc-common.hh"
+#include "context.hh"
+#include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
 
@@ -156,5 +158,67 @@ struct FunctionAnalysisResult {
 
 // WriteInfo 是 FieldWriteInfo 的简化别名
 typedef FieldWriteInfo WriteInfo;
+
+} // namespace array_detect_ns
+
+// ============================================================================
+// 收集函数声明
+// ============================================================================
+// 数据流：遍历编译单元 -> (type, field) -> (listof FieldWriteInfo)
+
+namespace array_detector {
+  class ArrayDetector;
+}
+
+namespace array_detect_ns {
+
+using array_detector::ArrayDetector;
+
+// 主入口：收集所有字段写入
+// 遍历编译单元中的所有函数，收集字段写入操作
+ArrayDetectErrorCode collectAllFieldWrites (
+  AD_FUNC_ARGS,
+  ArrayDetector& detector
+);
+
+// 子函数：扫描单个函数
+ArrayDetectErrorCode collectAllFieldWrites_scanFunction (
+  AD_FUNC_ARGS,
+  struct cgraph_node* node,
+  ArrayDetector& detector,
+  unsigned int& write_count
+);
+
+// 子函数：扫描基本块
+ArrayDetectErrorCode collectAllFieldWrites_scanBasicBlock (
+  AD_FUNC_ARGS,
+  basic_block bb,
+  tree func_decl,
+  ArrayDetector& detector,
+  unsigned int& write_count
+);
+
+// 子函数：检查语句是否为字段写入
+// 返回 OK 并设置 result 为 FieldWriteInfo 指针，如果不是字段写入则 result 为 NULL
+ArrayDetectErrorCode collectAllFieldWrites_checkStatement (
+  AD_FUNC_ARGS,
+  gimple* stmt,
+  basic_block bb,
+  tree func_decl,
+  FieldWriteInfo*& result
+);
+
+// 子函数：创建 FieldWriteInfo 并添加到 detector
+ArrayDetectErrorCode collectAllFieldWrites_createWriteInfo (
+  AD_FUNC_ARGS,
+  gimple* stmt,
+  tree lhs,
+  tree rhs,
+  tree field_decl,
+  tree containing_type,
+  basic_block bb,
+  tree func_decl,
+  ArrayDetector& detector
+);
 
 } // namespace array_detect_ns

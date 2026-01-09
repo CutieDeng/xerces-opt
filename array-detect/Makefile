@@ -136,6 +136,8 @@ obj/array-detect-core/array-detector.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -155,15 +157,15 @@ obj/array-detect-core/field-assignment-debugger.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh \
-  include/array-detect-context/context-init.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh
+  include/array-detect-context/context-init.hh
 
 obj/array-detect-core/type-field-hash.o: \
   src/array-detect-core/type-field-hash.cc \
@@ -178,6 +180,8 @@ obj/array-detect-core/type-field-hash.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
   include/array-detect-core/type-field-hash-traits.hh \
@@ -214,6 +218,8 @@ obj/array-detect-field-write-collector/field-write-collector.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -288,6 +294,8 @@ obj/array-detect-gcc-integration/gcc-ext-util.o: \
   include/array-detect-core/array-detector.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -308,6 +316,8 @@ obj/array-detect-gcc-integration/lto-summary.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -359,6 +369,8 @@ obj/array-detect-utils/info-print.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-field-source-tracer/field-source-variant.hh \
   include/ad-write-source/write-source.hh \
   include/array-detect-core/array-detector.hh \
@@ -370,8 +382,6 @@ obj/array-detect-utils/info-print.o: \
   include/array-detect-core/type-field-hash-traits.hh \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-core/virtual-call-analysis.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh
 
 obj/array-detect-utils/string-utils.o: \
@@ -406,6 +416,8 @@ obj/array-detect-field-source-tracer/write-operation-trace-driver.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -414,9 +426,7 @@ obj/array-detect-field-source-tracer/write-operation-trace-driver.o: \
   include/array-detect-field-source-tracer/field-source-variant.hh \
   include/ad-write-source/write-source.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh \
-  include/array-detect-core/virtual-call-analysis.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh
+  include/array-detect-core/virtual-call-analysis.hh
 
 obj/array-detect-field-source-tracer/write-operation-trace.o: \
   src/array-detect-field-source-tracer/write-operation-trace.cc \
@@ -431,6 +441,8 @@ obj/array-detect-field-source-tracer/write-operation-trace.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -442,30 +454,7 @@ obj/array-detect-field-source-tracer/write-operation-trace.o: \
   include/array-detect-utils/info-print.hh
 
 obj/array-detect-escape-use-collector/source-escape-collection.o: \
-  src/array-detect-escape-use-collector/source-escape-collection.cc \
-  include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh \
-  config/array-detect-state.txt \
-  include/array-detect-escape-use-collector/source-escape-collection.hh \
-  include/ad-source-use/source-use.hh \
-  include/array-detect-gcc-integration/gcc-common.hh \
-  include/array-detect-context/context.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
-  include/ad-field-write/field-write.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-utils/info.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
-  include/array-detect-result/analysis-data.hh \
-  include/array-detect-core/type-field-hash.hh \
-  include/array-detect-core/field-analysis.hh \
-  include/ad-field-wrapper/field-wrapper.hh \
-  include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh \
-  include/array-detect-field-source-tracer/write-operation-trace.hh \
-  include/array-detect-field-source-tracer/field-source-variant.hh \
-  include/ad-write-source/write-source.hh \
-  include/array-detect-utils/info-print.hh
+  src/array-detect-escape-use-collector/source-escape-collection.cc
 
 obj/array-detect-escape-evidence-synthesizer/escape-synthesizer.o: \
   src/array-detect-escape-evidence-synthesizer/escape-synthesizer.cc \
@@ -485,30 +474,7 @@ obj/array-detect-escape-evidence-synthesizer/escape-synthesizer.o: \
   include/ad-field-escape/field-escape.hh
 
 obj/array-detect-ownership-transfer-analyzer/ownership-transfer-analysis.o: \
-  src/array-detect-ownership-transfer-analyzer/ownership-transfer-analysis.cc \
-  include/array-detect-ownership-transfer-analyzer/ownership-transfer-analysis.hh \
-  include/ad-ownership-move/ownership-move.hh \
-  include/array-detect-gcc-integration/gcc-common.hh \
-  include/array-detect-context/context.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-utils/prelude.hh \
-  include/array-detect-context/state.hh \
-  config/array-detect-state.txt \
-  include/array-detect-context/address-resolver.hh \
-  include/ad-field-write/field-write.hh \
-  include/ad-write-source/write-source.hh \
-  include/array-detect-core/array-detector.hh \
-  include/array-detect-utils/info.hh \
-  include/array-detect-context/array-detect-context-gcc-interface.hh \
-  include/array-detect-result/analysis-data.hh \
-  include/array-detect-core/type-field-hash.hh \
-  include/array-detect-core/field-analysis.hh \
-  include/ad-field-wrapper/field-wrapper.hh \
-  include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh \
-  include/array-detect-gcc-integration/gcc-ext-util.hh \
-  include/array-detect-field-source-tracer/field-source-variant.hh \
-  include/array-detect-utils/info-print.hh
+  src/array-detect-ownership-transfer-analyzer/ownership-transfer-analysis.cc
 
 obj/array-detect-owned-verdict-generator/owned-conclusion.o: \
   src/array-detect-owned-verdict-generator/owned-conclusion.cc \
@@ -523,6 +489,8 @@ obj/array-detect-owned-verdict-generator/owned-conclusion.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -533,8 +501,6 @@ obj/array-detect-owned-verdict-generator/owned-conclusion.o: \
   include/array-detect-gcc-integration/gcc-ext-util.hh \
   include/array-detect-escape-use-collector/source-escape-collection.hh \
   include/ad-source-use/source-use.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-escape-evidence-synthesizer/escape-synthesizer.hh \
   include/ad-escaped-use/escaped-use.hh \
   include/ad-source-escape/source-escape.hh \
@@ -557,6 +523,8 @@ obj/array-detect-capacity-field-associator/capacity-association.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -584,6 +552,8 @@ obj/array-detect-array-access-collector/array-access-collector.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -609,6 +579,8 @@ obj/array-detect-bound-condition-analyzer/bound-condition-analyzer.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -618,8 +590,6 @@ obj/array-detect-bound-condition-analyzer/bound-condition-analyzer.o: \
   include/array-detect-utils/info-print.hh \
   include/array-detect-field-source-tracer/field-source-variant.hh \
   include/ad-write-source/write-source.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-utils/string-utils.hh
 
 obj/array-detect-unified-result-aggregator/result-aggregator.o: \
@@ -635,6 +605,8 @@ obj/array-detect-unified-result-aggregator/result-aggregator.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -646,8 +618,6 @@ obj/array-detect-unified-result-aggregator/result-aggregator.o: \
   include/array-detect-capacity-field-associator/capacity-association.hh \
   include/array-detect-array-access-collector/array-access-collector.hh \
   include/array-detect-bound-condition-analyzer/bound-condition-analyzer.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-gcc-integration/gcc-ext-util.hh
 
 obj/array-detect-lto-transform/lto-transform.o: \
@@ -665,6 +635,8 @@ obj/array-detect-lto-transform/lto-transform.o: \
   include/array-detect-context/array-detect-context-gcc-interface.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -672,8 +644,6 @@ obj/array-detect-lto-transform/lto-transform.o: \
   include/array-detect-core/type-field-hashmap-traits.hh \
   include/array-detect-field-source-tracer/field-source-variant.hh \
   include/ad-write-source/write-source.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-context/context-init.hh \
   include/array-detect-pipeline-orchestrator/pipeline.hh
 
@@ -681,9 +651,22 @@ obj/ad-field-write/field-write.o: \
   src/ad-field-write/field-write.cc \
   include/ad-field-write/field-write.hh \
   include/array-detect-gcc-integration/gcc-common.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-utils/prelude.hh \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
-  include/array-detect-utils/prelude.hh
+  include/array-detect-context/address-resolver.hh \
+  include/array-detect-core/array-detector.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/field-analysis.hh \
+  include/ad-field-wrapper/field-wrapper.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-gcc-integration/gcc-ext-util.hh
 
 obj/ad-write-source/write-source.o: \
   src/ad-write-source/write-source.cc \
@@ -691,8 +674,23 @@ obj/ad-write-source/write-source.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-utils/prelude.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/state.hh \
-  config/array-detect-state.txt
+  config/array-detect-state.txt \
+  include/array-detect-context/address-resolver.hh \
+  include/array-detect-core/array-detector.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/field-analysis.hh \
+  include/ad-field-wrapper/field-wrapper.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-gcc-integration/gcc-ext-util.hh \
+  include/array-detect-utils/info-print.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh
 
 obj/ad-source-use/source-use.o: \
   src/ad-source-use/source-use.cc \
@@ -704,7 +702,19 @@ obj/ad-source-use/source-use.o: \
   include/array-detect-context/state.hh \
   config/array-detect-state.txt \
   include/array-detect-context/address-resolver.hh \
-  include/ad-field-write/field-write.hh
+  include/ad-field-write/field-write.hh \
+  include/array-detect-core/array-detector.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/field-analysis.hh \
+  include/ad-field-wrapper/field-wrapper.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-utils/info-print.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh \
+  include/ad-write-source/write-source.hh
 
 obj/ad-ownership-move/ownership-move.o: \
   src/ad-ownership-move/ownership-move.cc \
@@ -717,7 +727,19 @@ obj/ad-ownership-move/ownership-move.o: \
   config/array-detect-state.txt \
   include/array-detect-context/address-resolver.hh \
   include/ad-field-write/field-write.hh \
-  include/ad-write-source/write-source.hh
+  include/ad-write-source/write-source.hh \
+  include/array-detect-core/array-detector.hh \
+  include/array-detect-utils/info.hh \
+  include/array-detect-context/array-detect-context-gcc-interface.hh \
+  include/array-detect-result/analysis-data.hh \
+  include/array-detect-core/type-field-hash.hh \
+  include/array-detect-core/field-analysis.hh \
+  include/ad-field-wrapper/field-wrapper.hh \
+  include/array-detect-core/type-field-hash-traits.hh \
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-gcc-integration/gcc-ext-util.hh \
+  include/array-detect-utils/info-print.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh
 
 obj/ad-escaped-use/escaped-use.o: \
   src/ad-escaped-use/escaped-use.cc \
@@ -789,7 +811,19 @@ obj/ad-field-wrapper/field-wrapper.o: \
   src/ad-field-wrapper/field-wrapper.cc \
   include/ad-field-wrapper/field-wrapper.hh \
   include/array-detect-gcc-integration/gcc-common.hh \
-  include/array-detect-utils/prelude.hh
+  include/array-detect-utils/prelude.hh \
+  include/array-detect-context/state.hh \
+  config/array-detect-state.txt \
+  include/array-detect-context/context.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
+  include/ad-field-write/field-write.hh \
+  include/ad-write-source/write-source.hh \
+  include/ad-source-use/source-use.hh \
+  include/ad-escaped-use/escaped-use.hh \
+  include/array-detect-escape-use-collector/source-escape-collection.hh \
+  include/ad-source-escape/source-escape.hh \
+  include/ad-ownership-move/ownership-move.hh
 
 obj/ad-pipeline/pipeline.o: \
   src/ad-pipeline/pipeline.cc \
@@ -806,6 +840,8 @@ obj/ad-pipeline/pipeline.o: \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/array-detect-result/analysis-data.hh \
   include/ad-field-write/field-write.hh \
+  include/array-detect-context/array-detect-context-gcc.hh \
+  include/array-detect-context/address-resolver.hh \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/ad-field-wrapper/field-wrapper.hh \
@@ -815,19 +851,12 @@ obj/ad-pipeline/pipeline.o: \
   include/ad-write-source/write-source.hh \
   include/array-detect-escape-use-collector/source-escape-collection.hh \
   include/ad-source-use/source-use.hh \
-  include/array-detect-context/array-detect-context-gcc.hh \
-  include/array-detect-context/address-resolver.hh \
   include/array-detect-escape-evidence-synthesizer/escape-synthesizer.hh \
   include/ad-escaped-use/escaped-use.hh \
   include/ad-source-escape/source-escape.hh \
   include/ad-field-escape/field-escape.hh \
   include/array-detect-ownership-transfer-analyzer/ownership-transfer-analysis.hh \
   include/ad-ownership-move/ownership-move.hh \
-  include/array-detect-owned-verdict-generator/owned-conclusion.hh \
-  include/array-detect-capacity-field-associator/capacity-association.hh \
-  include/array-detect-array-access-collector/array-access-collector.hh \
-  include/array-detect-bound-condition-analyzer/bound-condition-analyzer.hh \
-  include/array-detect-unified-result-aggregator/result-aggregator.hh \
   include/array-detect-utils/info-print.hh
 
 obj/ad-driver/driver.o: \
@@ -839,10 +868,10 @@ obj/ad-driver/driver.o: \
   config/array-detect-state.txt \
   include/array-detect-gcc-integration/gcc-common.hh \
   include/ad-field-write/field-write.hh \
-  include/ad-write-source/write-source.hh \
-  include/ad-source-use/source-use.hh \
   include/array-detect-context/array-detect-context-gcc.hh \
   include/array-detect-context/address-resolver.hh \
+  include/ad-write-source/write-source.hh \
+  include/ad-source-use/source-use.hh \
   include/ad-escaped-use/escaped-use.hh \
   include/array-detect-escape-use-collector/source-escape-collection.hh \
   include/ad-source-escape/source-escape.hh \
@@ -855,7 +884,9 @@ obj/ad-driver/driver.o: \
   include/array-detect-core/type-field-hash.hh \
   include/array-detect-core/field-analysis.hh \
   include/array-detect-core/type-field-hash-traits.hh \
-  include/array-detect-core/type-field-hashmap-traits.hh
+  include/array-detect-core/type-field-hashmap-traits.hh \
+  include/array-detect-utils/info-print.hh \
+  include/array-detect-field-source-tracer/field-source-variant.hh
 
 clean:
 	rm -rf obj out

@@ -3,6 +3,16 @@
 // ============================================================================
 // 顶层控制流编排模块
 // 实现分析阶段调度和 pipeline 执行
+//
+// 当前支持的分析阶段（对应已定义的新模块）：
+// 1. collectTypesAndFields     -> ad-field-write
+// 2. traceFieldAssignments     -> ad-write-source
+// 3. collectAllFieldEscapes    -> ad-source-use
+// 4. synthesizeAllFieldEscapes -> ad-escaped-use, ad-source-escape, ad-field-escape
+// 5. analyzeAllOwnershipTransfers -> ad-ownership-move
+//
+// 未来扩展（待定义数据流）：
+// - owned-verdict, capacity-assoc, array-access, bound-condition, result-aggregator
 // ============================================================================
 
 // 使用相对路径确保包含正确的头文件
@@ -12,11 +22,6 @@
 #include "source-escape-collection.hh"
 #include "escape-synthesizer.hh"
 #include "ownership-transfer-analysis.hh"
-#include "owned-conclusion.hh"
-#include "capacity-association.hh"
-#include "array-access-collector.hh"
-#include "bound-condition-analyzer.hh"
-#include "result-aggregator.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -39,82 +44,62 @@ PipelineState* getPipelineState (AD_FUNC_ARGS) {
 }
 
 // ============================================================================
-// Pipeline 实现：调用下层模块的抽象层
+// Pipeline 实现
 // ============================================================================
+// 当前只包含已定义数据流的模块调用
+// 对应 10 个新模块：
+// - ad-field-write, ad-write-source, ad-source-use
+// - ad-escaped-use, ad-source-escape, ad-field-escape
+// - ad-ownership-move, ad-field-wrapper
+// - ad-pipeline, ad-driver
 
 ArrayDetectErrorCode runPipeline (
   AD_FUNC_ARGS,
   ArrayDetector &detector
 ) AD_FUNCTION_BEGIN {
-  // Step 1: Extract field information
+  // ========================================================================
+  // Step 1: 收集字段写入 (ad-field-write)
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_COLLECT_WRITES;
   AD_TRY (collectTypesAndFields (detector, AD_ARGS));
 
-  // Step 2: Analyze field assignments
+  // ========================================================================
+  // Step 2: 追踪写入来源 (ad-write-source)
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_TRACE_SOURCES;
   AD_TRY (traceFieldAssignments (detector, AD_ARGS));
 
-  // Step 3: Collect source operand escape information
+  // ========================================================================
+  // Step 3: 分析使用链 (ad-source-use)
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_USES;
   unsigned int total_analyzed = 0;
   unsigned int total_escaped = 0;
   AD_TRY (collectAllFieldEscapes (AD_ARGS, detector, total_analyzed, total_escaped));
   g_pipeline_state.total_escapes_analyzed = total_analyzed;
 
-  // Step 4: Generate escape evidence
+  // ========================================================================
+  // Step 4: 合成逃逸证据 (ad-escaped-use, ad-source-escape, ad-field-escape)
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_SYNTHESIZE_ESCAPES;
   vec<EscapeEvidenceResult*> * evidence_results = NULL;
   unsigned int total_synthesized = 0;
   AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, evidence_results, total_synthesized));
 
-  // Step 5: Analyze ownership transfers
+  // ========================================================================
+  // Step 5: 分析所有权转移 (ad-ownership-move)
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_OWNERSHIP;
   unsigned int transfer_analyzed = 0;
   unsigned int certain_transfers = 0;
   AD_TRY (analyzeAllOwnershipTransfers (AD_ARGS, detector, transfer_analyzed, certain_transfers));
   g_pipeline_state.total_ownership_analyzed = transfer_analyzed;
 
-  // Step 6: Analyze field owned conclusions
-  g_pipeline_state.current_phase = PHASE_GENERATE_VERDICT;
-  vec<FieldOwnedConclusion*, va_gc>* owned_conclusions = NULL;
-  AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, owned_conclusions));
-  g_pipeline_state.total_verdicts_generated = vec_safe_length(owned_conclusions);
-
-  // Step 7: Collect array accesses
-  g_pipeline_state.current_phase = PHASE_COLLECT_ACCESSES;
-  hash_map<TypeFieldKey, TypeFieldArrayAccesses*, TypeFieldArrayAccessesHashMapTraits>* array_accesses = NULL;
-  AD_TRY (collectAllArrayAccessesByTypeField (AD_ARGS, array_accesses));
-
-  // Step 8: Analyze bound conditions
-  g_pipeline_state.current_phase = PHASE_ANALYZE_BOUNDS;
-  if (array_accesses) {
-    AD_TRY (analyzeAllBoundConditions (AD_ARGS, array_accesses));
-  }
-
-  // Step 9: Analyze pointer-capacity associations
-  g_pipeline_state.current_phase = PHASE_ASSOCIATE_CAPACITY;
-  vec<PointerCapacityAssociation*, va_gc>* capacity_results = NULL;
-  AD_TRY (analyzeAllCapacityAssociations (AD_ARGS, detector, owned_conclusions, array_accesses, capacity_results));
-
-  // Step 10: Aggregate results
-  g_pipeline_state.current_phase = PHASE_AGGREGATE_RESULTS;
-  vec<UnifiedFieldAnalysisResult*, va_gc>* unified_results = NULL;
-  AD_TRY (aggregateAllResults (AD_ARGS, detector, owned_conclusions,
-                               capacity_results, array_accesses, unified_results));
-  AD_DEBUG_PRINT ("pipeline: %u unified results", (unsigned int)vec_safe_length(unified_results));
-
-  // Store results in context for LTO serialization
-  ctx.unified_results = unified_results;
-
-  // Step 11: Print debug results
+  // ========================================================================
+  // Step 6: 输出调试信息
+  // ========================================================================
   g_pipeline_state.current_phase = PHASE_OUTPUT;
-  printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
-  printAllPointerCapacityAssociations (AD_ARGS, ctx.debug_file, capacity_results);
-  printAllUnifiedResults (AD_ARGS, ctx.debug_file, unified_results);
   AD_TRY (printResults (AD_ARGS, detector));
-
-  // Step 12: Write unified Racket datum results
-  AD_TRY (writeUnifiedResultsToRacketDatum (AD_ARGS, unified_results));
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

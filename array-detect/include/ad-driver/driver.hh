@@ -68,6 +68,13 @@ ArrayDetectErrorCode driveWriteAnalysis (
   FieldWriteAnalysisRecord*& result
 );
 
+// 驱动所有写入的分析（Pipeline 接口）
+// 遍历 detector 中所有字段写入，执行完整分析
+ArrayDetectErrorCode driveAllWriteAnalysis (
+  AD_FUNC_ARGS,
+  ArrayDetector& detector
+);
+
 // 驱动单个字段的所有写入分析
 // 对指定 (type, field_decl) 的所有写入执行分析
 ArrayDetectErrorCode driveFieldAnalysis (

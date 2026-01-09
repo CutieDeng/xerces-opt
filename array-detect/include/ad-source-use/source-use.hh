@@ -126,7 +126,64 @@ typedef SourceUseResult SourceUseAnalysisResult;
 constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 
 // ============================================================================
-// 核心收集接口
+// 核心分析接口（新模块命名）
+// ============================================================================
+
+// 主入口：分析源操作数的所有使用
+// 数据流：source_operand -> SourceUseResult
+ArrayDetectErrorCode analyzeSourceUse (
+  AD_FUNC_ARGS,
+  tree source_operand,
+  gimple * source_stmt,
+  gimple * exclude_stmt,
+  SourceUseResult *& result
+);
+
+// 子函数：递归追踪 SSA 使用链
+ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
+  AD_FUNC_ARGS,
+  tree ssa_name,
+  SourceUseResult * result,
+  unsigned int depth,
+  gimple * exclude_stmt
+);
+
+// 子函数：分类 SSA 使用类型
+ArrayDetectErrorCode analyzeSourceUse_classifyUseKind (
+  AD_FUNC_ARGS,
+  gimple * use_stmt,
+  tree ssa_name,
+  SourceUseKind & kind
+);
+
+// 子函数：检测逃逸类型
+ArrayDetectErrorCode analyzeSourceUse_detectEscapeKind (
+  AD_FUNC_ARGS,
+  SourceUseInfo const & use_info,
+  SourceUseEscapeKind & escape_kind
+);
+
+// 子函数：判断函数是否为外部函数
+ArrayDetectErrorCode analyzeSourceUse_isFunctionExternal (
+  AD_FUNC_ARGS,
+  tree function_decl,
+  bool & result
+);
+
+// 子函数：记录使用点
+ArrayDetectErrorCode analyzeSourceUse_recordUsePoint (
+  AD_FUNC_ARGS,
+  gimple * use_stmt,
+  tree use_operand,
+  SourceUseKind use_kind,
+  SourceUseEscapeKind escape_kind,
+  char const * escape_target,
+  EscapeTargetInfo const & target_info,
+  SourceUseResult * result
+);
+
+// ============================================================================
+// Pipeline 接口
 // ============================================================================
 
 // 收集所有字段的逃逸信息
@@ -140,18 +197,20 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   unsigned int &total_escaped
 );
 
-// 收集单个源操作数的使用信息
-// 输入：source_operand - 源操作数（SSA_NAME）
-//       source_stmt - 源语句
-//       exclude_stmt - 要排除的语句（当前写入操作本身）
-// 输出：result - SourceUseResult 指针（GC 管理）
-ArrayDetectErrorCode collectSourceOperandEscapes (
+// ============================================================================
+// 向后兼容接口
+// ============================================================================
+
+// 收集单个源操作数的使用信息（别名）
+inline ArrayDetectErrorCode collectSourceOperandEscapes (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * source_stmt,
   gimple * exclude_stmt,
   SourceUseResult * &result
-);
+) {
+  return analyzeSourceUse (AD_ARGS, source_operand, source_stmt, exclude_stmt, result);
+}
 
 // 从字段写入中收集源使用信息
 // 输入：write_info - 字段写入信息
