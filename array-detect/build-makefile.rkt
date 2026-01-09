@@ -383,7 +383,10 @@
       "ad-source-escape"
       "ad-field-escape"
       ;; 新模块 (wrapper 独立)
-      "ad-field-wrapper"))
+      "ad-field-wrapper"
+      ;; 新模块 (控制流)
+      "ad-pipeline"
+      "ad-driver"))
   (define src-path "src")
   (define include-path "include")
   (define src-config-path "config")

@@ -1,5 +1,14 @@
 #pragma once
 
+// ============================================================================
+// 向后兼容转发头文件
+// ============================================================================
+// 此头文件内容已移至 ad-pipeline 模块
+// ============================================================================
+
+// 由于 ad-pipeline 目录在 include 路径中，直接包含该模块的头文件
+// 注意：实现已移至 ad-pipeline 模块
+
 #include "prelude.hh"
 #include "context.hh"
 #include "state.hh"
@@ -12,31 +21,38 @@ namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
 
-// ============================================================================
-// Array Detection Pipeline
-// ============================================================================
-// 简单的 pipeline 抽象，作为调用下层模块的组装器
-// 组织三个主要步骤：提取字段信息 -> 分析信息 -> 输出信息
-// ============================================================================
+// 前向声明 ad-pipeline 中的类型和函数
 
-// Pipeline 函数：执行完整的数组检测流程
-// 返回值：ArrayDetectErrorCode
-// 输入输出：detector - ArrayDetector 对象（会被填充和更新）
-// 
-// 流程：
-//   1. 提取字段信息：收集所有类型和字段
-//   2. 分析信息：追踪字段赋值，判断是否为数组候选
-//   3. 输出信息：生成并输出分析报告
-ArrayDetectErrorCode runArrayDetectionPipeline (
-  AD_FUNC_ARGS,
-  ArrayDetector &detector
-);
+// 分析阶段枚举
+enum AnalysisPhase {
+  PHASE_COLLECT_WRITES,
+  PHASE_TRACE_SOURCES,
+  PHASE_ANALYZE_USES,
+  PHASE_SYNTHESIZE_ESCAPES,
+  PHASE_ANALYZE_OWNERSHIP,
+  PHASE_GENERATE_VERDICT,
+  PHASE_COLLECT_ACCESSES,
+  PHASE_ANALYZE_BOUNDS,
+  PHASE_ASSOCIATE_CAPACITY,
+  PHASE_AGGREGATE_RESULTS,
+  PHASE_OUTPUT
+};
 
-// 顶层入口：创建检测器并执行分析
-// 返回值：ArrayDetectErrorCode
-// 这个函数负责创建 ArrayDetector，初始化，调用 pipeline，然后清理
-// 这是插件的主要入口点
+struct PipelineConfig;
+struct PipelineState;
+
+// Pipeline 函数（实现在 ad-pipeline/pipeline.cc）
+ArrayDetectErrorCode runPipeline (AD_FUNC_ARGS, ArrayDetector &detector);
+ArrayDetectErrorCode runArrayDetectionPipeline (AD_FUNC_ARGS, ArrayDetector &detector);
 ArrayDetectErrorCode runArrayDetectorAnalysis (AD_FUNC_ARGS);
 
 } // namespace array_detect_ns
 
+// 注意：新代码请直接使用 ad-pipeline/pipeline.hh
+// 此文件保留用于向后兼容
+
+// 以下内容由 ad-pipeline/pipeline.hh 提供:
+// - AnalysisPhase 枚举
+// - PipelineConfig, PipelineState 结构
+// - runPipeline(), runPhase(), getPipelineState() 函数
+// - runArrayDetectionPipeline(), runArrayDetectorAnalysis() 向后兼容函数
