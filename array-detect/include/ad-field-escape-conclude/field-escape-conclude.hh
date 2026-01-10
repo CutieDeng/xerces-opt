@@ -10,11 +10,6 @@
 #include "source-escape-conclude.hh"
 #include "field-wrapper.hh"
 
-// 前置声明
-namespace array_detector {
-  class ArrayDetector;
-}
-
 namespace array_detect_ns {
 
 // ============================================================================
@@ -74,18 +69,6 @@ ArrayDetectErrorCode summarizeFieldEscapeConclude (
   tree field_decl,
   vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>* writes,
   FieldEscapeConclude** result
-);
-
-// ============================================================================
-// Pipeline 接口
-// ============================================================================
-
-// 汇总所有字段的逃逸结论
-// 前置条件：所有 wrapper 的 escape_conclude 已由 synthesizeAllSourceEscapeConclude 填充
-ArrayDetectErrorCode summarizeAllFieldEscapeConclude (
-  AD_FUNC_ARGS,
-  ::array_detector::ArrayDetector &detector,
-  unsigned int &total_summarized
 );
 
 } // namespace array_detect_ns

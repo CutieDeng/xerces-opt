@@ -6,7 +6,7 @@
 // ============================================================================
 
 #include "field-escape-conclude.hh"
-#include "array-detector.hh"
+#include "write-source.hh"
 #include "info-print.hh"
 
 namespace array_detect_ns {
@@ -127,53 +127,6 @@ ArrayDetectErrorCode summarizeFieldEscapeConclude (
     : 0.0f;
 
   *result = summary;
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// ============================================================================
-// Pipeline 接口实现
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// summarizeAllFieldEscapeConclude
-// ----------------------------------------------------------------------------
-// 汇总所有字段的逃逸结论
-// 前置条件：所有 wrapper 的 escape_conclude 已由 synthesizeAllSourceEscapeConclude 填充
-
-ArrayDetectErrorCode summarizeAllFieldEscapeConclude (
-  AD_FUNC_ARGS,
-  ::array_detector::ArrayDetector &detector,
-  unsigned int &total_summarized
-) AD_FUNCTION_BEGIN {
-  total_summarized = 0;
-
-  if (!detector.m_type_field_writes) {
-    AD_RETURNE (OK);
-  }
-
-  typedef hash_map<::array_detector::TypeFieldKey,
-                   ::array_detector::TypeFieldAnalysisData*,
-                   ::array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
-
-  for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
-       iter != detector.m_type_field_writes->end ();
-       ++iter) {
-    ::array_detector::TypeFieldAnalysisData * tfad = (*iter).second;
-    if (!tfad || !tfad->writes) continue;
-
-    // 汇总该字段的逃逸结论
-    AD_TRY (summarizeFieldEscapeConclude (
-      AD_ARGS,
-      tfad->type,
-      tfad->field_decl,
-      tfad->writes,
-      &tfad->escape_conclude
-    ));
-
-    total_summarized++;
-  }
-
-  AD_DEBUG_PRINT ("fieldConclude: summarized %u field escape conclusions", total_summarized);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

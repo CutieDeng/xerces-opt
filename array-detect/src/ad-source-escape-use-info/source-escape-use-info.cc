@@ -8,7 +8,6 @@
 
 #include "source-escape-use-info.hh"
 #include "source-use-info.hh"
-#include "array-detector.hh"
 #include "info-print.hh"
 
 #include "tree.h"
@@ -299,47 +298,6 @@ ArrayDetectErrorCode extractSourceEscapeUseInfo (
     escape_use_info->is_safe_debug = isEscapeSafeDebug (AD_ARGS, use_info);
 
     wrapper->escape_use_info = escape_use_info;
-  }
-
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// ============================================================================
-// Pipeline 接口实现
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// extractAllSourceEscapeUseInfo
-// ----------------------------------------------------------------------------
-// 提取所有字段的逃逸使用信息
-
-ArrayDetectErrorCode extractAllSourceEscapeUseInfo (
-  AD_FUNC_ARGS,
-  ::array_detector::ArrayDetector &detector,
-  unsigned int &total_extracted
-) AD_FUNCTION_BEGIN {
-  total_extracted = 0;
-
-  if (!detector.m_type_field_writes) {
-    AD_RETURNE (OK);
-  }
-
-  typedef hash_map<::array_detector::TypeFieldKey, ::array_detector::TypeFieldAnalysisData*, ::array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
-
-  for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
-       iter != detector.m_type_field_writes->end ();
-       ++iter) {
-    ::array_detector::TypeFieldAnalysisData * tfad = (*iter).second;
-    if (!tfad || !tfad->writes) continue;
-
-    for (unsigned i = 0; i < tfad->writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
-      if (!wrapper || !wrapper->uses) continue;
-
-      // 提取该写入的所有使用的逃逸信息
-      AD_TRY (extractSourceEscapeUseInfo (AD_ARGS, wrapper->uses));
-      total_extracted++;
-    }
   }
 
   AD_RETURNE (OK);

@@ -4,17 +4,17 @@
 // 顶层控制流编排模块
 // 实现分析阶段调度和 pipeline 执行
 //
-// 当前支持的分析阶段（对应已定义的新模块）：
+// Pipeline 负责 (listof A) -> (listof B) 的批量遍历
+// 各子模块只负责 A -> B 的单项转换
+//
+// 当前支持的分析阶段：
 // 1. collectAllFieldWrites          -> ad-field-write
 // 2. traceFieldAssignments          -> ad-write-source
 // 3. collectAllFieldUses            -> ad-source-use-info
-// 4. extractAllSourceEscapeUseInfo  -> ad-source-escape-use-info
-// 5. synthesizeAllSourceEscapeConclude -> ad-source-escape-conclude
-// 6. summarizeAllFieldEscapeConclude   -> ad-field-escape-conclude
+// 4. extractSourceEscapeUseInfo     -> ad-source-escape-use-info (per write)
+// 5. synthesizeSourceEscapeConclude -> ad-source-escape-conclude (per write)
+// 6. summarizeFieldEscapeConclude   -> ad-field-escape-conclude (per field)
 // 7. analyzeAllOwnershipMoves       -> ad-ownership-move
-//
-// 未来扩展（待定义数据流）：
-// - owned-verdict, capacity-assoc, array-access, bound-condition, result-aggregator
 // ============================================================================
 
 #include "pipeline.hh"
@@ -31,6 +31,7 @@
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+using namespace ::field_analysis;
 
 // ============================================================================
 // 公开接口实现
@@ -54,12 +55,6 @@ PipelineState* getPipelineState (AD_FUNC_ARGS) {
 // ============================================================================
 // Pipeline 实现
 // ============================================================================
-// 当前只包含已定义数据流的模块调用
-// 对应 10 个新模块：
-// - ad-field-write, ad-write-source, ad-source-use-info
-// - ad-source-escape-use-info, ad-source-escape-conclude, ad-field-escape-conclude
-// - ad-ownership-move, ad-field-wrapper
-// - ad-pipeline, ad-driver
 
 ArrayDetectErrorCode runPipeline (
   AD_FUNC_ARGS,
@@ -86,26 +81,49 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.total_escapes_analyzed = total_analyzed;
 
   // ========================================================================
-  // Step 3.5: 提取逃逸使用信息 (ad-source-escape-use-info)
-  // ========================================================================
-  unsigned int total_extracted = 0;
-  AD_TRY (extractAllSourceEscapeUseInfo (AD_ARGS, detector, total_extracted));
-
-  // ========================================================================
-  // Step 4: 合成源级逃逸结论 (ad-source-escape-conclude)
+  // Step 4: 提取逃逸使用信息 + 合成源级结论 + 汇总字段结论
+  // (ad-source-escape-use-info, ad-source-escape-conclude, ad-field-escape-conclude)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_SYNTHESIZE_ESCAPES;
-  unsigned int total_synthesized = 0;
-  AD_TRY (synthesizeAllSourceEscapeConclude (AD_ARGS, detector, total_synthesized));
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad || !tfad->writes) continue;
+
+      // 遍历该字段的所有写入
+      for (unsigned i = 0; i < tfad->writes->length (); i++) {
+        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
+        if (!wrapper) continue;
+
+        // Step 4a: 提取逃逸使用信息 (per write)
+        if (wrapper->uses) {
+          AD_TRY (extractSourceEscapeUseInfo (AD_ARGS, wrapper->uses));
+        }
+
+        // Step 4b: 合成源级逃逸结论 (per write)
+        if (!wrapper->escape_conclude && wrapper->uses) {
+          AD_TRY (synthesizeSourceEscapeConclude (AD_ARGS, wrapper->uses, &wrapper->escape_conclude));
+        }
+      }
+
+      // Step 4c: 汇总字段级逃逸结论 (per field)
+      AD_TRY (summarizeFieldEscapeConclude (
+        AD_ARGS,
+        tfad->type,
+        tfad->field_decl,
+        tfad->writes,
+        &tfad->escape_conclude
+      ));
+    }
+  }
 
   // ========================================================================
-  // Step 5: 汇总字段级逃逸结论 (ad-field-escape-conclude)
-  // ========================================================================
-  unsigned int total_summarized = 0;
-  AD_TRY (summarizeAllFieldEscapeConclude (AD_ARGS, detector, total_summarized));
-
-  // ========================================================================
-  // Step 6: 分析所有权转移 (ad-ownership-move)
+  // Step 5: 分析所有权转移 (ad-ownership-move)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_OWNERSHIP;
   unsigned int transfer_analyzed = 0;
@@ -114,7 +132,7 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.total_ownership_analyzed = transfer_analyzed;
 
   // ========================================================================
-  // Step 7: 输出调试信息
+  // Step 6: 输出调试信息
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_OUTPUT;
   AD_TRY (printResults (AD_ARGS, detector));
