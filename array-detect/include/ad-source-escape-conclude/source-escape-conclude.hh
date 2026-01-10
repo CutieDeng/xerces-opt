@@ -8,6 +8,11 @@
 #include "source-use-info.hh"
 #include "field-wrapper.hh"
 
+// 前置声明
+namespace array_detector {
+  class ArrayDetector;
+}
+
 namespace array_detect_ns {
 
 // ============================================================================
@@ -45,6 +50,18 @@ ArrayDetectErrorCode synthesizeSourceEscapeConclude (
   AD_FUNC_ARGS,
   vec<field_analysis::Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses,
   SourceEscapeConclude** out_conclude
+);
+
+// ============================================================================
+// Pipeline 接口
+// ============================================================================
+
+// 为所有写入生成源级逃逸结论
+// 前置条件：escape_use_info 已由 extractAllSourceEscapeUseInfo 填充
+ArrayDetectErrorCode synthesizeAllSourceEscapeConclude (
+  AD_FUNC_ARGS,
+  ::array_detector::ArrayDetector &detector,
+  unsigned int &total_synthesized
 );
 
 // ============================================================================

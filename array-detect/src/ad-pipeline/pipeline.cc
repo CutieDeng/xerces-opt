@@ -5,11 +5,13 @@
 // 实现分析阶段调度和 pipeline 执行
 //
 // 当前支持的分析阶段（对应已定义的新模块）：
-// 1. collectTypesAndFields     -> ad-field-write
-// 2. traceFieldAssignments     -> ad-write-source
-// 3. collectAllFieldUses       -> ad-source-use-info
-// 4. synthesizeAllFieldEscapes -> ad-source-escape-use-info, ad-source-escape-conclude, ad-field-escape-conclude
-// 5. analyzeAllOwnershipTransfers -> ad-ownership-move
+// 1. collectAllFieldWrites          -> ad-field-write
+// 2. traceFieldAssignments          -> ad-write-source
+// 3. collectAllFieldUses            -> ad-source-use-info
+// 4. extractAllSourceEscapeUseInfo  -> ad-source-escape-use-info
+// 5. synthesizeAllSourceEscapeConclude -> ad-source-escape-conclude
+// 6. summarizeAllFieldEscapeConclude   -> ad-field-escape-conclude
+// 7. analyzeAllOwnershipMoves       -> ad-ownership-move
 //
 // 未来扩展（待定义数据流）：
 // - owned-verdict, capacity-assoc, array-access, bound-condition, result-aggregator
@@ -90,14 +92,20 @@ ArrayDetectErrorCode runPipeline (
   AD_TRY (extractAllSourceEscapeUseInfo (AD_ARGS, detector, total_extracted));
 
   // ========================================================================
-  // Step 4: 合成逃逸证据 (ad-source-escape-conclude, ad-field-escape-conclude)
+  // Step 4: 合成源级逃逸结论 (ad-source-escape-conclude)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_SYNTHESIZE_ESCAPES;
   unsigned int total_synthesized = 0;
-  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, total_synthesized));
+  AD_TRY (synthesizeAllSourceEscapeConclude (AD_ARGS, detector, total_synthesized));
 
   // ========================================================================
-  // Step 5: 分析所有权转移 (ad-ownership-move)
+  // Step 5: 汇总字段级逃逸结论 (ad-field-escape-conclude)
+  // ========================================================================
+  unsigned int total_summarized = 0;
+  AD_TRY (summarizeAllFieldEscapeConclude (AD_ARGS, detector, total_summarized));
+
+  // ========================================================================
+  // Step 6: 分析所有权转移 (ad-ownership-move)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_OWNERSHIP;
   unsigned int transfer_analyzed = 0;
@@ -106,7 +114,7 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.total_ownership_analyzed = transfer_analyzed;
 
   // ========================================================================
-  // Step 6: 输出调试信息
+  // Step 7: 输出调试信息
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_OUTPUT;
   AD_TRY (printResults (AD_ARGS, detector));

@@ -7,6 +7,7 @@
 
 #include "source-escape-conclude.hh"
 #include "source-escape-use-info.hh"
+#include "array-detector.hh"
 #include "info-print.hh"
 
 namespace array_detect_ns {
@@ -131,5 +132,47 @@ void printSourceEscapeConclude (
   fprintf (output, "    has_rejecting_evidence: %s\n",
            result->has_rejecting_evidence ? "true" : "false");
 }
+
+// ============================================================================
+// Pipeline 接口实现
+// ============================================================================
+
+// 为所有写入生成源级逃逸结论
+ArrayDetectErrorCode synthesizeAllSourceEscapeConclude (
+  AD_FUNC_ARGS,
+  ::array_detector::ArrayDetector &detector,
+  unsigned int &total_synthesized
+) AD_FUNCTION_BEGIN {
+  total_synthesized = 0;
+
+  if (!detector.m_type_field_writes) {
+    AD_RETURNE (OK);
+  }
+
+  typedef hash_map<::array_detector::TypeFieldKey,
+                   ::array_detector::TypeFieldAnalysisData*,
+                   ::array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
+
+  for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+       iter != detector.m_type_field_writes->end ();
+       ++iter) {
+    ::array_detector::TypeFieldAnalysisData * tfad = (*iter).second;
+    if (!tfad || !tfad->writes) continue;
+
+    for (unsigned i = 0; i < tfad->writes->length (); i++) {
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
+      if (!wrapper) continue;
+
+      // 仅当 escape_conclude 尚未填充且有 uses 时才生成
+      if (!wrapper->escape_conclude && wrapper->uses) {
+        AD_TRY (synthesizeSourceEscapeConclude (AD_ARGS, wrapper->uses, &wrapper->escape_conclude));
+        total_synthesized++;
+      }
+    }
+  }
+
+  AD_DEBUG_PRINT ("sourceConclude: synthesized %u escape conclusions", total_synthesized);
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 } // namespace array_detect_ns

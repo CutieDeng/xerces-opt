@@ -1,17 +1,13 @@
 // ============================================================================
 // ad-field-escape-conclude 模块实现
 // ============================================================================
-// 数据流：field, (listof write-original-source) -> field-escape-conclude
+// 数据流：field, (listof source-escape-conclude) -> field-escape-conclude
 // 汇总单个 (type, field) 的所有写入操作的逃逸信息
 // ============================================================================
 
 #include "field-escape-conclude.hh"
-#include "source-escape-conclude.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
-#include "gcc-ext-util.hh"
-#include "write-source.hh"
-#include "field-wrapper.hh"
 
 namespace array_detect_ns {
 
@@ -64,34 +60,37 @@ void countSourceType (
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// summarizeFieldEscape
+// summarizeFieldEscapeConclude
 // ----------------------------------------------------------------------------
-// 字段逃逸结论汇总：TypeFieldAnalysisData -> FieldEscapeConclude
+// 汇总字段级逃逸结论
+// 输入：type, field_decl, writes (wrapper 列表，escape_conclude 已填充)
 
-ArrayDetectErrorCode summarizeFieldEscape (
+ArrayDetectErrorCode summarizeFieldEscapeConclude (
   AD_FUNC_ARGS,
-  TypeFieldAnalysisData * field_data,
-  FieldEscapeConclude * &result
+  tree type,
+  tree field_decl,
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>* writes,
+  FieldEscapeConclude** result
 ) AD_FUNCTION_BEGIN {
-  if (!field_data) {
+  if (!result) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // 分配汇总结构
-  FieldEscapeConclude * summary = ggc_alloc<FieldEscapeConclude> ();
+  auto* summary = ggc_alloc<FieldEscapeConclude> ();
   if (!summary) {
     AD_RETURNE (MEMORY_ERROR);
   }
   memset (summary, 0, sizeof (FieldEscapeConclude));
 
   // 设置标识
-  summary->type = field_data->type;
-  summary->field_decl = field_data->field_decl;
+  summary->type = type;
+  summary->field_decl = field_decl;
 
-  // 遍历所有字段写入分析 Wrapper
-  if (field_data->writes) {
-    for (unsigned int i = 0; i < field_data->writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*field_data->writes)[i];
+  // 遍历所有写入 wrapper
+  if (writes) {
+    for (unsigned int i = 0; i < writes->length (); i++) {
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*writes)[i];
       if (!wrapper) continue;
 
       summary->total_field_writes++;
@@ -127,98 +126,54 @@ ArrayDetectErrorCode summarizeFieldEscape (
     ? (float)summary->field_writes_with_rejecting / (float)summary->total_field_writes
     : 0.0f;
 
-  AD_RETURNO (summary);
+  *result = summary;
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// ----------------------------------------------------------------------------
-// synthesizeAllFieldEscapes
-// ----------------------------------------------------------------------------
-// 综合所有字段的逃逸信息
-// 前置条件：escape_use_info 已由 extractAllSourceEscapeUseInfo 填充
+// ============================================================================
+// Pipeline 接口实现
+// ============================================================================
 
-ArrayDetectErrorCode synthesizeAllFieldEscapes (
+// ----------------------------------------------------------------------------
+// summarizeAllFieldEscapeConclude
+// ----------------------------------------------------------------------------
+// 汇总所有字段的逃逸结论
+// 前置条件：所有 wrapper 的 escape_conclude 已由 synthesizeAllSourceEscapeConclude 填充
+
+ArrayDetectErrorCode summarizeAllFieldEscapeConclude (
   AD_FUNC_ARGS,
-  array_detector::ArrayDetector &detector,
-  unsigned int &total_synthesized
+  ::array_detector::ArrayDetector &detector,
+  unsigned int &total_summarized
 ) AD_FUNCTION_BEGIN {
-  total_synthesized = 0;
+  total_summarized = 0;
 
   if (!detector.m_type_field_writes) {
     AD_RETURNE (OK);
   }
 
-  // 遍历所有 (type, field) 的写入操作
-  typedef hash_map<array_detector::TypeFieldKey, array_detector::TypeFieldAnalysisData*, array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<::array_detector::TypeFieldKey,
+                   ::array_detector::TypeFieldAnalysisData*,
+                   ::array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
 
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    array_detector::TypeFieldAnalysisData * write_ops = (*iter).second;
+    ::array_detector::TypeFieldAnalysisData * tfad = (*iter).second;
+    if (!tfad || !tfad->writes) continue;
 
-    if (!write_ops || !write_ops->writes) continue;
+    // 汇总该字段的逃逸结论
+    AD_TRY (summarizeFieldEscapeConclude (
+      AD_ARGS,
+      tfad->type,
+      tfad->field_decl,
+      tfad->writes,
+      &tfad->escape_conclude
+    ));
 
-    // 为每个写入生成 SourceEscapeConclude（使用 source-escape-conclude 模块）
-    for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*write_ops->writes)[i];
-      if (!wrapper) continue;
-
-      // 调用 source-escape-conclude 模块生成结论
-      if (!wrapper->escape_conclude && wrapper->uses) {
-        AD_TRY (synthesizeSourceEscapeConclude (AD_ARGS, wrapper->uses, &wrapper->escape_conclude));
-      }
-
-      total_synthesized++;
-    }
-
-    // 生成 (type, field) 级别逃逸汇总
-    FieldEscapeConclude * escape_conclude = ggc_alloc<FieldEscapeConclude> ();
-    if (escape_conclude) {
-      memset (escape_conclude, 0, sizeof (FieldEscapeConclude));
-
-      // 设置标识
-      escape_conclude->type = write_ops->type;
-      escape_conclude->field_decl = write_ops->field_decl;
-
-      // 汇总统计
-      for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*write_ops->writes)[i];
-        if (!wrapper) continue;
-
-        escape_conclude->total_field_writes++;
-
-        // 统计来源类型分布
-        countSourceType (wrapper->write_source, escape_conclude);
-
-        // 汇总逃逸
-        if (wrapper->escape_conclude) {
-          escape_conclude->total_escapes += wrapper->escape_conclude->total_escapes;
-          escape_conclude->safe_debug_escapes += wrapper->escape_conclude->safe_debug_escapes;
-          escape_conclude->rejecting_escapes += wrapper->escape_conclude->rejecting_escapes;
-
-          if (wrapper->escape_conclude->total_escapes > 0) {
-            escape_conclude->field_writes_with_escape++;
-          }
-          if (wrapper->escape_conclude->has_rejecting_evidence) {
-            escape_conclude->field_writes_with_rejecting++;
-          }
-          if (!wrapper->escape_conclude->is_fully_analyzed) {
-            escape_conclude->field_writes_without_analysis++;
-          }
-        } else {
-          escape_conclude->field_writes_without_analysis++;
-        }
-      }
-
-      escape_conclude->has_rejecting_evidence = (escape_conclude->field_writes_with_rejecting > 0);
-      escape_conclude->rejection_ratio = (escape_conclude->total_field_writes > 0)
-        ? (float)escape_conclude->field_writes_with_rejecting / (float)escape_conclude->total_field_writes
-        : 0.0f;
-
-      write_ops->escape_conclude = escape_conclude;
-    }
+    total_summarized++;
   }
 
-  AD_DEBUG_PRINT ("escapeSynth: %u evidence results", total_synthesized);
+  AD_DEBUG_PRINT ("fieldConclude: summarized %u field escape conclusions", total_summarized);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 

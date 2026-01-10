@@ -7,17 +7,15 @@
 #include "prelude.hh"
 #include "source-use-info.hh"
 #include "source-escape-use-info.hh"
+#include "source-escape-conclude.hh"
 #include "field-wrapper.hh"
-#include "array-detector.hh"
 
+// 前置声明
 namespace array_detector {
   class ArrayDetector;
-} // namespace array_detector
+}
 
 namespace array_detect_ns {
-
-// TypeFieldAnalysisData 从 array_detector 命名空间引入
-using array_detector::TypeFieldAnalysisData;
 
 // ============================================================================
 // 字段逃逸结论 (FieldEscapeConclude)
@@ -68,20 +66,26 @@ struct FieldEscapeConclude {
 // ============================================================================
 
 // 汇总字段级逃逸结论
-// field_data -> FieldEscapeConclude
-ArrayDetectErrorCode summarizeFieldEscape (
+// 输入：type, field_decl, writes (wrapper 列表，escape_conclude 已填充)
+// 输出：FieldEscapeConclude*
+ArrayDetectErrorCode summarizeFieldEscapeConclude (
   AD_FUNC_ARGS,
-  TypeFieldAnalysisData * field_data,
-  FieldEscapeConclude * &result
+  tree type,
+  tree field_decl,
+  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>* writes,
+  FieldEscapeConclude** result
 );
 
-// 综合所有字段的逃逸信息
-// 遍历所有 (type, field)，为每个写入生成 SourceEscapeConclude，
-// 并汇总为 FieldEscapeConclude
-ArrayDetectErrorCode synthesizeAllFieldEscapes (
+// ============================================================================
+// Pipeline 接口
+// ============================================================================
+
+// 汇总所有字段的逃逸结论
+// 前置条件：所有 wrapper 的 escape_conclude 已由 synthesizeAllSourceEscapeConclude 填充
+ArrayDetectErrorCode summarizeAllFieldEscapeConclude (
   AD_FUNC_ARGS,
-  array_detector::ArrayDetector &detector,
-  unsigned int &total_synthesized
+  ::array_detector::ArrayDetector &detector,
+  unsigned int &total_summarized
 );
 
 } // namespace array_detect_ns
