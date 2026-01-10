@@ -16,6 +16,10 @@
 // 6. summarizeFieldEscapeConclude   -> ad-field-escape-conclude (per field)
 // 7. analyzeOwnershipMove           -> ad-ownership-move (per write)
 // 8. summarizeOwnershipConclude     -> ad-ownership-conclude (per field)
+// 9. collectAllMallocEvidences      -> ad-field-write-capacity (per field)
+// 10. collectAllReadEvidences       -> ad-array-read-capacity (per field)
+// 11. collectAllWriteEvidences      -> ad-array-write-capacity (per field)
+// 12. generateCapacityConclude      -> ad-capacity-conclude (per field)
 // ============================================================================
 
 #include "pipeline.hh"
@@ -29,6 +33,11 @@
 #include "ownership-conclude.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
+#include "field-write-capacity.hh"
+#include "array-read-capacity.hh"
+#include "array-write-capacity.hh"
+#include "capacity-conclude.hh"
+#include "owned-conclusion.hh"
 
 namespace array_detect_ns {
 
@@ -183,10 +192,135 @@ ArrayDetectErrorCode runPipeline (
                   transfer_analyzed, certain_transfers);
 
   // ========================================================================
-  // Step 6: 输出调试信息
+  // Step 6: 分析 malloc 容量关联 (ad-field-write-capacity)
+  // ========================================================================
+  g_pipeline_state.current_phase = PHASE_MALLOC_CAPACITY;
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad) continue;
+
+      AD_TRY (collectAllMallocEvidences (AD_ARGS, tfad));
+    }
+
+    AD_DEBUG_PRINT ("mallocCapacity: analyzed all type-field pairs");
+  }
+
+  // ========================================================================
+  // Step 7: 分析数组读容量关联 (ad-array-read-capacity)
+  // ========================================================================
+  g_pipeline_state.current_phase = PHASE_READ_CAPACITY;
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad) continue;
+
+      AD_TRY (collectAllReadEvidences (AD_ARGS, tfad));
+    }
+
+    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs");
+  }
+
+  // ========================================================================
+  // Step 8: 分析数组写容量关联 (ad-array-write-capacity)
+  // ========================================================================
+  g_pipeline_state.current_phase = PHASE_WRITE_CAPACITY;
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad) continue;
+
+      AD_TRY (collectAllWriteEvidences (AD_ARGS, tfad));
+    }
+
+    AD_DEBUG_PRINT ("writeCapacity: analyzed all type-field pairs");
+  }
+
+  // ========================================================================
+  // Step 9: 汇总容量结论 (ad-capacity-conclude)
+  // ========================================================================
+  g_pipeline_state.current_phase = PHASE_CAPACITY_CONCLUDE;
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad) continue;
+
+      AD_TRY (generateCapacityConclude (AD_ARGS, tfad));
+    }
+
+    AD_DEBUG_PRINT ("capacityConclude: generated all conclusions");
+  }
+
+  // ========================================================================
+  // Step 10: 生成 owned 判定 (ad-owned-conclusion)
+  // ========================================================================
+  g_pipeline_state.current_phase = PHASE_GENERATE_VERDICT;
+
+  vec<FieldOwnedConclusion*, va_gc>* owned_conclusions = nullptr;
+  AD_TRY (analyzeAllFieldOwnedConclusions (AD_ARGS, detector, owned_conclusions));
+
+  if (owned_conclusions) {
+    AD_DEBUG_PRINT ("ownedConclusion: %u fields analyzed",
+                    (unsigned)owned_conclusions->length ());
+  }
+
+  // ========================================================================
+  // Step 11: 输出调试信息
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_OUTPUT;
   AD_TRY (printResults (AD_ARGS, detector));
+
+  // 输出 malloc 容量证据
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad) continue;
+
+      // 输出三种证据
+      if (tfad->malloc_evidences) {
+        printAllMallocEvidences (AD_ARGS, ctx.debug_file, tfad->malloc_evidences);
+      }
+      if (tfad->read_evidences) {
+        printAllReadEvidences (AD_ARGS, ctx.debug_file, tfad->read_evidences);
+      }
+      if (tfad->write_evidences) {
+        printAllWriteEvidences (AD_ARGS, ctx.debug_file, tfad->write_evidences);
+      }
+      // 输出容量结论
+      if (tfad->capacity_conclude) {
+        printCapacityConclude (AD_ARGS, ctx.debug_file, tfad->capacity_conclude);
+      }
+    }
+  }
+
+  // 输出 owned 结论
+  if (owned_conclusions) {
+    printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
+  }
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

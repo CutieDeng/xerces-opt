@@ -47,6 +47,11 @@ namespace array_detect_ns {
   struct FieldEscapeConclude;
   struct OwnershipConclude;
   struct OwnershipMove;
+  // 容量分析相关
+  struct MallocCapacityEvidence;
+  struct ReadCapacityEvidence;
+  struct WriteCapacityEvidence;
+  struct CapacityConclude;
 }
 
 namespace array_detector {
@@ -75,11 +80,12 @@ struct Wrapper_SourceUseInfo_SourceEscapeUseInfo {
 // 层级1：写入级 Wrapper
 // ----------------------------------------------------------------------------
 // (wrapper-write-info-write-source-source-escape-conclude-ownership-move
-//   write-info      : field-write-info
-//   write-source    : write-original-source
-//   escape-conclude : source-escape-conclude
-//   ownership-move  : ownership-move or #f
-//   uses            : (listof wrapper-source-use-info-source-escape-use-info*))
+//   write-info       : field-write-info
+//   write-source     : write-original-source
+//   escape-conclude  : source-escape-conclude
+//   ownership-move   : ownership-move or #f
+//   uses             : (listof wrapper-source-use-info-source-escape-use-info*)
+//   malloc-evidences : (listof malloc-capacity-evidence))
 
 struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
   ::array_detect_ns::FieldWriteInfo* write_info;
@@ -87,18 +93,38 @@ struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
   ::array_detect_ns::SourceEscapeConclude* escape_conclude;
   ::array_detect_ns::OwnershipMove* ownership_move;
   vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses;
+
+  // === malloc 容量证据（per write）===
+  vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>* malloc_evidences;
 };
 
 // ----------------------------------------------------------------------------
 // 层级3：字段级 Wrapper
 // ----------------------------------------------------------------------------
+// 扩展：添加容量分析相关字段
+//   malloc_evidences   : (listof malloc-capacity-evidence)
+//   read_evidences     : (listof read-capacity-evidence)
+//   write_evidences    : (listof write-capacity-evidence)
+//   capacity_conclude  : capacity-conclude
 
 struct Wrapper_FieldEscapeConclude_OwnershipConclude {
   tree type;
   tree field_decl;
   vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes;
+
+  // === 逃逸分析结论 ===
   ::array_detect_ns::FieldEscapeConclude* escape_conclude;
+
+  // === 所有权分析结论 ===
   ::array_detect_ns::OwnershipConclude* ownership_conclude;
+
+  // === 容量关联分析（三种证据）===
+  vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>* malloc_evidences;
+  vec<::array_detect_ns::ReadCapacityEvidence*, va_gc>* read_evidences;
+  vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>* write_evidences;
+
+  // === 容量关联结论 ===
+  ::array_detect_ns::CapacityConclude* capacity_conclude;
 };
 
 } // namespace field_analysis
