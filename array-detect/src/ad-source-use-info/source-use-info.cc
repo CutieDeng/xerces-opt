@@ -1,8 +1,9 @@
 // ============================================================================
 // ad-source-use-info 模块实现
 // ============================================================================
-// 分析源操作数的 SSA 使用链，收集所有使用点和逃逸信息
+// 分析源操作数的 SSA 使用链，收集所有使用点
 // 数据流：source_operand -> (listof wrapper-source-use-info-source-escape-use-info)
+// 注意：只收集纯使用信息，逃逸检测由 source-escape-use-info 模块负责
 // ============================================================================
 
 #include "source-use-info.hh"
@@ -100,109 +101,16 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_classifyUseKind (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal
-// ----------------------------------------------------------------------------
-// 判断函数是否为外部函数
-
-ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal (
-  AD_FUNC_ARGS,
-  tree function_decl,
-  bool & result
-) AD_FUNCTION_BEGIN {
-  if (!function_decl || TREE_CODE (function_decl) != FUNCTION_DECL) {
-    AD_RETURNO (true);
-  }
-
-  struct cgraph_node * node = cgraph_node::get (function_decl);
-  if (!node || !node->definition) {
-    AD_RETURNO (true);
-  }
-
-  AD_RETURNO (false);
-} AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
-// analyzeSourceUse_traceSSAUseChain_detectEscapeKind
-// ----------------------------------------------------------------------------
-// 检测逃逸类型
-
-ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind (
-  AD_FUNC_ARGS,
-  SourceUseInfo const & use_info,
-  SourceUseEscapeKind & result
-) AD_FUNCTION_BEGIN {
-  gimple * stmt = use_info.use_stmt;
-
-  switch (use_info.kind) {
-    case SU_USE_RETURN:
-      AD_RETURNO (SU_ESCAPE_RETURN);
-
-    case SU_USE_CALL_ARG: {
-      if (!is_gimple_call (stmt)) break;
-
-      tree fn = gimple_call_fn (stmt);
-      if (!fn) {
-        AD_RETURNO (SU_ESCAPE_UNKNOWN);
-      }
-
-      if (TREE_CODE (fn) == OBJ_TYPE_REF) {
-        AD_RETURNO (SU_ESCAPE_VIRTUAL_CALL);
-      }
-
-      if (TREE_CODE (fn) != ADDR_EXPR) {
-        AD_RETURNO (SU_ESCAPE_INDIRECT_CALL);
-      }
-
-      tree fn_decl = TREE_OPERAND (fn, 0);
-      bool is_external = false;
-      AD_TRY (analyzeSourceUse_traceSSAUseChain_detectEscapeKind_isFunctionExternal (AD_ARGS, fn_decl, is_external));
-
-      if (is_external) {
-        AD_RETURNO (SU_ESCAPE_EXTERNAL_CALL);
-      } else {
-        AD_RETURNO (SU_ESCAPE_PARAMETER);
-      }
-    }
-
-    case SU_USE_STORE: {
-      if (!is_gimple_assign (stmt)) break;
-
-      tree lhs = gimple_assign_lhs (stmt);
-      if (!lhs) break;
-
-      if (TREE_CODE (lhs) == VAR_DECL && is_global_var (lhs)) {
-        AD_RETURNO (SU_ESCAPE_GLOBAL_STORE);
-      }
-
-      if (TREE_CODE (lhs) == MEM_REF || TREE_CODE (lhs) == COMPONENT_REF) {
-        if (TREE_CODE (lhs) == COMPONENT_REF) {
-          AD_RETURNO (SU_ESCAPE_FIELD_STORE);
-        } else {
-          AD_RETURNO (SU_ESCAPE_HEAP_STORE);
-        }
-      }
-      break;
-    }
-
-    default:
-      break;
-  }
-
-  AD_RETURNO (SU_ESCAPE_NONE);
-} AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain_recordUsePoint
 // ----------------------------------------------------------------------------
 // 记录使用点 - 创建 Wrapper_SourceUseInfo_SourceEscapeUseInfo
+// 注意：只记录纯使用信息，escape_use_info 由 source-escape-use-info 模块后续填充
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   AD_FUNC_ARGS,
   gimple * use_stmt,
   tree use_operand,
   SourceUseKind use_kind,
-  SourceUseEscapeKind escape_kind,
-  char const * escape_target,
   vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* out_uses
 ) AD_FUNCTION_BEGIN {
   if (!out_uses) {
@@ -216,7 +124,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   }
   memset (wrapper, 0, sizeof (Wrapper_SourceUseInfo_SourceEscapeUseInfo));
 
-  // 分配 SourceUseInfo
+  // 分配 SourceUseInfo - 只包含纯使用信息
   auto* use_info = ggc_alloc<SourceUseInfo> ();
   if (!use_info) {
     AD_RETURNE (MEMORY_ERROR);
@@ -227,12 +135,9 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   use_info->use_operand = use_operand;
   use_info->source_location = gimple_location (use_stmt);
   use_info->bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
-  use_info->escape_kind = escape_kind;
-  use_info->escape_target = escape_target;
-  use_info->target_info.function_decl = NULL;
 
   // 设置 Wrapper 字段
-  // 注意：escape_use_info 由 source-escape-use-info 模块填充，此处只设置 use_info
+  // escape_use_info 由 source-escape-use-info 模块填充
   wrapper->use_info = use_info;
   wrapper->escape_use_info = NULL;
 
@@ -244,7 +149,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain
 // ----------------------------------------------------------------------------
-// 递归追踪 SSA 使用链
+// 递归追踪 SSA 使用链 - 只收集纯使用信息
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
   AD_FUNC_ARGS,
@@ -278,53 +183,9 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
       SourceUseKind use_kind = SU_USE_OTHER;
       AD_TRY (analyzeSourceUse_traceSSAUseChain_classifyUseKind (AD_ARGS, use_stmt, ssa_name, use_kind));
 
-      // 创建临时 use_info 用于逃逸检测
-      SourceUseInfo temp_info;
-      temp_info.kind = use_kind;
-      temp_info.use_stmt = use_stmt;
-      temp_info.use_operand = ssa_name;
-      temp_info.source_location = gimple_location (use_stmt);
-      temp_info.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
-      temp_info.escape_kind = SU_ESCAPE_NONE;
-      temp_info.escape_target = NULL;
-      temp_info.target_info.function_decl = NULL;
-
-      // 检测逃逸类型
-      SourceUseEscapeKind escape_kind = SU_ESCAPE_NONE;
-      AD_TRY (analyzeSourceUse_traceSSAUseChain_detectEscapeKind (AD_ARGS, temp_info, escape_kind));
-
-      // 确定逃逸目标
-      char const * escape_target = NULL;
-
-      if (escape_kind != SU_ESCAPE_NONE) {
-        if (is_gimple_call (use_stmt)) {
-          tree fn = gimple_call_fndecl (use_stmt);
-          if (fn && DECL_NAME (fn)) {
-            escape_target = IDENTIFIER_POINTER (DECL_NAME (fn));
-          } else {
-            escape_target = "<indirect call>";
-          }
-        } else if (is_gimple_assign (use_stmt)) {
-          tree lhs = gimple_assign_lhs (use_stmt);
-          if (TREE_CODE (lhs) == COMPONENT_REF) {
-            tree field = TREE_OPERAND (lhs, 1);
-            if (DECL_NAME (field)) {
-              escape_target = IDENTIFIER_POINTER (DECL_NAME (field));
-            } else {
-              escape_target = "<anonymous field>";
-            }
-          } else {
-            escape_target = "<memory>";
-          }
-        } else {
-          escape_target = "<unknown>";
-        }
-      }
-
-      // 记录使用点
+      // 记录使用点（只记录纯使用信息）
       AD_TRY (analyzeSourceUse_traceSSAUseChain_recordUsePoint (
-        AD_ARGS, use_stmt, ssa_name, use_kind, escape_kind,
-        escape_target, out_uses
+        AD_ARGS, use_stmt, ssa_name, use_kind, out_uses
       ));
 
       // 如果是简单赋值，继续追踪结果 SSA
@@ -374,6 +235,7 @@ char const * getUseKindString (SourceUseKind kind) {
 // ----------------------------------------------------------------------------
 // 主入口：分析源操作数的所有使用
 // 输出：(listof wrapper-source-use-info-source-escape-use-info)
+// 注意：只填充 use_info，escape_use_info 由 source-escape-use-info 模块填充
 
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,

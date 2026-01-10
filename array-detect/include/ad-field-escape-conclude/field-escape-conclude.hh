@@ -75,13 +75,6 @@ ArrayDetectErrorCode summarizeFieldEscape (
   FieldEscapeConclude * &result
 );
 
-// 向后兼容别名
-inline ArrayDetectErrorCode summarizeTypeFieldEscapes (
-  AD_FUNC_ARGS_DECL,
-  TypeFieldAnalysisData * field_data,
-  FieldEscapeConclude * &result
-) { return summarizeFieldEscape(AD_FUNC_ARGS_CALL, field_data, result); }
-
 // 综合所有字段的逃逸信息
 // 遍历所有 (type, field)，为每个写入生成 SourceEscapeConclude，
 // 并汇总为 FieldEscapeConclude

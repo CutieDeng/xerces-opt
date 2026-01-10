@@ -7,7 +7,6 @@
 #include "prelude.hh"
 #include "field-write.hh"
 #include "field-wrapper.hh"
-#include "source-escape-use-info.hh"
 
 namespace array_detector {
   class ArrayDetector;
@@ -24,8 +23,11 @@ namespace array_detect_ns {
 // (write-original-source-use  ; 即 SourceUseInfo
 //   kind              : source-use-kind
 //   use-stmt          : gimple*
-//   escape-kind       : escape-kind
-//   escape-target     : string)
+//   use-operand       : tree
+//   source-location   : location_t
+//   bb-index          : nat)
+//
+// 注意：逃逸信息由 source-escape-use-info 模块计算，不在此结构中
 // ============================================================================
 
 // 使用类型枚举
@@ -43,32 +45,17 @@ enum SourceUseKind {
   SU_USE_OTHER              // 其他
 };
 
-// 逃逸目标信息联合体（仅当 escape_kind != SU_ESCAPE_NONE 时有效）
-union EscapeTargetInfo {
-  tree function_decl;             // 对于函数调用逃逸
-  tree field_decl;                // 对于字段存储逃逸
-  tree global_var;                // 对于全局存储逃逸
-};
-
 // ============================================================================
 // 统一的使用信息结构
 // ============================================================================
 
 struct SourceUseInfo {
-  // 基本使用信息
+  // 基本使用信息（纯使用，不包含逃逸）
   SourceUseKind kind;               // 使用类型
   gimple * use_stmt;                // 使用语句
   tree use_operand;                 // 使用的操作数
   location_t source_location;       // 源码位置
   unsigned int bb_index;            // 基本块索引
-
-  // 逃逸信息（escape_kind != SU_ESCAPE_NONE 时有效）
-  SourceUseEscapeKind escape_kind;  // 逃逸类型
-  char const * escape_target;       // 逃逸目标描述（函数名、字段名等）
-  EscapeTargetInfo target_info;     // 逃逸目标详细信息
-
-  // 便捷方法
-  inline bool is_escape() const { return escape_kind != SU_ESCAPE_NONE; }
 };
 
 // ============================================================================

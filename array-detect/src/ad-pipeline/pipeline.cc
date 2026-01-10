@@ -76,12 +76,18 @@ ArrayDetectErrorCode runPipeline (
   AD_TRY (traceFieldAssignments (AD_ARGS, detector));
 
   // ========================================================================
-  // Step 3: 分析使用链 (ad-source-use)
+  // Step 3: 分析使用链 (ad-source-use-info)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_USES;
   unsigned int total_analyzed = 0;
   AD_TRY (collectAllFieldUses (AD_ARGS, detector, total_analyzed));
   g_pipeline_state.total_escapes_analyzed = total_analyzed;
+
+  // ========================================================================
+  // Step 3.5: 提取逃逸使用信息 (ad-source-escape-use-info)
+  // ========================================================================
+  unsigned int total_extracted = 0;
+  AD_TRY (extractAllSourceEscapeUseInfo (AD_ARGS, detector, total_extracted));
 
   // ========================================================================
   // Step 4: 合成逃逸证据 (ad-source-escape-conclude, ad-field-escape-conclude)
@@ -122,17 +128,6 @@ ArrayDetectErrorCode runPhase (
   // TODO: 实现单阶段执行
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-
-// ============================================================================
-// 向后兼容：保留旧函数签名
-// ============================================================================
-
-ArrayDetectErrorCode runArrayDetectionPipeline (
-  AD_FUNC_ARGS,
-  ArrayDetector &detector
-) {
-  return runPipeline (AD_ARGS, detector);
-}
 
 // ============================================================================
 // 顶层入口：创建检测器并执行分析

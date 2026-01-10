@@ -81,17 +81,7 @@ ArrayDetectErrorCode runPhase (
 // 获取 pipeline 状态
 PipelineState* getPipelineState (AD_FUNC_ARGS);
 
-// ============================================================================
-// 向后兼容：保留旧函数签名
-// ============================================================================
-
-// 旧函数：执行完整的数组检测流程
-ArrayDetectErrorCode runArrayDetectionPipeline (
-  AD_FUNC_ARGS,
-  ArrayDetector &detector
-);
-
-// 旧函数：顶层入口
+// 顶层入口
 ArrayDetectErrorCode runArrayDetectorAnalysis (AD_FUNC_ARGS);
 
 } // namespace array_detect_ns

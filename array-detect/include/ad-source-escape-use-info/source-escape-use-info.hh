@@ -7,6 +7,16 @@
 #include "prelude.hh"
 #include "field-wrapper.hh"
 
+// GCC headers for escape detection
+#include "tree.h"
+#include "gimple.h"
+#include "cgraph.h"
+
+// 前置声明（全局命名空间）
+namespace array_detector {
+  class ArrayDetector;
+}
+
 namespace array_detect_ns {
 
 // 前置声明
@@ -60,6 +70,18 @@ struct SourceEscapeUseInfo {
 ArrayDetectErrorCode extractSourceEscapeUseInfo (
   AD_FUNC_ARGS,
   vec<field_analysis::Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses
+);
+
+// ============================================================================
+// Pipeline 接口
+// ============================================================================
+
+// 提取所有字段的逃逸使用信息
+// 遍历所有 (type, field) 的所有写入的 uses，填充 escape_use_info
+ArrayDetectErrorCode extractAllSourceEscapeUseInfo (
+  AD_FUNC_ARGS,
+  ::array_detector::ArrayDetector &detector,
+  unsigned int &total_extracted
 );
 
 // ============================================================================
