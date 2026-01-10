@@ -192,21 +192,6 @@ ArrayDetectErrorCode runPipeline (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 单阶段执行（预留接口）
-// ============================================================================
-
-ArrayDetectErrorCode runPhase (
-  AD_FUNC_ARGS,
-  AnalysisPhase phase,
-  ArrayDetector &detector
-) AD_FUNCTION_BEGIN {
-  (void)phase;
-  (void)detector;
-  // TODO: 实现单阶段执行
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// ============================================================================
 // 顶层入口：创建检测器并执行分析
 // ============================================================================
 

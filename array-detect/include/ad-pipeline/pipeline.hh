@@ -71,13 +71,6 @@ ArrayDetectErrorCode runPipeline (
   ArrayDetector &detector
 );
 
-// 执行单个阶段
-ArrayDetectErrorCode runPhase (
-  AD_FUNC_ARGS,
-  AnalysisPhase phase,
-  ArrayDetector &detector
-);
-
 // 获取 pipeline 状态
 PipelineState* getPipelineState (AD_FUNC_ARGS);
 
