@@ -5,9 +5,9 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "source-escape.hh"
-#include "source-use.hh"
-#include "escaped-use.hh"
+#include "source-escape-conclude.hh"
+#include "source-use-info.hh"
+#include "source-escape-use-info.hh"
 #include "field-wrapper.hh"
 #include "array-detector.hh"
 

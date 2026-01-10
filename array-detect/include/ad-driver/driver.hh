@@ -14,8 +14,8 @@
 #include "gcc-common.hh"
 #include "field-write.hh"
 #include "write-source.hh"
-#include "source-use.hh"
-#include "source-escape.hh"
+#include "source-use-info.hh"
+#include "source-escape-conclude.hh"
 #include "ownership-move.hh"
 #include "field-wrapper.hh"
 #include "array-detector.hh"
@@ -37,8 +37,8 @@ struct WriteAnalysisDriverContext {
   // 阶段 1 输出：写入来源
   WriteOriginalSource* source;
 
-  // 阶段 2 输出：使用分析（每个 wrapper 包含 use_info 和 escaped_info）
-  vec<field_analysis::Wrapper_SourceUseInfo_Escaped*, va_gc>* uses;
+  // 阶段 2 输出：使用分析（每个 wrapper 包含 use_info 和 escape_use_info）
+  vec<field_analysis::Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses;
 
   // 阶段 3 输出：源级逃逸结论
   SourceEscapeConclude* escape_conclude;

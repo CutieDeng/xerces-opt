@@ -176,13 +176,13 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 
       if (wrapper->uses) {
         for (unsigned j = 0; j < wrapper->uses->length (); j++) {
-          Wrapper_SourceUseInfo_Escaped * use_wrapper = (*wrapper->uses)[j];
+          Wrapper_SourceUseInfo_SourceEscapeUseInfo * use_wrapper = (*wrapper->uses)[j];
           if (!use_wrapper || !use_wrapper->use_info) continue;
 
           // 检查是否逃逸
-          if (use_wrapper->escaped_info) {
+          if (use_wrapper->escape_use_info) {
             total_escape_count++;
-            if (use_wrapper->escaped_info->is_safe_debug) {
+            if (use_wrapper->escape_use_info->is_safe_debug) {
               safe_debug_count++;
             } else {
               rejecting_count++;

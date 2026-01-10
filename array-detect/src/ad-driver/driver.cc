@@ -9,7 +9,8 @@
 #include "driver.hh"
 #include "field-wrapper.hh"
 #include "array-detector.hh"
-#include "escaped-use.hh"
+#include "source-escape-use-info.hh"
+#include "source-escape-conclude.hh"
 #include "info-print.hh"
 
 namespace array_detect_ns {
@@ -83,47 +84,15 @@ ArrayDetectErrorCode driveWriteAnalysis (
     &wrapper->write_source));
 
   // Step 3: 分析使用链 - 直接获取 Wrapper 列表
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses = NULL;
   AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, &uses));
   wrapper->uses = uses;
 
-  // Step 3.5: 提取逃逸信息 - 填充每个 wrapper 的 escaped_info
-  AD_TRY (extractEscapedUses (AD_ARGS, wrapper->uses));
+  // Step 3.5: 提取逃逸信息 - 填充每个 wrapper 的 escape_use_info
+  AD_TRY (extractSourceEscapeUseInfo (AD_ARGS, wrapper->uses));
 
-  // Step 4: 生成源级逃逸结论
-  // 统计所有 uses 中的逃逸
-  unsigned int total_escapes = 0;
-  unsigned int safe_debug_escapes = 0;
-  unsigned int rejecting_escapes = 0;
-  bool has_rejecting = false;
-
-  if (wrapper->uses) {
-    for (unsigned int i = 0; i < wrapper->uses->length (); i++) {
-      Wrapper_SourceUseInfo_Escaped* uw = (*wrapper->uses)[i];
-      if (!uw || !uw->use_info) continue;
-
-      if (uw->escaped_info) {
-        total_escapes++;
-        if (uw->escaped_info->is_safe_debug) {
-          safe_debug_escapes++;
-        } else {
-          rejecting_escapes++;
-          has_rejecting = true;
-        }
-      }
-    }
-  }
-
-  // 创建 escape_conclude
-  wrapper->escape_conclude = ggc_alloc<SourceEscapeConclude> ();
-  if (wrapper->escape_conclude) {
-    memset (wrapper->escape_conclude, 0, sizeof (SourceEscapeConclude));
-    wrapper->escape_conclude->total_escapes = total_escapes;
-    wrapper->escape_conclude->safe_debug_escapes = safe_debug_escapes;
-    wrapper->escape_conclude->rejecting_escapes = rejecting_escapes;
-    wrapper->escape_conclude->has_rejecting_evidence = has_rejecting;
-    wrapper->escape_conclude->is_fully_analyzed = true;
-  }
+  // Step 4: 生成源级逃逸结论 (ad-source-escape)
+  AD_TRY (synthesizeSourceEscapeConclude (AD_ARGS, wrapper->uses, &wrapper->escape_conclude));
 
   result = wrapper;
   AD_RETURNE (OK);
@@ -168,48 +137,20 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
 
       // Step 2: 分析使用链（如果尚未分析）
       if (!wrapper->uses && wrapper->write_info) {
-        vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
+        vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses = NULL;
         AD_TRY (analyzeSourceUse (AD_ARGS,
           wrapper->write_info->rhs,
           wrapper->write_info->stmt,
           &uses));
         wrapper->uses = uses;
 
-        // Step 2.5: 提取逃逸信息
-        AD_TRY (extractEscapedUses (AD_ARGS, wrapper->uses));
+        // Step 2.5: 提取逃逸信息 (ad-source-escape-use-info)
+        AD_TRY (extractSourceEscapeUseInfo (AD_ARGS, wrapper->uses));
       }
 
-      // Step 3: 生成源级逃逸结论（如果尚未生成）
+      // Step 3: 生成源级逃逸结论 (ad-source-escape)
       if (!wrapper->escape_conclude && wrapper->uses) {
-        unsigned int total_escapes = 0;
-        unsigned int safe_debug_escapes = 0;
-        unsigned int rejecting_escapes = 0;
-        bool has_rejecting = false;
-
-        for (unsigned int j = 0; j < wrapper->uses->length (); j++) {
-          Wrapper_SourceUseInfo_Escaped* uw = (*wrapper->uses)[j];
-          if (!uw || !uw->use_info) continue;
-
-          if (uw->escaped_info) {
-            total_escapes++;
-            if (uw->escaped_info->is_safe_debug) {
-              safe_debug_escapes++;
-            } else {
-              rejecting_escapes++;
-              has_rejecting = true;
-            }
-          }
-        }
-
-        wrapper->escape_conclude = ggc_alloc<SourceEscapeConclude> ();
-        if (wrapper->escape_conclude) {
-          memset (wrapper->escape_conclude, 0, sizeof (SourceEscapeConclude));
-          wrapper->escape_conclude->total_escapes = total_escapes;
-          wrapper->escape_conclude->safe_debug_escapes = safe_debug_escapes;
-          wrapper->escape_conclude->rejecting_escapes = rejecting_escapes;
-          wrapper->escape_conclude->has_rejecting_evidence = has_rejecting;
-          wrapper->escape_conclude->is_fully_analyzed = true;
-        }
+        AD_TRY (synthesizeSourceEscapeConclude (AD_ARGS, wrapper->uses, &wrapper->escape_conclude));
       }
 
       total_success++;

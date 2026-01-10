@@ -1,11 +1,11 @@
 // ============================================================================
-// ad-source-use 模块实现
+// ad-source-use-info 模块实现
 // ============================================================================
 // 分析源操作数的 SSA 使用链，收集所有使用点和逃逸信息
-// 数据流：source_operand -> (listof wrapper-source-use-info-escaped)
+// 数据流：source_operand -> (listof wrapper-source-use-info-source-escape-use-info)
 // ============================================================================
 
-#include "source-use.hh"
+#include "source-use-info.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -194,7 +194,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind (
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain_recordUsePoint
 // ----------------------------------------------------------------------------
-// 记录使用点 - 创建 Wrapper_SourceUseInfo_Escaped
+// 记录使用点 - 创建 Wrapper_SourceUseInfo_SourceEscapeUseInfo
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   AD_FUNC_ARGS,
@@ -203,18 +203,18 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   SourceUseKind use_kind,
   SourceUseEscapeKind escape_kind,
   char const * escape_target,
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* out_uses
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* out_uses
 ) AD_FUNCTION_BEGIN {
   if (!out_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // 分配 Wrapper
-  auto* wrapper = ggc_alloc<Wrapper_SourceUseInfo_Escaped> ();
+  auto* wrapper = ggc_alloc<Wrapper_SourceUseInfo_SourceEscapeUseInfo> ();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (Wrapper_SourceUseInfo_Escaped));
+  memset (wrapper, 0, sizeof (Wrapper_SourceUseInfo_SourceEscapeUseInfo));
 
   // 分配 SourceUseInfo
   auto* use_info = ggc_alloc<SourceUseInfo> ();
@@ -232,9 +232,9 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   use_info->target_info.function_decl = NULL;
 
   // 设置 Wrapper 字段
-  // 注意：escaped_info 由 escaped-use 模块填充，此处只设置 use_info
+  // 注意：escape_use_info 由 source-escape-use-info 模块填充，此处只设置 use_info
   wrapper->use_info = use_info;
-  wrapper->escaped_info = NULL;
+  wrapper->escape_use_info = NULL;
 
   vec_safe_push (out_uses, wrapper);
 
@@ -249,7 +249,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
   AD_FUNC_ARGS,
   tree ssa_name,
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* out_uses,
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* out_uses,
   unsigned int depth,
   gimple * exclude_stmt
 ) AD_FUNCTION_BEGIN {
@@ -393,13 +393,13 @@ char const * getUseKindString (SourceUseKind kind) {
 // analyzeSourceUse
 // ----------------------------------------------------------------------------
 // 主入口：分析源操作数的所有使用
-// 输出：(listof wrapper-source-use-info-escaped)
+// 输出：(listof wrapper-source-use-info-source-escape-use-info)
 
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * exclude_stmt,
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>** out_uses
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>** out_uses
 ) AD_FUNCTION_BEGIN {
   if (!out_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -421,18 +421,17 @@ ArrayDetectErrorCode analyzeSourceUse (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// collectAllFieldEscapes
+// collectAllFieldUses
 // ----------------------------------------------------------------------------
-// Pipeline 接口：收集所有字段的逃逸信息
+// Pipeline 接口：收集所有字段的使用信息
+// 注意：此函数只填充 uses，escape_use_info 由 source-escape-use-info 模块后续填充
 
-ArrayDetectErrorCode collectAllFieldEscapes (
+ArrayDetectErrorCode collectAllFieldUses (
   AD_FUNC_ARGS,
   ArrayDetector &detector,
-  unsigned int &total_analyzed,
-  unsigned int &total_escaped
+  unsigned int &total_analyzed
 ) AD_FUNCTION_BEGIN {
   total_analyzed = 0;
-  total_escaped = 0;
 
   if (!detector.m_type_field_writes) {
     AD_RETURNE (OK);
@@ -456,23 +455,12 @@ ArrayDetectErrorCode collectAllFieldEscapes (
       gimple * exclude_stmt = write_info->stmt;
 
       // 分析源使用 - 直接获取 wrapper 列表
-      vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
+      vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses = NULL;
       AD_TRY (analyzeSourceUse (AD_ARGS, source_operand, exclude_stmt, &uses));
 
       // 直接设置 wrapper->uses
       wrapper->uses = uses;
       total_analyzed++;
-
-      // 检查是否有逃逸
-      if (uses) {
-        for (unsigned j = 0; j < uses->length (); j++) {
-          Wrapper_SourceUseInfo_Escaped* use_wrapper = (*uses)[j];
-          if (use_wrapper && use_wrapper->escaped_info) {
-            total_escaped++;
-            break;
-          }
-        }
-      }
     }
   }
 

@@ -366,10 +366,10 @@
       ;; ad- 数据结构模块
       "ad-field-write"
       "ad-write-source"
-      "ad-source-use"
+      "ad-source-use-info"
       "ad-ownership-move"
-      "ad-escaped-use"
-      "ad-source-escape"
+      "ad-source-escape-use-info"
+      "ad-source-escape-conclude"
       "ad-field-escape"
       "ad-field-wrapper"
       ;; ad- 分析模块 (renamed from array-detect-*)

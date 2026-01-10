@@ -99,27 +99,26 @@ constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 // ============================================================================
 
 // 主入口：分析源操作数的所有使用
-// 数据流：source_operand -> (listof wrapper-source-use-info-escaped)
+// 数据流：source_operand -> (listof wrapper-source-use-info-source-escape-use-info)
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * exclude_stmt,
-  vec<field_analysis::Wrapper_SourceUseInfo_Escaped*, va_gc>** out_uses
+  vec<field_analysis::Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>** out_uses
 );
 
 // ============================================================================
 // Pipeline 接口
 // ============================================================================
 
-// 收集所有字段的逃逸信息
+// 收集所有字段的使用信息
 // 输入：detector - 包含 m_type_field_writes 的检测器
-// 输出：total_analyzed - 总收集数量
-//       total_escaped - 总逃逸数量
-ArrayDetectErrorCode collectAllFieldEscapes (
+// 输出：total_analyzed - 总分析数量
+// 注意：此函数只填充 uses，escape_use_info 由 source-escape-use-info 模块后续填充
+ArrayDetectErrorCode collectAllFieldUses (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  unsigned int &total_analyzed,
-  unsigned int &total_escaped
+  unsigned int &total_analyzed
 );
 
 // ============================================================================

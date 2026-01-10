@@ -7,16 +7,16 @@
 // 三层 Wrapper 结构：
 //
 // 层级2：单个使用的 Wrapper (per source-use)
-//   (wrapper-source-use-info-escaped
-//     use-info   : write-original-source-use
-//     is-escaped : bool)
+//   (wrapper-source-use-info-source-escape-use-info
+//     use-info            : source-use-info
+//     escape-use-info     : source-escape-use-info or #f)
 //
 // 层级1：写入级 Wrapper (per write operation)
 //   (wrapper-write-info-write-source-source-escape-conclude
 //     write-info      : field-write-info
 //     write-source    : write-original-source
 //     escape-conclude : source-escape-conclude
-//     uses            : (listof wrapper-source-use-info-escaped*))
+//     uses            : (listof wrapper-source-use-info-source-escape-use-info*))
 //
 // 层级3：字段级 Wrapper (per field)
 //   (wrapper-field-escape-conclude-ownership-conclude
@@ -41,7 +41,7 @@
 namespace array_detect_ns {
   struct FieldWriteInfo;
   struct SourceUseInfo;
-  struct EscapedUseInfo;
+  struct SourceEscapeUseInfo;
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
   struct OwnershipConclude;
@@ -60,13 +60,13 @@ namespace field_analysis {
 // ----------------------------------------------------------------------------
 // 层级2：单个使用的 Wrapper (per source-use)
 // ----------------------------------------------------------------------------
-// (wrapper-source-use-info-escaped
-//   use-info     : write-original-source-use       ; source-use 产出
-//   escaped-info : escaped-write-original-source-use or #f)  ; escaped-use 产出
+// (wrapper-source-use-info-source-escape-use-info
+//   use-info         : source-use-info           ; source-use-info 模块产出
+//   escape-use-info  : source-escape-use-info or #f)  ; source-escape-use-info 模块产出
 
-struct Wrapper_SourceUseInfo_Escaped {
+struct Wrapper_SourceUseInfo_SourceEscapeUseInfo {
   ::array_detect_ns::SourceUseInfo* use_info;
-  ::array_detect_ns::EscapedUseInfo* escaped_info;  // 非逃逸时为 NULL
+  ::array_detect_ns::SourceEscapeUseInfo* escape_use_info;  // 非逃逸时为 NULL
 };
 
 // ----------------------------------------------------------------------------
@@ -76,13 +76,13 @@ struct Wrapper_SourceUseInfo_Escaped {
 //   write-info      : field-write-info
 //   write-source    : write-original-source
 //   escape-conclude : source-escape-conclude
-//   uses            : (listof wrapper-source-use-info-escaped*))
+//   uses            : (listof wrapper-source-use-info-source-escape-use-info*))
 
 struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude {
   ::array_detect_ns::FieldWriteInfo* write_info;
   ::array_detector::WriteOriginalSource* write_source;
   ::array_detect_ns::SourceEscapeConclude* escape_conclude;
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses;
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses;
 };
 
 // ----------------------------------------------------------------------------

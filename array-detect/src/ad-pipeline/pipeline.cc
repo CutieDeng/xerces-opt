@@ -7,7 +7,7 @@
 // 当前支持的分析阶段（对应已定义的新模块）：
 // 1. collectTypesAndFields     -> ad-field-write
 // 2. traceFieldAssignments     -> ad-write-source
-// 3. collectAllFieldEscapes    -> ad-source-use
+// 3. collectAllFieldUses       -> ad-source-use
 // 4. synthesizeAllFieldEscapes -> ad-escaped-use, ad-source-escape, ad-field-escape
 // 5. analyzeAllOwnershipTransfers -> ad-ownership-move
 //
@@ -18,9 +18,9 @@
 #include "pipeline.hh"
 #include "field-write.hh"
 #include "write-source.hh"
-#include "source-use.hh"
-#include "escaped-use.hh"
-#include "source-escape.hh"
+#include "source-use-info.hh"
+#include "source-escape-use-info.hh"
+#include "source-escape-conclude.hh"
 #include "field-escape.hh"
 #include "ownership-move.hh"
 #include "array-detector.hh"
@@ -80,8 +80,7 @@ ArrayDetectErrorCode runPipeline (
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_ANALYZE_USES;
   unsigned int total_analyzed = 0;
-  unsigned int total_escaped = 0;
-  AD_TRY (collectAllFieldEscapes (AD_ARGS, detector, total_analyzed, total_escaped));
+  AD_TRY (collectAllFieldUses (AD_ARGS, detector, total_analyzed));
   g_pipeline_state.total_escapes_analyzed = total_analyzed;
 
   // ========================================================================

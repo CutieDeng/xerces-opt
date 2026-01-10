@@ -1,11 +1,11 @@
 // ============================================================================
-// ad-escaped-use 模块实现
+// ad-source-escape-use-info 模块实现
 // ============================================================================
 // 提取逃逸使用信息
-// 数据流：(listof wrapper-source-use-info-escaped) -> 填充 escaped_info 字段
+// 数据流：(listof wrapper-source-use-info-source-escape-use-info) -> 填充 escape_use_info 字段
 // ============================================================================
 
-#include "escaped-use.hh"
+#include "source-escape-use-info.hh"
 #include "info-print.hh"
 
 namespace array_detect_ns {
@@ -74,41 +74,41 @@ bool isEscapeSafeDebug (
 // 逃逸使用提取
 // ============================================================================
 // 输入：wrapper 列表（已填充 use_info）
-// 输出：填充每个 wrapper 的 escaped_info 字段
+// 输出：填充每个 wrapper 的 escape_use_info 字段
 
-ArrayDetectErrorCode extractEscapedUses (
+ArrayDetectErrorCode extractSourceEscapeUseInfo (
   AD_FUNC_ARGS,
-  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses
+  vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses
 ) AD_FUNCTION_BEGIN {
   if (!uses) {
     AD_RETURNE (OK);  // 空列表，无需处理
   }
 
   for (unsigned int i = 0; i < uses->length (); i++) {
-    Wrapper_SourceUseInfo_Escaped* wrapper = (*uses)[i];
+    Wrapper_SourceUseInfo_SourceEscapeUseInfo* wrapper = (*uses)[i];
     if (!wrapper || !wrapper->use_info) continue;
 
     SourceUseInfo const* use_info = wrapper->use_info;
 
     // 检查是否为逃逸
     if (use_info->escape_kind == SU_ESCAPE_NONE) {
-      wrapper->escaped_info = NULL;
+      wrapper->escape_use_info = NULL;
       continue;
     }
 
-    // 创建 EscapedUseInfo
-    auto* escaped_info = ggc_alloc<EscapedUseInfo> ();
-    if (!escaped_info) {
+    // 创建 SourceEscapeUseInfo
+    auto* escape_use_info = ggc_alloc<SourceEscapeUseInfo> ();
+    if (!escape_use_info) {
       AD_RETURNE (MEMORY_ERROR);
     }
 
     // 填充逃逸信息
-    escaped_info->escape_kind = use_info->escape_kind;
-    escaped_info->escape_target = use_info->escape_target;
-    escaped_info->target_decl = use_info->target_info.function_decl;
-    escaped_info->is_safe_debug = isEscapeSafeDebug (AD_ARGS, use_info);
+    escape_use_info->escape_kind = use_info->escape_kind;
+    escape_use_info->escape_target = use_info->escape_target;
+    escape_use_info->target_decl = use_info->target_info.function_decl;
+    escape_use_info->is_safe_debug = isEscapeSafeDebug (AD_ARGS, use_info);
 
-    wrapper->escaped_info = escaped_info;
+    wrapper->escape_use_info = escape_use_info;
   }
 
   AD_RETURNE (OK);
@@ -118,13 +118,13 @@ ArrayDetectErrorCode extractEscapedUses (
 // 调试输出
 // ============================================================================
 
-void printEscapedUseInfo (
-  EscapedUseInfo const* info,
+void printSourceEscapeUseInfo (
+  SourceEscapeUseInfo const* info,
   FILE* output
 ) {
   if (!info || !output) return;
 
-  fprintf (output, "  EscapedUseInfo:\n");
+  fprintf (output, "  SourceEscapeUseInfo:\n");
   fprintf (output, "    escape_kind: %s\n", getEscapeKindString (info->escape_kind));
   fprintf (output, "    escape_target: %s\n",
            info->escape_target ? info->escape_target : "<none>");
