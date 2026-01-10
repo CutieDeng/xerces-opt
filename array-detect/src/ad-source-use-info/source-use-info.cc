@@ -349,26 +349,6 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// getEscapeKindString
-// ----------------------------------------------------------------------------
-
-char const * getEscapeKindString (SourceUseEscapeKind kind) {
-  switch (kind) {
-    case SU_ESCAPE_NONE:          return "NONE";
-    case SU_ESCAPE_RETURN:        return "RETURN";
-    case SU_ESCAPE_PARAMETER:     return "PARAMETER";
-    case SU_ESCAPE_GLOBAL_STORE:  return "GLOBAL_STORE";
-    case SU_ESCAPE_HEAP_STORE:    return "HEAP_STORE";
-    case SU_ESCAPE_FIELD_STORE:   return "FIELD_STORE";
-    case SU_ESCAPE_INDIRECT_CALL: return "INDIRECT_CALL";
-    case SU_ESCAPE_VIRTUAL_CALL:  return "VIRTUAL_CALL";
-    case SU_ESCAPE_EXTERNAL_CALL: return "EXTERNAL_CALL";
-    case SU_ESCAPE_UNKNOWN:       return "UNKNOWN";
-    default:                      return "<invalid>";
-  }
-}
-
-// ----------------------------------------------------------------------------
 // getUseKindString
 // ----------------------------------------------------------------------------
 

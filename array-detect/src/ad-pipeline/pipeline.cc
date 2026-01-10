@@ -7,8 +7,8 @@
 // 当前支持的分析阶段（对应已定义的新模块）：
 // 1. collectTypesAndFields     -> ad-field-write
 // 2. traceFieldAssignments     -> ad-write-source
-// 3. collectAllFieldUses       -> ad-source-use
-// 4. synthesizeAllFieldEscapes -> ad-escaped-use, ad-source-escape, ad-field-escape
+// 3. collectAllFieldUses       -> ad-source-use-info
+// 4. synthesizeAllFieldEscapes -> ad-source-escape-use-info, ad-source-escape-conclude, ad-field-escape-conclude
 // 5. analyzeAllOwnershipTransfers -> ad-ownership-move
 //
 // 未来扩展（待定义数据流）：
@@ -21,7 +21,7 @@
 #include "source-use-info.hh"
 #include "source-escape-use-info.hh"
 #include "source-escape-conclude.hh"
-#include "field-escape.hh"
+#include "field-escape-conclude.hh"
 #include "ownership-move.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
@@ -54,8 +54,8 @@ PipelineState* getPipelineState (AD_FUNC_ARGS) {
 // ============================================================================
 // 当前只包含已定义数据流的模块调用
 // 对应 10 个新模块：
-// - ad-field-write, ad-write-source, ad-source-use
-// - ad-escaped-use, ad-source-escape, ad-field-escape
+// - ad-field-write, ad-write-source, ad-source-use-info
+// - ad-source-escape-use-info, ad-source-escape-conclude, ad-field-escape-conclude
 // - ad-ownership-move, ad-field-wrapper
 // - ad-pipeline, ad-driver
 
@@ -84,12 +84,11 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.total_escapes_analyzed = total_analyzed;
 
   // ========================================================================
-  // Step 4: 合成逃逸证据 (ad-escaped-use, ad-source-escape, ad-field-escape)
+  // Step 4: 合成逃逸证据 (ad-source-escape-conclude, ad-field-escape-conclude)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_SYNTHESIZE_ESCAPES;
-  vec<SourceEscapeConclude*> * evidence_results = NULL;
   unsigned int total_synthesized = 0;
-  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, evidence_results, total_synthesized));
+  AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, total_synthesized));
 
   // ========================================================================
   // Step 5: 分析所有权转移 (ad-ownership-move)

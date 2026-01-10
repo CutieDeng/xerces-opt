@@ -370,7 +370,7 @@
       "ad-ownership-move"
       "ad-source-escape-use-info"
       "ad-source-escape-conclude"
-      "ad-field-escape"
+      "ad-field-escape-conclude"
       "ad-field-wrapper"
       ;; ad- 分析模块 (renamed from array-detect-*)
       "ad-owned-verdict"

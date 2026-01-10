@@ -7,6 +7,7 @@
 #include "prelude.hh"
 #include "field-write.hh"
 #include "field-wrapper.hh"
+#include "source-escape-use-info.hh"
 
 namespace array_detector {
   class ArrayDetector;
@@ -42,23 +43,6 @@ enum SourceUseKind {
   SU_USE_OTHER              // 其他
 };
 
-// ============================================================================
-// 逃逸类型定义
-// ============================================================================
-
-enum SourceUseEscapeKind {
-  SU_ESCAPE_NONE = 0,           // 无逃逸
-  SU_ESCAPE_RETURN,             // 通过返回值逃逸
-  SU_ESCAPE_PARAMETER,          // 通过参数传递逃逸
-  SU_ESCAPE_GLOBAL_STORE,       // 存储到全局变量
-  SU_ESCAPE_HEAP_STORE,         // 存储到堆对象
-  SU_ESCAPE_FIELD_STORE,        // 存储到对象字段
-  SU_ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸
-  SU_ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
-  SU_ESCAPE_EXTERNAL_CALL,      // 传递给外部函数
-  SU_ESCAPE_UNKNOWN             // 未知逃逸路径
-};
-
 // 逃逸目标信息联合体（仅当 escape_kind != SU_ESCAPE_NONE 时有效）
 union EscapeTargetInfo {
   tree function_decl;             // 对于函数调用逃逸
@@ -67,7 +51,7 @@ union EscapeTargetInfo {
 };
 
 // ============================================================================
-// 统一的使用信息结构（合并原 SourceUseInfo 和 SourceUseEscapeLocation）
+// 统一的使用信息结构
 // ============================================================================
 
 struct SourceUseInfo {
@@ -124,9 +108,6 @@ ArrayDetectErrorCode collectAllFieldUses (
 // ============================================================================
 // 辅助函数
 // ============================================================================
-
-// 获取逃逸类型描述字符串
-char const * getEscapeKindString (SourceUseEscapeKind kind);
 
 // 获取使用类型描述字符串
 char const * getUseKindString (SourceUseKind kind);

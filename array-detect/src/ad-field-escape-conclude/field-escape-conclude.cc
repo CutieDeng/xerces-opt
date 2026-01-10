@@ -1,4 +1,12 @@
-#include "field-escape.hh"
+// ============================================================================
+// ad-field-escape-conclude 模块实现
+// ============================================================================
+// 数据流：field, (listof write-original-source) -> field-escape-conclude
+// 汇总单个 (type, field) 的所有写入操作的逃逸信息
+// ============================================================================
+
+#include "field-escape-conclude.hh"
+#include "source-escape-conclude.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "gcc-ext-util.hh"
@@ -80,10 +88,6 @@ ArrayDetectErrorCode summarizeFieldEscape (
   summary->type = field_data->type;
   summary->field_decl = field_data->field_decl;
 
-  // 分配证据引用向量
-  summary->all_source_concludes = ggc_alloc<vec<SourceEscapeConclude*>> ();
-  summary->all_source_concludes->create (0);
-
   // 遍历所有字段写入分析 Wrapper
   if (field_data->writes) {
     for (unsigned int i = 0; i < field_data->writes->length (); i++) {
@@ -129,24 +133,18 @@ ArrayDetectErrorCode summarizeFieldEscape (
 // ----------------------------------------------------------------------------
 // synthesizeAllFieldEscapes
 // ----------------------------------------------------------------------------
-// 组合接口：综合所有字段的逃逸信息
+// 综合所有字段的逃逸信息
 
 ArrayDetectErrorCode synthesizeAllFieldEscapes (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<SourceEscapeConclude*> * &evidence_results,
   unsigned int &total_synthesized
 ) AD_FUNCTION_BEGIN {
   total_synthesized = 0;
 
   if (!detector.m_type_field_writes) {
-    evidence_results = NULL;
     AD_RETURNE (OK);
   }
-
-  // 分配结果向量
-  evidence_results = ggc_alloc<vec<SourceEscapeConclude*>> ();
-  evidence_results->create (0);
 
   // 遍历所有 (type, field) 的写入操作
   typedef hash_map<array_detector::TypeFieldKey, array_detector::TypeFieldAnalysisData*, array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;

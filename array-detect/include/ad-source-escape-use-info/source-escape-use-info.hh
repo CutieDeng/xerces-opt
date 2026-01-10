@@ -5,10 +5,30 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "source-use-info.hh"
 #include "field-wrapper.hh"
 
 namespace array_detect_ns {
+
+// 前置声明
+struct SourceUseInfo;
+
+// ============================================================================
+// 逃逸类型定义 (SourceUseEscapeKind)
+// ============================================================================
+// 描述源操作数使用时的逃逸类型
+
+enum SourceUseEscapeKind {
+  SU_ESCAPE_NONE = 0,           // 无逃逸
+  SU_ESCAPE_RETURN,             // 通过返回值逃逸
+  SU_ESCAPE_PARAMETER,          // 通过参数传递逃逸
+  SU_ESCAPE_GLOBAL_STORE,       // 存储到全局变量
+  SU_ESCAPE_HEAP_STORE,         // 存储到堆对象
+  SU_ESCAPE_FIELD_STORE,        // 存储到对象字段
+  SU_ESCAPE_INDIRECT_CALL,      // 通过间接调用逃逸
+  SU_ESCAPE_VIRTUAL_CALL,       // 通过虚函数调用逃逸
+  SU_ESCAPE_EXTERNAL_CALL,      // 传递给外部函数
+  SU_ESCAPE_UNKNOWN             // 未知逃逸路径
+};
 
 // ============================================================================
 // 源逃逸使用信息 (SourceEscapeUseInfo)
@@ -51,6 +71,9 @@ bool isEscapeSafeDebug (
   AD_FUNC_ARGS,
   SourceUseInfo const* use_info
 );
+
+// 获取逃逸类型描述字符串
+char const * getEscapeKindString (SourceUseEscapeKind kind);
 
 // ============================================================================
 // 调试输出

@@ -5,7 +5,6 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "source-escape-conclude.hh"
 #include "source-use-info.hh"
 #include "source-escape-use-info.hh"
 #include "field-wrapper.hh"
@@ -13,8 +12,6 @@
 
 namespace array_detector {
   class ArrayDetector;
-  // TypeFieldAnalysisData is defined in type-field-hashmap-traits.hh which is
-  // included after array-detector.hh. We use the full type name here.
 } // namespace array_detector
 
 namespace array_detect_ns {
@@ -32,9 +29,9 @@ using array_detector::TypeFieldAnalysisData;
 //   type                    : tree
 //   field-decl              : tree
 //   total-field-writes      : nat
+//   writes-with-escape      : nat
 //   writes-with-rejecting   : nat
-//   has-rejecting-evidence  : bool
-//   all-source-concludes    : (listof source-escape-conclude*))
+//   has-rejecting-evidence  : bool)
 // ============================================================================
 
 struct FieldEscapeConclude {
@@ -64,9 +61,6 @@ struct FieldEscapeConclude {
   // === 核心判定 ===
   bool has_rejecting_evidence;            // 存在拒绝证据
   float rejection_ratio;                  // 拒绝比例
-
-  // === 所有源级结论 ===
-  vec<SourceEscapeConclude*> * all_source_concludes;
 };
 
 // ============================================================================
@@ -89,10 +83,11 @@ inline ArrayDetectErrorCode summarizeTypeFieldEscapes (
 ) { return summarizeFieldEscape(AD_FUNC_ARGS_CALL, field_data, result); }
 
 // 综合所有字段的逃逸信息
+// 遍历所有 (type, field)，为每个写入生成 SourceEscapeConclude，
+// 并汇总为 FieldEscapeConclude
 ArrayDetectErrorCode synthesizeAllFieldEscapes (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<SourceEscapeConclude*> * &evidence_results,
   unsigned int &total_synthesized
 );
 
