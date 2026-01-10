@@ -3,9 +3,14 @@
 #include "gcc-common.hh"
 #include "prelude.hh"
 #include "virtual-call-analysis.hh"
-#include "field-wrapper.hh"
+
+namespace array_detect_ns {
+  struct FieldWriteInfo;
+} // namespace array_detect_ns
 
 namespace array_detector {
+
+using ::array_detect_ns::FieldWriteInfo;
 
 using namespace ::array_detect_ns;
 
@@ -160,13 +165,12 @@ class ArrayDetector;
 
 // 主入口：追踪写入来源
 // 从 FieldWriteInfo.rhs 追踪到语义来源
-// 输出：直接写入 out_kind 和 out_data 指向的地址
+// 输出：WriteOriginalSource 指针
 ArrayDetectErrorCode traceWriteSource (
   AD_FUNC_ARGS,
   ArrayDetector& detector,
   FieldWriteInfo* write_info,
-  field_analysis::FieldSourceKind* out_kind,        // 直接写入来源类型
-  field_analysis::FieldSourceDataUnion* out_data    // 直接写入来源数据
+  WriteOriginalSource** out_source    // 输出 WriteOriginalSource
 );
 
 // Pipeline 接口：追踪所有字段赋值

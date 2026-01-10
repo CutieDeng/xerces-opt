@@ -2,17 +2,17 @@
 // ad-field-write 模块实现
 // ============================================================================
 // 收集所有字段写入操作
-// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude))
+// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_WriteInfo_WriteSource_SourceEscapeConclude))
 // ============================================================================
 
 #include "field-write.hh"
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
-#include "field-analysis.hh"
 
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+using namespace ::field_analysis;
 
 // ============================================================================
 // 前向声明
@@ -61,7 +61,7 @@ ArrayDetectErrorCode collectAllFieldWrites_initMap (
 // ----------------------------------------------------------------------------
 // collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper_insertToMap
 // ----------------------------------------------------------------------------
-// 将 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 插入到 (type, field) 对应的写入列表中
+// 将 Wrapper 插入到 (type, field) 对应的写入列表中
 //
 // 语义：(map, type, field, wrapper) -> map[type,field].writes.push(wrapper)
 // 前置条件：map 已初始化（非 NULL）
@@ -71,7 +71,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   tree type,
   tree field_decl,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper
 ) AD_FUNCTION_BEGIN {
   if (!map || !type || !field_decl || !wrapper) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -82,88 +82,62 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   key.field_decl = field_decl;
 
   TypeFieldAnalysisData** existing_ptr = map->get (key);
-  TypeFieldAnalysisData* tfwo = NULL;
+  TypeFieldAnalysisData* tfad = NULL;
 
   if (existing_ptr && *existing_ptr) {
-    tfwo = *existing_ptr;
+    tfad = *existing_ptr;
   } else {
-    tfwo = ggc_alloc<TypeFieldAnalysisData>();
-    if (!tfwo) {
+    tfad = ggc_alloc<TypeFieldAnalysisData>();
+    if (!tfad) {
       AD_RETURNE (MEMORY_ERROR);
     }
-    memset (tfwo, 0, sizeof (TypeFieldAnalysisData));
+    memset (tfad, 0, sizeof (TypeFieldAnalysisData));
 
-    tfwo->type = type;
-    tfwo->field_decl = field_decl;
-    tfwo->writes = ggc_alloc<vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>>();
-    if (!tfwo->writes) {
-      AD_RETURNE (MEMORY_ERROR);
-    }
-    tfwo->writes->create (0);
-    tfwo->has_rejecting_evidence = false;
-    tfwo->reserved = NULL;
+    tfad->type = type;
+    tfad->field_decl = field_decl;
+    vec_alloc (tfad->writes, 4);
+    tfad->escape_conclude = NULL;
+    tfad->ownership_conclude = NULL;
 
-    map->put (key, tfwo);
+    map->put (key, tfad);
   }
 
-  tfwo->writes->safe_push (wrapper);
+  vec_safe_push (tfad->writes, wrapper);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
 // collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper
 // ----------------------------------------------------------------------------
-// 从字段写入信息创建 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 并插入到 map
+// 从字段写入信息创建 Wrapper 并插入到 map
 
 ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper (
   AD_FUNC_ARGS,
-  gimple* stmt,
-  tree lhs,
-  tree rhs,
-  tree field_decl,
-  tree containing_type,
-  basic_block bb,
-  tree func_decl,
+  FieldWriteInfo* write_info,
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map
 ) AD_FUNCTION_BEGIN {
+  if (!write_info) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
 
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = ggc_alloc<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude>();
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude>();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude));
+  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude));
 
-  // FieldWrite 部分
-  wrapper->type = containing_type;
-  wrapper->field = field_decl;
-  wrapper->func = func_decl;
-  wrapper->bb = bb;
-  wrapper->stmt = stmt;
-  wrapper->lhs = lhs;
-  wrapper->rhs = rhs;
-  wrapper->write_location = gimple_location (stmt);
+  // 存储 FieldWriteInfo 指针
+  wrapper->write_info = write_info;
 
   // 其他部分由后续模块填充
-  wrapper->source_kind = field_analysis::FIELD_SRC_UNKNOWN;
-  wrapper->source_operand = NULL_TREE;
-  wrapper->source_stmt = NULL;
-  wrapper->all_uses = NULL;
-  wrapper->total_use_count = 0;
-  wrapper->max_use_depth = 0;
-  wrapper->is_fully_analyzed = false;
-  wrapper->escape_uses = NULL;
-  wrapper->escape_count = 0;
-  wrapper->has_escape = false;
-  wrapper->total_escapes = 0;
-  wrapper->safe_debug_escapes = 0;
-  wrapper->rejecting_escapes = 0;
-  wrapper->has_rejecting_evidence = false;
-  wrapper->move = NULL;
+  wrapper->write_source = NULL;
+  wrapper->escape_conclude = NULL;
+  wrapper->uses = NULL;
 
   AD_TRY (collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper_insertToMap (
-    AD_ARGS, map, containing_type, field_decl, wrapper));
+    AD_ARGS, map, write_info->type, write_info->field_decl, wrapper));
 
-  gcc_ext_util::logFieldWriteCapture (AD_ARGS, containing_type, field_decl);
+  gcc_ext_util::logFieldWriteCapture (AD_ARGS, write_info->type, write_info->field_decl);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -189,16 +163,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock (
 
     if (write_info) {
       AD_TRY (collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper (
-        AD_ARGS,
-        write_info->stmt,
-        write_info->lhs,
-        write_info->rhs,
-        write_info->field_decl,
-        write_info->type,
-        write_info->bb,
-        write_info->function_decl,
-        map
-      ));
+        AD_ARGS, write_info, map));
       write_count++;
     }
   }

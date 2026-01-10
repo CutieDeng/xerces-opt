@@ -5,8 +5,7 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "escaped-use.hh"
-#include "field-wrapper.hh"
+#include "source-use.hh"
 
 namespace array_detect_ns {
 
@@ -39,6 +38,7 @@ struct SourceEscapeConclude {
 
   // 核心判定
   bool has_rejecting_evidence;          // rejecting_escapes > 0
+  bool is_fully_analyzed;               // 是否完全分析
 
   void * aux;
   void * original_write_info;           // 原始 FieldWriteInfo*
@@ -49,11 +49,11 @@ struct SourceEscapeConclude {
 // ============================================================================
 
 // 生成源级逃逸结论
-// 输入：escaped_uses (逃逸使用列表)
+// 输入：escaped_uses (逃逸使用列表，来自 EscapedUseResult)
 // 输出：直接写入 wrapper 成员地址
 ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  vec<field_analysis::FieldUsePoint const*>* escaped_uses,
+  vec<SourceUseInfo const*>* escaped_uses,
   unsigned int* out_total_escapes,
   unsigned int* out_safe_debug_escapes,
   unsigned int* out_rejecting_escapes,
@@ -75,7 +75,7 @@ bool isKnownSafeDebugFunction (
 // 仅当逃逸为函数调用且函数为调试函数时返回 true
 bool isSafeDebugEscape (
   AD_FUNC_ARGS,
-  field_analysis::FieldUsePoint const * escape
+  SourceUseInfo const * escape
 );
 
 // ============================================================================

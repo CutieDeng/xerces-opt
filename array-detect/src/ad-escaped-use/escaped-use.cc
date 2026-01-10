@@ -5,40 +5,43 @@ namespace array_detect_ns {
 
 // ============================================================================
 // 逃逸使用提取
-// 输入：all_uses (所有使用点)
-// 输出：直接写入 out_escape_uses 和 out_escape_count
+// 输入：(listof SourceUseInfo)
+// 输出：EscapedUseResult 指针
 // ============================================================================
 
 ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  vec<field_analysis::FieldUsePoint>* all_uses,
-  vec<field_analysis::FieldUsePoint const*>** out_escape_uses,
-  unsigned int* out_escape_count,
-  bool* out_has_escape
+  vec<SourceUseInfo>* all_uses,
+  EscapedUseResult** out_result
 ) AD_FUNCTION_BEGIN {
-  if (!out_escape_uses || !out_escape_count || !out_has_escape) {
+  if (!out_result) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // 初始化输出
-  *out_escape_count = 0;
-  *out_has_escape = false;
-
-  // 分配逃逸向量
-  *out_escape_uses = ggc_alloc<vec<field_analysis::FieldUsePoint const*>> ();
-  if (!*out_escape_uses) {
+  // 分配结果结构
+  *out_result = ggc_alloc<EscapedUseResult> ();
+  if (!*out_result) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  (*out_escape_uses)->create (0);
+
+  // 初始化结果
+  EscapedUseResult* result = *out_result;
+  result->escape_count = 0;
+
+  // 分配逃逸向量
+  result->escapes = ggc_alloc<vec<SourceUseInfo const*>> ();
+  if (!result->escapes) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  result->escapes->create (0);
 
   // 从 all_uses 中提取逃逸使用
   if (all_uses) {
     for (unsigned int i = 0; i < all_uses->length (); i++) {
-      field_analysis::FieldUsePoint const &use = (*all_uses)[i];
+      SourceUseInfo const &use = (*all_uses)[i];
       if (use.is_escape()) {
-        (*out_escape_uses)->safe_push (&(*all_uses)[i]);
-        (*out_escape_count)++;
-        *out_has_escape = true;
+        result->escapes->safe_push (&(*all_uses)[i]);
+        result->escape_count++;
       }
     }
   }

@@ -2,13 +2,12 @@
 // ad-source-use 模块实现
 // ============================================================================
 // 分析源操作数的 SSA 使用链，收集所有使用点和逃逸信息
-// 数据流：source_operand -> SourceUseResult
+// 数据流：source_operand -> (listof SourceUseInfo)
 // ============================================================================
 
 #include "source-use.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
-#include "field-analysis.hh"
 
 #include "tree.h"
 #include "gimple.h"
@@ -27,10 +26,6 @@ using namespace ::array_detector;
 // ============================================================================
 
 namespace {
-
-// 前向声明：类型转换辅助函数
-field_analysis::FieldEscapeKind collectAllFieldEscapes_convertEscapeKind (SourceUseEscapeKind kind);
-field_analysis::FieldUseKind collectAllFieldEscapes_convertUseKind (SourceUseKind kind);
 
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain_classifyUseKind
@@ -198,7 +193,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind (
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain_recordUsePoint
 // ----------------------------------------------------------------------------
-// 记录使用点 - 直接写入 FieldUsePoint
+// 记录使用点 - 直接写入 SourceUseInfo
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   AD_FUNC_ARGS,
@@ -207,24 +202,23 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   SourceUseKind use_kind,
   SourceUseEscapeKind escape_kind,
   char const * escape_target,
-  vec<field_analysis::FieldUsePoint>* all_uses,
-  unsigned int* total_use_count
+  vec<SourceUseInfo>* all_uses
 ) AD_FUNCTION_BEGIN {
-  if (!all_uses || !total_use_count) {
+  if (!all_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  field_analysis::FieldUsePoint use_point;
-  use_point.kind = collectAllFieldEscapes_convertUseKind (use_kind);
-  use_point.stmt = use_stmt;
-  use_point.operand = use_operand;
-  use_point.location = gimple_location (use_stmt);
+  SourceUseInfo use_point;
+  use_point.kind = use_kind;
+  use_point.use_stmt = use_stmt;
+  use_point.use_operand = use_operand;
+  use_point.source_location = gimple_location (use_stmt);
   use_point.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
-  use_point.escape_kind = collectAllFieldEscapes_convertEscapeKind (escape_kind);
+  use_point.escape_kind = escape_kind;
   use_point.escape_target = escape_target;
+  use_point.target_info.function_decl = NULL;
 
   all_uses->safe_push (use_point);
-  (*total_use_count)++;
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -232,19 +226,16 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain
 // ----------------------------------------------------------------------------
-// 递归追踪 SSA 使用链 - 直接写入 wrapper 成员地址
+// 递归追踪 SSA 使用链
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
   AD_FUNC_ARGS,
   tree ssa_name,
-  vec<field_analysis::FieldUsePoint>* all_uses,
-  unsigned int* total_use_count,
-  bool* is_fully_analyzed,
+  vec<SourceUseInfo>* all_uses,
   unsigned int depth,
   gimple * exclude_stmt
 ) AD_FUNCTION_BEGIN {
   if (depth >= MAX_ESCAPE_ANALYSIS_DEPTH) {
-    *is_fully_analyzed = false;
     AD_RETURNE (OK);
   }
 
@@ -315,14 +306,14 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
       // 记录使用点
       AD_TRY (analyzeSourceUse_traceSSAUseChain_recordUsePoint (
         AD_ARGS, use_stmt, ssa_name, use_kind, escape_kind,
-        escape_target, all_uses, total_use_count
+        escape_target, all_uses
       ));
 
       // 如果是简单赋值，继续追踪结果 SSA
       if (use_kind == SU_USE_ASSIGN && is_gimple_assign (use_stmt)) {
         tree lhs = gimple_assign_lhs (use_stmt);
         if (lhs && TREE_CODE (lhs) == SSA_NAME) {
-          AD_TRY (analyzeSourceUse_traceSSAUseChain (AD_ARGS, lhs, all_uses, total_use_count, is_fully_analyzed, depth + 1, exclude_stmt));
+          AD_TRY (analyzeSourceUse_traceSSAUseChain (AD_ARGS, lhs, all_uses, depth + 1, exclude_stmt));
         }
       }
     }
@@ -332,48 +323,6 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
-// collectAllFieldEscapes_convertEscapeKind
-// ----------------------------------------------------------------------------
-// 类型转换辅助函数
-
-field_analysis::FieldEscapeKind collectAllFieldEscapes_convertEscapeKind (SourceUseEscapeKind kind) {
-  switch (kind) {
-    case SU_ESCAPE_NONE:          return field_analysis::FIELD_ESC_NONE;
-    case SU_ESCAPE_RETURN:        return field_analysis::FIELD_ESC_RETURN;
-    case SU_ESCAPE_PARAMETER:     return field_analysis::FIELD_ESC_PARAMETER;
-    case SU_ESCAPE_GLOBAL_STORE:  return field_analysis::FIELD_ESC_GLOBAL;
-    case SU_ESCAPE_HEAP_STORE:    return field_analysis::FIELD_ESC_HEAP;
-    case SU_ESCAPE_FIELD_STORE:   return field_analysis::FIELD_ESC_FIELD;
-    case SU_ESCAPE_INDIRECT_CALL: return field_analysis::FIELD_ESC_INDIRECT_CALL;
-    case SU_ESCAPE_VIRTUAL_CALL:  return field_analysis::FIELD_ESC_VIRTUAL_CALL;
-    case SU_ESCAPE_EXTERNAL_CALL: return field_analysis::FIELD_ESC_EXTERNAL_CALL;
-    case SU_ESCAPE_UNKNOWN:       return field_analysis::FIELD_ESC_UNKNOWN;
-    default:                      return field_analysis::FIELD_ESC_UNKNOWN;
-  }
-}
-
-// ----------------------------------------------------------------------------
-// collectAllFieldEscapes_convertUseKind
-// ----------------------------------------------------------------------------
-
-field_analysis::FieldUseKind collectAllFieldEscapes_convertUseKind (SourceUseKind kind) {
-  switch (kind) {
-    case SU_USE_LOAD:         return field_analysis::FIELD_USE_LOAD;
-    case SU_USE_STORE:        return field_analysis::FIELD_USE_STORE;
-    case SU_USE_CALL_ARG:     return field_analysis::FIELD_USE_CALL_ARG;
-    case SU_USE_RETURN:       return field_analysis::FIELD_USE_RETURN;
-    case SU_USE_PHI:          return field_analysis::FIELD_USE_PHI;
-    case SU_USE_ASSIGN:       return field_analysis::FIELD_USE_ASSIGN;
-    case SU_USE_ARITHMETIC:   return field_analysis::FIELD_USE_ARITHMETIC;
-    case SU_USE_COMPARISON:   return field_analysis::FIELD_USE_COMPARISON;
-    case SU_USE_ADDRESS_TAKEN: return field_analysis::FIELD_USE_ADDRESS;
-    case SU_USE_CONDITIONAL:  return field_analysis::FIELD_USE_CONDITIONAL;
-    case SU_USE_OTHER:        return field_analysis::FIELD_USE_OTHER;
-    default:                  return field_analysis::FIELD_USE_OTHER;
-  }
-}
 
 } // anonymous namespace
 
@@ -426,44 +375,29 @@ char const * getUseKindString (SourceUseKind kind) {
 // analyzeSourceUse
 // ----------------------------------------------------------------------------
 // 主入口：分析源操作数的所有使用
-// 输出：直接写入各个 out_ 参数指向的地址
+// 输出：(listof SourceUseInfo)
 
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
-  gimple * source_stmt,
   gimple * exclude_stmt,
-  // 直接写入 wrapper 成员
-  tree* out_source_operand,
-  gimple** out_source_stmt,
-  vec<field_analysis::FieldUsePoint>** out_all_uses,
-  unsigned int* out_total_use_count,
-  unsigned int* out_max_use_depth,
-  bool* out_is_fully_analyzed
+  vec<SourceUseInfo>** out_uses
 ) AD_FUNCTION_BEGIN {
-  if (!out_source_operand || !out_source_stmt || !out_all_uses ||
-      !out_total_use_count || !out_max_use_depth || !out_is_fully_analyzed) {
+  if (!out_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // 初始化输出
-  *out_source_operand = source_operand;
-  *out_source_stmt = source_stmt;
-  *out_total_use_count = 0;
-  *out_max_use_depth = 0;
-  *out_is_fully_analyzed = true;
-
-  // 分配 all_uses 向量
-  *out_all_uses = ggc_alloc<vec<field_analysis::FieldUsePoint>> ();
-  if (!*out_all_uses) {
+  // 分配结果向量
+  *out_uses = ggc_alloc<vec<SourceUseInfo>> ();
+  if (!*out_uses) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  (*out_all_uses)->create (0);
+  (*out_uses)->create (0);
 
   // 追踪 SSA 使用链
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
     AD_TRY (analyzeSourceUse_traceSSAUseChain (AD_ARGS, source_operand,
-      *out_all_uses, out_total_use_count, out_is_fully_analyzed, 0, exclude_stmt));
+      *out_uses, 0, exclude_stmt));
   }
 
   AD_RETURNE (OK);
@@ -473,7 +407,6 @@ ArrayDetectErrorCode analyzeSourceUse (
 // collectAllFieldEscapes
 // ----------------------------------------------------------------------------
 // Pipeline 接口：收集所有字段的逃逸信息
-// 直接写入 wrapper 成员地址
 
 ArrayDetectErrorCode collectAllFieldEscapes (
   AD_FUNC_ARGS,
@@ -493,100 +426,50 @@ ArrayDetectErrorCode collectAllFieldEscapes (
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldAnalysisData * write_ops = (*iter).second;
-    if (!write_ops || !write_ops->writes) continue;
+    TypeFieldAnalysisData * tfad = (*iter).second;
+    if (!tfad || !tfad->writes) continue;
 
-    for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude * wrapper = (*write_ops->writes)[i];
-      if (!wrapper) continue;
+    for (unsigned i = 0; i < tfad->writes->length (); i++) {
+      field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
+      if (!wrapper || !wrapper->write_info) continue;
 
-      // 从 wrapper 的 FieldWrite 部分提取数据进行分析
-      tree source_operand = wrapper->rhs;
-      gimple * source_stmt = wrapper->stmt;
-      gimple * exclude_stmt = wrapper->stmt;
+      // 从 write_info 提取数据进行分析
+      FieldWriteInfo* write_info = wrapper->write_info;
+      tree source_operand = write_info->rhs;
+      gimple * exclude_stmt = write_info->stmt;
 
-      // 直接写入 wrapper 成员地址
-      AD_TRY (analyzeSourceUse (AD_ARGS, source_operand, source_stmt, exclude_stmt,
-        &wrapper->source_operand,
-        &wrapper->source_stmt,
-        &wrapper->all_uses,
-        &wrapper->total_use_count,
-        &wrapper->max_use_depth,
-        &wrapper->is_fully_analyzed
-      ));
+      // 分析源使用
+      vec<SourceUseInfo>* all_uses = NULL;
+      AD_TRY (analyzeSourceUse (AD_ARGS, source_operand, exclude_stmt, &all_uses));
 
-      total_analyzed++;
-
-      // 统计逃逸
-      if (wrapper->all_uses) {
-        for (unsigned j = 0; j < wrapper->all_uses->length (); j++) {
-          if ((*wrapper->all_uses)[j].is_escape ()) {
-            wrapper->has_escape = true;
-            wrapper->escape_count++;
-          }
-        }
+      // 分配并填充 UseWrapper
+      if (!wrapper->uses) {
+        vec_alloc (wrapper->uses, 4);
       }
 
-      if (wrapper->has_escape) {
-        total_escaped++;
+      auto* use_wrapper = ggc_alloc<field_analysis::Wrapper_SourceUse_EscapedUse> ();
+      if (!use_wrapper) {
+        AD_RETURNE (MEMORY_ERROR);
+      }
+      memset (use_wrapper, 0, sizeof (field_analysis::Wrapper_SourceUse_EscapedUse));
+      use_wrapper->all_uses = all_uses;
+
+      vec_safe_push (wrapper->uses, use_wrapper);
+      total_analyzed++;
+
+      // 检查是否有逃逸
+      if (all_uses) {
+        for (unsigned j = 0; j < all_uses->length (); j++) {
+          if ((*all_uses)[j].is_escape ()) {
+            total_escaped++;
+            break;
+          }
+        }
       }
     }
   }
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
-// printSourceUseResult
-// ----------------------------------------------------------------------------
-// 调试输出
-
-void printSourceUseResult (
-  SourceUseResult const * result,
-  FILE * output
-) {
-  if (!result || !output) return;
-
-  fprintf (output, "=== Source Use Analysis Result ===\n");
-  fprintf (output, "Source operand: ");
-  if (result->source_operand) {
-    print_generic_expr (output, result->source_operand, TDF_SLIM);
-  } else {
-    fprintf (output, "<null>");
-  }
-  fprintf (output, "\n");
-
-  fprintf (output, "Total uses: %u\n", result->total_use_count);
-  fprintf (output, "Escape count: %u\n", result->escape_count);
-  fprintf (output, "Has escape: %s\n", result->has_escape ? "YES" : "NO");
-
-  fprintf (output, "\n--- All Uses (Detailed) ---\n");
-  if (result->all_uses) {
-    for (unsigned i = 0; i < result->all_uses->length (); i++) {
-      SourceUseInfo const & use = (*result->all_uses)[i];
-      fprintf (output, "[%u] Kind: %s, Escape: %s",
-              i, getUseKindString (use.kind),
-              use.is_escape () ? getEscapeKindString (use.escape_kind) : "NONE");
-
-      if (use.source_location != UNKNOWN_LOCATION) {
-        expanded_location xloc = expand_location (use.source_location);
-        fprintf (output, ", Location: %s:%d:%d",
-                xloc.file, xloc.line, xloc.column);
-      }
-      fprintf (output, "\n");
-
-      // 如果是逃逸，打印逃逸目标详情
-      if (use.is_escape ()) {
-        fprintf (output, "    Target: %s\n",
-                use.escape_target ? use.escape_target : "<unknown>");
-        fprintf (output, "    BB Index: %u\n", use.bb_index);
-      }
-    }
-  }
-
-  fprintf (output, "\nFully analyzed: %s\n",
-          result->is_fully_analyzed ? "YES" : "NO (depth limit reached)");
-  fprintf (output, "===================================\n");
-}
 
 } // namespace array_detect_ns

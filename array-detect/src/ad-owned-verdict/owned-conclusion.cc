@@ -8,30 +8,19 @@
 #include "ownership-move.hh"
 #include "info-print.hh"
 #include "string-utils.hh"
+#include "field-wrapper.hh"
 
 #include <cstring>
 
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+using namespace ::field_analysis;
 
 // ============================================================================
-// 辅助函数：获取源类型的描述（从 Wrapper 读取）
+// 辅助函数：获取源类型的描述
 // ============================================================================
 
-static char const* getSourceTypeDescriptionFromKind (field_analysis::FieldSourceKind source_kind) {
-  switch (source_kind) {
-    case field_analysis::FIELD_SRC_FUNCTION_CALL: return "function call";
-    case field_analysis::FIELD_SRC_FIELD_ACCESS: return "field access";
-    case field_analysis::FIELD_SRC_CONSTANT: return "constant";
-    case field_analysis::FIELD_SRC_COMPUTATION: return "computation";
-    case field_analysis::FIELD_SRC_PHI: return "phi node";
-    case field_analysis::FIELD_SRC_UNKNOWN: return "unknown";
-    default: return "unspecified";
-  }
-}
-
-// 向后兼容：旧的 SourceType 版本
 static char const* getSourceTypeDescription (SourceType source_type) {
   switch (source_type) {
     case SOURCE_FUNCTION_CALL: return "function call";
@@ -45,40 +34,9 @@ static char const* getSourceTypeDescription (SourceType source_type) {
 }
 
 // ============================================================================
-// 源类型分类（细化）- 从 Wrapper 读取
+// 源类型分类（细化）
 // ============================================================================
 
-SourceTypeCategory categorizeSourceTypeFromWrapper (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
-  if (!wrapper) {
-    return SRC_CAT_UNSUPPORTED;
-  }
-
-  switch (wrapper->source_kind) {
-    case field_analysis::FIELD_SRC_FUNCTION_CALL:
-      return SRC_CAT_ALLOCATION;
-
-    case field_analysis::FIELD_SRC_FIELD_ACCESS:
-      return SRC_CAT_TRANSFER;
-
-    case field_analysis::FIELD_SRC_CONSTANT:
-      // 区分 NULL 和其他常量
-      {
-        tree constant_value = wrapper->source_data.constant.value;
-        if (constant_value && integer_zerop (constant_value)) {
-          return SRC_CAT_NEUTRAL;  // NULL → 中性，不影响判定
-        }
-      }
-      return SRC_CAT_UNSUPPORTED;
-
-    case field_analysis::FIELD_SRC_COMPUTATION:
-    case field_analysis::FIELD_SRC_PHI:
-    case field_analysis::FIELD_SRC_UNKNOWN:
-    default:
-      return SRC_CAT_UNSUPPORTED;
-  }
-}
-
-// 向后兼容：旧的 WriteOriginalSource* 版本
 SourceTypeCategory categorizeSourceType (WriteOriginalSource* source_info) {
   if (!source_info) {
     return SRC_CAT_UNSUPPORTED;
@@ -156,12 +114,12 @@ char const* sourceTypeCategoryToString (SourceTypeCategory c) {
 }
 
 // ============================================================================
-// 证据工厂函数（使用 Wrapper）
+// 证据工厂函数
 // ============================================================================
 
 static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper,
   RejectionReason reason
 ) {
   (void)ctx;
@@ -170,27 +128,38 @@ static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
   OwnedRejectingEvidence* ev = ggc_alloc<OwnedRejectingEvidence>();
   memset (ev, 0, sizeof (OwnedRejectingEvidence));
 
-  ev->location = wrapper->write_location;
-  ev->stmt = wrapper->stmt;
+  if (wrapper && wrapper->write_info) {
+    ev->location = wrapper->write_info->location;
+    ev->stmt = wrapper->write_info->stmt;
+  }
+
   ev->rejection_reason = rejectionReasonToString (reason);
 
   switch (reason) {
     case REJECTION_INVALID_SOURCE_TYPE:
       ev->has_invalid_source = true;
-      ev->source_description = getSourceTypeDescriptionFromKind (wrapper->source_kind);
+      if (wrapper && wrapper->write_source) {
+        ev->source_description = getSourceTypeDescription (wrapper->write_source->source_type);
+      }
       break;
 
     case REJECTION_REJECTING_ESCAPE:
       ev->has_rejecting_escape = true;
-      ev->rejecting_escapes = wrapper->rejecting_escapes;
-      ev->total_escapes = wrapper->total_escapes;
-      ev->source_description = getSourceTypeDescriptionFromKind (wrapper->source_kind);
+      if (wrapper && wrapper->escape_conclude) {
+        ev->rejecting_escapes = wrapper->escape_conclude->rejecting_escapes;
+        ev->total_escapes = wrapper->escape_conclude->total_escapes;
+      }
+      if (wrapper && wrapper->write_source) {
+        ev->source_description = getSourceTypeDescription (wrapper->write_source->source_type);
+      }
       break;
 
     case REJECTION_SHARED_OWNERSHIP:
       ev->has_transfer_issue = true;
       ev->transfer_verdict_str = "IMPOSSIBLE (shared)";
-      ev->source_description = getSourceTypeDescriptionFromKind (wrapper->source_kind);
+      if (wrapper && wrapper->write_source) {
+        ev->source_description = getSourceTypeDescription (wrapper->write_source->source_type);
+      }
       break;
 
     case REJECTION_NO_SOURCE_INFO:
@@ -207,7 +176,7 @@ static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
 
 static OwnedSupportingEvidence* createSupportingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -215,57 +184,27 @@ static OwnedSupportingEvidence* createSupportingEvidenceFromWrapper (
   OwnedSupportingEvidence* ev = ggc_alloc<OwnedSupportingEvidence>();
   memset (ev, 0, sizeof (OwnedSupportingEvidence));
 
-  ev->location = wrapper->write_location;
-  ev->stmt = wrapper->stmt;
-  ev->source_description = getSourceTypeDescriptionFromKind (wrapper->source_kind);
+  if (wrapper && wrapper->write_info) {
+    ev->location = wrapper->write_info->location;
+    ev->stmt = wrapper->write_info->stmt;
+  }
 
-  // 从 wrapper 的 EscapeConclude 部分读取
-  ev->total_escapes = wrapper->total_escapes;
-  ev->safe_debug_escapes = wrapper->safe_debug_escapes;
+  if (wrapper && wrapper->write_source) {
+    ev->source_description = getSourceTypeDescription (wrapper->write_source->source_type);
+  }
 
-  // 从 wrapper 的 MoveAnalysis 部分读取
-  if (wrapper->move) {
-    ev->has_transfer_analysis = true;
-    char const* transfer_str = "UNKNOWN";
-    switch (wrapper->move->verdict) {
-      case field_analysis::FIELD_MOVE_CERTAIN: transfer_str = "CERTAIN"; break;
-      case field_analysis::FIELD_MOVE_IMPOSSIBLE: transfer_str = "IMPOSSIBLE"; break;
-      case field_analysis::FIELD_MOVE_CONDITIONAL: transfer_str = "CONDITIONAL"; break;
-      default: break;
-    }
-    ev->transfer_verdict_str = transfer_str;
+  // 从 escape_conclude 读取
+  if (wrapper && wrapper->escape_conclude) {
+    ev->total_escapes = wrapper->escape_conclude->total_escapes;
+    ev->safe_debug_escapes = wrapper->escape_conclude->safe_debug_escapes;
   }
 
   return ev;
 }
 
-// 向后兼容版本（旧的 record 接口）
-static OwnedRejectingEvidence* createRejectingEvidence (
-  AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
-  RejectionReason reason
-) {
-  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
-  return createRejectingEvidenceFromWrapper (AD_ARGS, record, reason);
-}
-
-static OwnedSupportingEvidence* createSupportingEvidence (
-  AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record
-) {
-  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
-  return createSupportingEvidenceFromWrapper (AD_ARGS, record);
-}
-
 // ============================================================================
 // 聚合策略：计算最终判定
 // ============================================================================
-//
-// 判定策略:
-// - supporting > 0 且 rejecting == 0 → YES（确定 owned）
-// - supporting > rejecting → PARTIAL_YES（可能 owned，调试用）
-// - supporting <= rejecting 且 rejecting > 0 → NO（不是 owned）
-// - supporting == 0 且 rejecting == 0 → UNDETERMINED（无法判定）
 
 static OwnedConclusionVerdict computeVerdict (
   unsigned int supporting,
@@ -292,63 +231,21 @@ static OwnedConclusionVerdict computeVerdict (
 // ============================================================================
 // 辅助函数：检查 Wrapper 的逃逸结论是否拒绝 owned
 // ============================================================================
-//
-// Owned 语义要求：指针的唯一所有者，不与其他代码共享
-// 简化判定：存在非调试逃逸 => 拒绝 owned
 
-static bool isWrapperEscapeRejecting (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
-  if (!wrapper) {
+static bool isWrapperEscapeRejecting (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper) {
+  if (!wrapper || !wrapper->escape_conclude) {
     return false;
   }
-  return wrapper->has_rejecting_evidence;
-}
-
-// 向后兼容
-static bool isEscapeEvidenceRejecting (SourceEscapeConclude* evidence) {
-  if (!evidence) {
-    return false;
-  }
-  return evidence->has_rejecting_evidence;
-}
-
-// ============================================================================
-// 辅助函数：检查 Wrapper 的所有权转移是否拒绝 owned
-// ============================================================================
-
-static bool isWrapperTransferRejecting (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
-  if (!wrapper || !wrapper->move) {
-    // 没有所有权转移分析，保守起见不拒绝
-    return false;
-  }
-
-  // FIELD_MOVE_IMPOSSIBLE 表示共享所有权，拒绝 owned
-  return wrapper->move->verdict == field_analysis::FIELD_MOVE_IMPOSSIBLE;
-}
-
-// 向后兼容
-static bool isTransferResultRejecting (OwnershipMoveResult* transfer) {
-  if (!transfer) {
-    // 没有所有权转移分析，保守起见不拒绝
-    return false;
-  }
-
-  // MOVE_IMPOSSIBLE 表示共享所有权，拒绝 owned
-  return transfer->verdict == MOVE_IMPOSSIBLE;
+  return wrapper->escape_conclude->has_rejecting_evidence;
 }
 
 // ============================================================================
 // 核心函数：分析单个字段写入 Wrapper 是否支持 owned
 // ============================================================================
-//
-// 重构后的简化版本：
-// 1. 使用 FieldWriteOwnedAnalysisResult 返回结构化结果
-// 2. 使用 categorizeSourceTypeFromWrapper() 细化源类型分类
-// 3. 中性源 (NULL 赋值) 不产生证据，不影响判定
-// 4. 使用工厂函数创建证据对象
 
 static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
   AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper,
   FieldWriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
   result.category = FIELD_WRITE_CAT_UNKNOWN;
@@ -361,8 +258,8 @@ static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
     AD_RETURNE (OK);
   }
 
-  // Step 1: 检查源信息（通过 source_kind 判断）
-  if (wrapper->source_kind == field_analysis::FIELD_SRC_UNKNOWN) {
+  // Step 1: 检查源信息
+  if (!wrapper->write_source || wrapper->write_source->source_type == SOURCE_UNKNOWN) {
     result.category = FIELD_WRITE_CAT_REJECTING;
     result.rejection_reason = REJECTION_NO_SOURCE_INFO;
     result.evidence = createRejectingEvidenceFromWrapper (AD_ARGS, wrapper, REJECTION_NO_SOURCE_INFO);
@@ -370,7 +267,7 @@ static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
   }
 
   // Step 2: 分类源类型
-  SourceTypeCategory src_cat = categorizeSourceTypeFromWrapper (wrapper);
+  SourceTypeCategory src_cat = categorizeSourceType (wrapper->write_source);
 
   // Step 3: 中性源直接跳过（不产生证据）
   if (src_cat == SRC_CAT_NEUTRAL) {
@@ -395,41 +292,15 @@ static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
     AD_RETURNE (OK);
   }
 
-  // Step 6: 检查所有权转移（仅对 TRANSFER 类）
-  if (src_cat == SRC_CAT_TRANSFER) {
-    bool transfer_ok = !isWrapperTransferRejecting (wrapper);
-    if (!transfer_ok) {
-      result.category = FIELD_WRITE_CAT_REJECTING;
-      result.rejection_reason = REJECTION_SHARED_OWNERSHIP;
-      result.evidence = createRejectingEvidenceFromWrapper (AD_ARGS, wrapper, REJECTION_SHARED_OWNERSHIP);
-      AD_RETURNE (OK);
-    }
-  }
-
-  // Step 7: 全部通过 → 支持
+  // Step 6: 全部通过 → 支持
   result.category = FIELD_WRITE_CAT_SUPPORTING;
   result.evidence = createSupportingEvidenceFromWrapper (AD_ARGS, wrapper);
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// 向后兼容（Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名）
-static ArrayDetectErrorCode analyzeFieldWriteForOwned (
-  AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
-  FieldWriteOwnedAnalysisResult& result
-) AD_FUNCTION_BEGIN {
-  AD_TRY (analyzeFieldWriteWrapperForOwned (AD_ARGS, record, result));
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ============================================================================
 // 核心函数：分析单个字段的 owned 结论
 // ============================================================================
-//
-// 重构后版本：
-// 1. 使用 FieldWriteOwnedAnalysisResult 结构化结果
-// 2. 区分中性/支持/拒绝三类证据
-// 3. 使用 computeVerdict() 计算最终判定（容错一票否决策略）
 
 ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   AD_FUNC_ARGS,
@@ -444,7 +315,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
 
   result = NULL;
 
-  // 验证必要的字段 - 这些字段为 NULL 是数据完整性错误
+  // 验证必要的字段
   if (!field_data->type) {
     AD_DEBUG_PRINT ("Error: field_data->type is NULL (data integrity violation)");
     AD_RETURNE (INVALID_ARGUMENT);
@@ -483,7 +354,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   unsigned int neutral_count = 0;
 
   for (unsigned int i = 0; i < total_field_writes; i++) {
-    Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*field_data->writes)[i];
+    Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*field_data->writes)[i];
     if (!wrapper) continue;
 
     FieldWriteOwnedAnalysisResult field_write_result;
@@ -507,14 +378,12 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
         break;
 
       case FIELD_WRITE_CAT_NEUTRAL:
-        // 中性不产生证据，仅计数
         neutral_count++;
         break;
 
       case FIELD_WRITE_CAT_INVALID:
       case FIELD_WRITE_CAT_UNKNOWN:
       default:
-        // 无效/未知记录不计入
         break;
     }
   }

@@ -9,7 +9,6 @@
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
 #include "info-print.hh"
-#include "field-analysis.hh"
 
 namespace array_detect_ns {
 
@@ -343,15 +342,14 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
 // analyzeOwnershipMove
 // ----------------------------------------------------------------------------
 // 主入口：分析单个字段写入的所有权转移
-// 输入：write_info, source_kind, field_access_data
-// 输出：直接写入 out_move 指向的指针 (wrapper->move)
+// 输入：write_info, write_source
+// 输出：OwnershipMoveResult 指针
 
 ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  field_analysis::FieldSourceKind source_kind,
-  field_analysis::FieldAccessData* field_access_data,
-  field_analysis::FieldMoveAnalysis** out_move
+  WriteOriginalSource* write_source,
+  OwnershipMoveResult** out_move
 ) AD_FUNCTION_BEGIN {
   if (!write_info || !out_move) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -361,25 +359,25 @@ ArrayDetectErrorCode analyzeOwnershipMove (
   *out_move = NULL;
 
   // 检查源操作数是否为字段访问
-  if (source_kind != field_analysis::FIELD_SRC_FIELD_ACCESS) {
-    // 不是字段访问，不适用（不分配 FieldMoveAnalysis）
+  if (!write_source || write_source->source_type != SOURCE_FIELD_ACCESS) {
+    // 不是字段访问，不适用（不分配 OwnershipMoveResult）
     AD_RETURNE (OK);
   }
 
-  if (!field_access_data) {
-    AD_RETURNE (INVALID_ARGUMENT);
-  }
+  FieldAccessSource const* field_access = &write_source->data.field_access;
 
-  // 分配 FieldMoveAnalysis
-  field_analysis::FieldMoveAnalysis* result = ggc_alloc<field_analysis::FieldMoveAnalysis> ();
+  // 分配 OwnershipMoveResult
+  OwnershipMoveResult* result = ggc_alloc<OwnershipMoveResult> ();
   if (!result) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (result, 0, sizeof (field_analysis::FieldMoveAnalysis));
+  memset (result, 0, sizeof (OwnershipMoveResult));
 
   // 填充基本信息
-  result->source_field = field_access_data->field;
-  result->source_object = field_access_data->object;
+  result->source_field = field_access->access_expr;
+  result->source_object = field_access->base_object;
+  result->source_field_decl = field_access->field_decl;
+  result->source_field_name = field_access->field_name;
   result->transfer_stmt = write_info->stmt;
   result->transfer_location = write_info->location;
 
@@ -389,10 +387,12 @@ ArrayDetectErrorCode analyzeOwnershipMove (
     AD_ARGS,
     write_info->stmt,
     write_info->bb,
-    field_access_data->field,
-    field_access_data->object,
+    field_access->field_decl,
+    field_access->base_object,
     invalidation_points
   ));
+
+  result->invalidation_points = invalidation_points;
 
   // 分析路径
   unsigned int paths_with = 0;
@@ -407,41 +407,23 @@ ArrayDetectErrorCode analyzeOwnershipMove (
     total_paths
   ));
 
-  result->paths_with = paths_with;
-  result->paths_without = paths_without;
-  result->total_paths = total_paths;
-
-  // 转换销毁点到 FieldInvalidationPoint
-  if (invalidation_points && invalidation_points->length () > 0) {
-    result->invalidations = ggc_alloc<vec<field_analysis::FieldInvalidationPoint*>> ();
-    result->invalidations->create (invalidation_points->length ());
-    for (unsigned int i = 0; i < invalidation_points->length (); i++) {
-      InvalidationPoint* ip = (*invalidation_points)[i];
-      if (ip) {
-        field_analysis::FieldInvalidationPoint* fip = ggc_alloc<field_analysis::FieldInvalidationPoint> ();
-        if (fip) {
-          fip->stmt = ip->stmt;
-          fip->location = ip->location;
-          fip->bb = ip->bb;
-          fip->desc = ip->description;
-          result->invalidations->safe_push (fip);
-        }
-      }
-    }
-  }
+  result->paths_with_invalidation = paths_with;
+  result->paths_without_invalidation = paths_without;
+  result->total_exit_paths = total_paths;
+  result->is_analyzed = true;
 
   // 确定结论
   if (invalidation_points && invalidation_points->length () > 0) {
     if (paths_without == 0) {
-      result->verdict = field_analysis::FIELD_MOVE_CERTAIN;
-      result->verdict_desc = ggc_strdup ("Certain transfer (all paths have invalidation)");
+      result->verdict = MOVE_CERTAIN;
+      result->verdict_description = ggc_strdup ("Certain transfer (all paths have invalidation)");
     } else {
-      result->verdict = field_analysis::FIELD_MOVE_CONDITIONAL;
-      result->verdict_desc = ggc_strdup ("Conditional transfer (some paths have invalidation)");
+      result->verdict = MOVE_CONDITIONAL;
+      result->verdict_description = ggc_strdup ("Conditional transfer (some paths have invalidation)");
     }
   } else {
-    result->verdict = field_analysis::FIELD_MOVE_IMPOSSIBLE;
-    result->verdict_desc = ggc_strdup ("No transfer (no invalidation points found)");
+    result->verdict = MOVE_IMPOSSIBLE;
+    result->verdict_description = ggc_strdup ("No transfer (no invalidation points found)");
   }
 
   *out_move = result;
@@ -471,40 +453,28 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldAnalysisData* tfwo = (*iter).second;
-    if (!tfwo || !tfwo->writes) continue;
+    TypeFieldAnalysisData* tfad = (*iter).second;
+    if (!tfad || !tfad->writes) continue;
 
-    for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
-      field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*tfwo->writes)[i];
-      if (!wrapper) continue;
+    for (unsigned int i = 0; i < tfad->writes->length (); i++) {
+      field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*tfad->writes)[i];
+      if (!wrapper || !wrapper->write_info) continue;
 
-      // 从 wrapper 创建临时 FieldWriteInfo
-      FieldWriteInfo temp_write_info;
-      memset (&temp_write_info, 0, sizeof (FieldWriteInfo));
-      temp_write_info.type = wrapper->type;
-      temp_write_info.field_decl = wrapper->field;
-      temp_write_info.function_decl = wrapper->func;
-      temp_write_info.bb = wrapper->bb;
-      temp_write_info.stmt = wrapper->stmt;
-      temp_write_info.lhs = wrapper->lhs;
-      temp_write_info.rhs = wrapper->rhs;
-      temp_write_info.location = wrapper->write_location;
-
-      // 直接写入 wrapper->move
+      // 分析所有权转移
+      OwnershipMoveResult* move_result = NULL;
       AD_TRY (analyzeOwnershipMove (
         AD_ARGS,
-        &temp_write_info,
-        wrapper->source_kind,
-        &wrapper->source_data.field_access,
-        &wrapper->move
+        wrapper->write_info,
+        wrapper->write_source,
+        &move_result
       ));
 
-      if (wrapper->move) {
+      if (move_result) {
         total_analyzed++;
         // 打印结果（调试信息）
-        printOwnershipMoveResult (AD_ARGS, ctx.debug_file, wrapper->move);
+        printOwnershipMoveResult (AD_ARGS, ctx.debug_file, move_result);
 
-        if (wrapper->move->verdict == field_analysis::FIELD_MOVE_CERTAIN) {
+        if (move_result->verdict == MOVE_CERTAIN) {
           total_certain_moves++;
         }
       }
@@ -525,7 +495,7 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
 void printOwnershipMoveResult (
   AD_FUNC_ARGS,
   FILE* out,
-  field_analysis::FieldMoveAnalysis* result
+  OwnershipMoveResult* result
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -542,15 +512,20 @@ void printOwnershipMoveResult (
     fprintf (out, "Transfer location: %s:%d:%d\n", xloc.file, xloc.line, xloc.column);
   }
 
+  // 源字段信息
+  if (result->source_field_name) {
+    fprintf (out, "Source field: %s\n", result->source_field_name);
+  }
+
   // 销毁点
   fprintf (out, "Invalidation points: %u\n",
-           result->invalidations ? result->invalidations->length () : 0);
-  if (result->invalidations) {
-    for (unsigned int i = 0; i < result->invalidations->length (); i++) {
-      field_analysis::FieldInvalidationPoint* point = (*result->invalidations)[i];
+           result->invalidation_points ? result->invalidation_points->length () : 0);
+  if (result->invalidation_points) {
+    for (unsigned int i = 0; i < result->invalidation_points->length (); i++) {
+      InvalidationPoint* point = (*result->invalidation_points)[i];
       if (point) {
         fprintf (out, "  [%u] %s (bb=%d)\n", i,
-                 point->desc ? point->desc : "unknown",
+                 point->description ? point->description : "unknown",
                  point->bb ? point->bb->index : -1);
         if (point->location != UNKNOWN_LOCATION) {
           expanded_location xloc = expand_location (point->location);
@@ -562,28 +537,28 @@ void printOwnershipMoveResult (
 
   // 路径统计
   fprintf (out, "Path statistics:\n");
-  fprintf (out, "  Paths with invalidation: %u\n", result->paths_with);
-  fprintf (out, "  Paths without invalidation: %u\n", result->paths_without);
-  fprintf (out, "  Total paths: %u\n", result->total_paths);
+  fprintf (out, "  Paths with invalidation: %u\n", result->paths_with_invalidation);
+  fprintf (out, "  Paths without invalidation: %u\n", result->paths_without_invalidation);
+  fprintf (out, "  Total paths: %u\n", result->total_exit_paths);
 
   // 结论
   char const* verdict_str = "UNKNOWN";
   switch (result->verdict) {
-    case field_analysis::FIELD_MOVE_CERTAIN:
+    case MOVE_CERTAIN:
       verdict_str = "CERTAIN (ownership transferred)";
       break;
-    case field_analysis::FIELD_MOVE_IMPOSSIBLE:
+    case MOVE_IMPOSSIBLE:
       verdict_str = "IMPOSSIBLE (ownership shared)";
       break;
-    case field_analysis::FIELD_MOVE_CONDITIONAL:
+    case MOVE_CONDITIONAL:
       verdict_str = "CONDITIONAL (depends on control flow)";
       break;
-    case field_analysis::FIELD_MOVE_NOT_APPLICABLE:
+    case MOVE_NOT_APPLICABLE:
       verdict_str = "NOT_APPLICABLE";
       break;
   }
   fprintf (out, "Verdict: %s\n", verdict_str);
-  fprintf (out, "Description: %s\n", result->verdict_desc ? result->verdict_desc : "N/A");
+  fprintf (out, "Description: %s\n", result->verdict_description ? result->verdict_description : "N/A");
 
   fprintf (out, "==========================================\n");
 }

@@ -3,6 +3,7 @@
 #include "gcc-ext-util.hh"
 #include "field-write.hh"
 #include "write-source.hh"
+#include "field-wrapper.hh"
 #include "info-print.hh"
 #include "bound-condition-analyzer.hh"
 #include "string-utils.hh"
@@ -14,6 +15,7 @@
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+using namespace ::field_analysis;
 
 // ============================================================================
 // 辅助函数：判断类型是否为整数类型
@@ -322,14 +324,15 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
     unsigned int write_count = pointer_field_data->writes->length ();
 
     for (unsigned int i = 0; i < write_count; i++) {
-      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*pointer_field_data->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*pointer_field_data->writes)[i];
       if (!wrapper) continue;
 
       // 检查来源是否为函数调用
-      if (wrapper->source_kind == field_analysis::FIELD_SRC_FUNCTION_CALL) {
-        field_analysis::FieldFunctionCallData const &func_call = wrapper->source_data.function_call;
+      if (wrapper->write_source &&
+          wrapper->write_source->source_type == SOURCE_FUNCTION_CALL) {
+        FunctionCallSource const &func_call = wrapper->write_source->data.function_call;
         CapacityAssociationEvidence* evidence = NULL;
-        AD_TRY (analyzeMallocSizeSource (AD_ARGS, func_call.stmt,
+        AD_TRY (analyzeMallocSizeSource (AD_ARGS, func_call.call_stmt,
                                           candidate_field, evidence));
 
         if (evidence) {

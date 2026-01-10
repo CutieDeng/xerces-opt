@@ -6,7 +6,6 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "field-write.hh"
-#include "field-wrapper.hh"
 
 namespace array_detector {
   class ArrayDetector;
@@ -17,14 +16,14 @@ namespace array_detect_ns {
 // ============================================================================
 // 源使用分析模块 (Source Use Analysis)
 // ============================================================================
-// 数据流位置：write-original-source -> (listof source-use)
+// 数据流：write-original-source -> (listof write-original-source-use)
 // 追踪 write-original-source 的 SSA 使用链，收集所有使用点
 //
-// (source-use-result
-//   source-operand    : tree             ; SSA_NAME
-//   all-uses          : (listof use-info)
-//   escape-count      : nat
-//   has-escape        : bool)
+// (write-original-source-use  ; 即 SourceUseInfo
+//   kind              : source-use-kind
+//   use-stmt          : gimple*
+//   escape-kind       : escape-kind
+//   escape-target     : string)
 // ============================================================================
 
 // 使用类型枚举
@@ -88,35 +87,6 @@ struct SourceUseInfo {
 };
 
 // ============================================================================
-// 源使用分析结果 (SourceUseResult)
-// ============================================================================
-
-struct SourceUseChainNode {
-  tree ssa_name;                    // 当前 SSA 名称
-  gimple * def_stmt;                // 定义语句
-  vec<SourceUseInfo> * uses;        // 所有使用
-  vec<SourceUseChainNode*> * next_nodes; // 下一步节点
-};
-
-struct SourceUseResult {
-  tree source_operand;              // 源操作数
-  gimple * source_stmt;             // 源语句
-
-  vec<SourceUseInfo> * all_uses;    // 所有使用（包含逃逸信息）
-  unsigned int total_use_count;     // 总使用次数
-
-  unsigned int escape_count;        // 逃逸次数
-  bool has_escape;                  // 是否存在逃逸
-  SourceUseEscapeKind dominant_escape_kind; // 主要逃逸类型
-
-  unsigned int max_use_depth;       // 最大使用深度
-  bool is_fully_analyzed;           // 是否完全分析
-
-  void * aux;                       // 辅助指针
-  void * original_write_info;       // 原始 FieldWriteInfo*
-};
-
-// ============================================================================
 // 分析配置常量
 // ============================================================================
 
@@ -128,20 +98,12 @@ constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 // ============================================================================
 
 // 主入口：分析源操作数的所有使用
-// 数据流：source_operand -> 直接写入 wrapper 成员地址
-// 输出：写入各个 out_ 参数指向的地址
+// 数据流：source_operand -> (listof SourceUseInfo)
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
-  gimple * source_stmt,
   gimple * exclude_stmt,
-  // 直接写入 wrapper 成员
-  tree* out_source_operand,
-  gimple** out_source_stmt,
-  vec<field_analysis::FieldUsePoint>** out_all_uses,
-  unsigned int* out_total_use_count,
-  unsigned int* out_max_use_depth,
-  bool* out_is_fully_analyzed
+  vec<SourceUseInfo>** out_uses
 );
 
 // ============================================================================
@@ -168,11 +130,5 @@ char const * getEscapeKindString (SourceUseEscapeKind kind);
 
 // 获取使用类型描述字符串
 char const * getUseKindString (SourceUseKind kind);
-
-// 打印分析结果（调试用）
-void printSourceUseResult (
-  SourceUseResult const *result,
-  FILE *output
-);
 
 } // namespace array_detect_ns

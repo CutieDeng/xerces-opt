@@ -7,29 +7,26 @@
 #include "array-detect-context-gcc-interface.hh"
 #include "field-write.hh"
 #include "type-field-hash.hh"
-#include "field-analysis.hh"
+#include "field-wrapper.hh"
 
 // ============================================================================
 // 前置声明：各分析模块的结果类型
 // ============================================================================
-// 数据流关系（新设计）：
-// - field -> (listof Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude)
-// - 每个 Wrapper 包含: FieldWrite + WriteSource + UseAnalysis + EscapeConclude
-// - field, (listof wrapper) -> FieldConclude
+// 数据流关系（三层 Wrapper 结构）：
+// - 层级2: Wrapper_SourceUse_EscapedUse
+// - 层级1: Wrapper_WriteInfo_WriteSource_SourceEscapeConclude
+// - 层级3: Wrapper_FieldEscapeConclude_OwnershipConclude (per field)
 // ============================================================================
 
 namespace array_detect_ns {
-  // 使用 field_analysis 命名空间的类型
-  using Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude = field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;
-  using FieldMoveAnalysis = field_analysis::FieldMoveAnalysis;
-
   // 前置声明：各分析模块的结果类型
   struct FieldWriteInfo;
-  struct SourceUseResult;
+  struct SourceUseInfo;
   struct EscapedUseResult;
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
   struct OwnershipMoveResult;
+  struct OwnershipConclude;
 }
 
 namespace array_detector {
@@ -61,41 +58,6 @@ ArrayDetectErrorCode getField (ArrayDetector const &self, AD_FUNC_ARGS, size_t i
 // 初始化检测器（非延迟，直接分配并创建容器，不做空指针检查）
 ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS);
 
-}
-
-namespace array_detector {
-
-// ============================================================================
-// TypeFieldAnalysisData: 类型字段分析数据
-// ============================================================================
-// 单个 (type, field) 的完整分析结果
-// 使用 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 替代旧的分离结构
-//
-// (type-field-analysis-data
-//   type        : tree
-//   field-decl  : tree
-//   writes      : (listof field-write-analysis-wrapper*)
-//   conclude    : field-conclude)
-// ============================================================================
-
-struct TypeFieldAnalysisData {
-  // 标识信息
-  tree type;
-  tree field_decl;
-
-  // 写入操作分析列表（使用统一 Wrapper）
-  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>* writes;
-
-  // 是否存在拒绝证据
-  bool has_rejecting_evidence;
-
-  // 字段级结论
-  FieldConclude* conclude;
-
-  // 保留字段
-  void* reserved;
-};
-
 // 类型-字段键：用于 hash_map 的复合键
 struct TypeFieldKey {
   tree type;        // 类型（TYPE_MAIN_VARIANT）
@@ -121,7 +83,8 @@ struct ArrayDetector {
   // 旧的数据结构（保留用于兼容，后续可移除）
   vec<FieldInfo*>* m_fields;
 
-  // 新的数据结构：使用 hash_map 按 (type, field) 存储写入操作记录
+  // 新的数据结构：使用 hash_map 按 (type, field) 存储
+  // TypeFieldAnalysisData = field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* m_type_field_writes;
 
 };

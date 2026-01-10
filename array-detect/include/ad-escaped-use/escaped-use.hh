@@ -6,31 +6,23 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "source-use.hh"
-#include "field-wrapper.hh"
 
 namespace array_detect_ns {
 
 // ============================================================================
 // 逃逸使用结果 (EscapedUseResult)
 // ============================================================================
-// 数据流位置：(listof source-use) -> (listof escaped-use)
-// 从 SourceUseResult.all_uses 中提取所有逃逸使用
+// 数据流：(listof write-original-source-use) -> (listof escaped-use)
+// 从 all_uses 中提取所有逃逸使用
 //
 // (escaped-use-result
-//   source-operand : tree
-//   escapes        : (listof use-info*)  ; 指向 all-uses 中逃逸元素
+//   escapes        : (listof write-original-source-use*)  ; 指向 all-uses 中逃逸元素
 //   escape-count   : nat)
 // ============================================================================
 
 struct EscapedUseResult {
-  tree source_operand;              // 源操作数
-  gimple * source_stmt;             // 源语句
-
-  vec<SourceUseInfo const *> * escapes;  // 所有逃逸使用
-  unsigned int escape_count;        // 逃逸数量
-
-  void * aux;
-  void * original_write_info;       // 原始 FieldWriteInfo*
+  vec<SourceUseInfo const *> * escapes;  // 所有逃逸使用（指向原 all_uses 元素）
+  unsigned int escape_count;             // 逃逸数量
 };
 
 // ============================================================================
@@ -38,14 +30,12 @@ struct EscapedUseResult {
 // ============================================================================
 
 // 提取逃逸使用
-// 输入：all_uses (所有使用点)
-// 输出：直接写入 wrapper->escape_uses 和 wrapper->escape_count
+// 输入：(listof SourceUseInfo)
+// 输出：EscapedUseResult 指针
 ArrayDetectErrorCode extractEscapedUses (
   AD_FUNC_ARGS,
-  vec<field_analysis::FieldUsePoint>* all_uses,
-  vec<field_analysis::FieldUsePoint const*>** out_escape_uses,
-  unsigned int* out_escape_count,
-  bool* out_has_escape
+  vec<SourceUseInfo>* all_uses,
+  EscapedUseResult** out_result
 );
 
 // ============================================================================

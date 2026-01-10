@@ -4,7 +4,7 @@
 // ad-driver 模块
 // ============================================================================
 // 细节驱动逻辑模块
-// 展开 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude，驱动单个写入的完整分析流程
+// 展开 WriteWrapper，驱动单个写入的完整分析流程
 // 调用各子分析模块（8个数据结构模块）
 // ============================================================================
 
@@ -24,7 +24,6 @@
 namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
-using field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;
 using array_detector::WriteOriginalSource;
 
 // ============================================================================
@@ -40,7 +39,7 @@ struct WriteAnalysisDriverContext {
   WriteOriginalSource* source;
 
   // 阶段 2 输出：使用分析
-  SourceUseResult* use_result;
+  vec<SourceUseInfo>* all_uses;
 
   // 阶段 3 输出：逃逸使用
   EscapedUseResult* escaped_uses;
@@ -61,11 +60,11 @@ struct WriteAnalysisDriverContext {
 // ============================================================================
 
 // 驱动单个写入的完整分析
-// 从 FieldWriteInfo 开始，执行完整分析流程，生成 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude
+// 从 FieldWriteInfo 开始，执行完整分析流程，生成 WriteWrapper
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& result
+  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*& result
 );
 
 // 驱动所有写入的分析（Pipeline 接口）
@@ -82,14 +81,14 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>*& records
+  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>*& records
 );
 
 // 展开 wrapper 获取各部分
-// 从 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 提取各分析阶段的结果
+// 从 Wrapper_WriteInfo_WriteSource_SourceEscapeConclude 提取各分析阶段的结果
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
+  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* record,
   WriteAnalysisDriverContext& driver_ctx
 );
 

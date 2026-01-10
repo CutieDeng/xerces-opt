@@ -23,7 +23,7 @@ using namespace ::field_analysis;
 void initDriverContext (WriteAnalysisDriverContext& ctx) {
   ctx.write_info = nullptr;
   ctx.source = nullptr;
-  ctx.use_result = nullptr;
+  ctx.all_uses = nullptr;
   ctx.escaped_uses = nullptr;
   ctx.escape_conclude = nullptr;
   ctx.move_result = nullptr;
@@ -46,7 +46,7 @@ void printDriverContext (
   fprintf (out, "=== WriteAnalysisDriverContext ===\n");
   fprintf (out, "  write_info: %p\n", (void*)driver_ctx.write_info);
   fprintf (out, "  source: %p\n", (void*)driver_ctx.source);
-  fprintf (out, "  use_result: %p\n", (void*)driver_ctx.use_result);
+  fprintf (out, "  all_uses: %p\n", (void*)driver_ctx.all_uses);
   fprintf (out, "  escaped_uses: %p\n", (void*)driver_ctx.escaped_uses);
   fprintf (out, "  escape_conclude: %p\n", (void*)driver_ctx.escape_conclude);
   fprintf (out, "  move_result: %p\n", (void*)driver_ctx.move_result);
@@ -59,60 +59,90 @@ void printDriverContext (
 // driveWriteAnalysis
 // ============================================================================
 // 驱动单个写入的完整分析
-// 直接写入 wrapper 成员地址，不使用 fill 函数
+// 使用新的 Wrapper 结构（存储指针到子模块结果）
 
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& result
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*& result
 ) AD_FUNCTION_BEGIN {
   if (!write_info) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // Step 1: 创建 Wrapper
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = NULL;
-  AD_TRY (createFieldWriteWrapper (AD_ARGS, write_info, wrapper));
+  auto* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude> ();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
+  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude));
+  wrapper->write_info = write_info;
 
-  // Step 2: 追踪来源 - 直接写入 wrapper 成员
+  // Step 2: 追踪来源
   ArrayDetector dummy_detector;
   AD_TRY (traceWriteSource (AD_ARGS, dummy_detector, write_info,
-    &wrapper->source_kind, &wrapper->source_data));
+    &wrapper->write_source));
 
-  // Step 3: 分析使用链 - 直接写入 wrapper 成员
-  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, write_info->stmt,
-    &wrapper->source_operand,
-    &wrapper->source_stmt,
-    &wrapper->all_uses,
-    &wrapper->total_use_count,
-    &wrapper->max_use_depth,
-    &wrapper->is_fully_analyzed
-  ));
+  // Step 3: 分析使用链
+  vec<SourceUseInfo>* all_uses = NULL;
+  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, &all_uses));
 
-  // Step 4: 提取逃逸使用 - 直接写入 wrapper 成员
-  AD_TRY (extractEscapedUses (AD_ARGS, wrapper->all_uses,
-    &wrapper->escape_uses,
-    &wrapper->escape_count,
-    &wrapper->has_escape
-  ));
+  if (all_uses) {
+    // 内联分配 UseWrapper 并添加到 uses 列表
+    auto* use_wrapper = ggc_alloc<Wrapper_SourceUse_EscapedUse> ();
+    if (use_wrapper) {
+      memset (use_wrapper, 0, sizeof (Wrapper_SourceUse_EscapedUse));
+      use_wrapper->all_uses = all_uses;
 
-  // Step 5: 生成源级逃逸结论 - 直接写入 wrapper 成员
-  AD_TRY (generateSourceEscapeConclude (AD_ARGS, wrapper->escape_uses,
-    &wrapper->total_escapes,
-    &wrapper->safe_debug_escapes,
-    &wrapper->rejecting_escapes,
-    &wrapper->has_rejecting_evidence
-  ));
+      if (!wrapper->uses) {
+        vec_alloc (wrapper->uses, 4);
+      }
+      vec_safe_push (wrapper->uses, use_wrapper);
 
-  // Step 6: 所有权转移分析 - 直接写入 wrapper->move
-  AD_TRY (analyzeOwnershipMove (AD_ARGS, write_info,
-    wrapper->source_kind,
-    &wrapper->source_data.field_access,
-    &wrapper->move
-  ));
+      // Step 4: 提取逃逸使用
+      EscapedUseResult* escaped_result = NULL;
+      AD_TRY (extractEscapedUses (AD_ARGS, all_uses, &escaped_result));
+      use_wrapper->escaped_result = escaped_result;
+    }
+  }
+
+  // Step 5: 生成源级逃逸结论
+  // 统计所有 uses 中的逃逸
+  unsigned int total_escapes = 0;
+  unsigned int safe_debug_escapes = 0;
+  unsigned int rejecting_escapes = 0;
+  bool has_rejecting = false;
+
+  if (wrapper->uses) {
+    for (unsigned int i = 0; i < wrapper->uses->length (); i++) {
+      Wrapper_SourceUse_EscapedUse* uw = (*wrapper->uses)[i];
+      if (!uw || !uw->escaped_result || !uw->escaped_result->escapes) continue;
+
+      for (unsigned int j = 0; j < uw->escaped_result->escapes->length (); j++) {
+        SourceUseInfo const* escape_use = (*uw->escaped_result->escapes)[j];
+        if (!escape_use) continue;
+
+        total_escapes++;
+        if (isSafeDebugEscape (AD_ARGS, escape_use)) {
+          safe_debug_escapes++;
+        } else {
+          rejecting_escapes++;
+          has_rejecting = true;
+        }
+      }
+    }
+  }
+
+  // 创建 escape_conclude
+  wrapper->escape_conclude = ggc_alloc<SourceEscapeConclude> ();
+  if (wrapper->escape_conclude) {
+    memset (wrapper->escape_conclude, 0, sizeof (SourceEscapeConclude));
+    wrapper->escape_conclude->total_escapes = total_escapes;
+    wrapper->escape_conclude->safe_debug_escapes = safe_debug_escapes;
+    wrapper->escape_conclude->rejecting_escapes = rejecting_escapes;
+    wrapper->escape_conclude->has_rejecting_evidence = has_rejecting;
+    wrapper->escape_conclude->is_fully_analyzed = true;
+  }
 
   result = wrapper;
   AD_RETURNE (OK);
@@ -122,7 +152,7 @@ ArrayDetectErrorCode driveWriteAnalysis (
 // driveAllWriteAnalysis
 // ============================================================================
 // 驱动所有写入的分析
-// 直接写入 wrapper 成员地址
+// 使用新的 Wrapper 结构
 
 ArrayDetectErrorCode driveAllWriteAnalysis (
   AD_FUNC_ARGS,
@@ -144,63 +174,78 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
     if (!tfwo || !tfwo->writes) continue;
 
     for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
-      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*tfwo->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*tfwo->writes)[i];
       if (!wrapper) continue;
 
       total_driven++;
 
-      // 从 wrapper 创建临时 FieldWriteInfo
-      FieldWriteInfo temp_write_info;
-      memset (&temp_write_info, 0, sizeof (FieldWriteInfo));
-      temp_write_info.type = wrapper->type;
-      temp_write_info.field_decl = wrapper->field;
-      temp_write_info.function_decl = wrapper->func;
-      temp_write_info.bb = wrapper->bb;
-      temp_write_info.stmt = wrapper->stmt;
-      temp_write_info.lhs = wrapper->lhs;
-      temp_write_info.rhs = wrapper->rhs;
-      temp_write_info.location = wrapper->write_location;
-
       // Step 1: 追踪来源（如果尚未追踪）
-      if (wrapper->source_kind == FIELD_SRC_UNKNOWN) {
-        AD_TRY (traceWriteSource (AD_ARGS, detector, &temp_write_info,
-          &wrapper->source_kind, &wrapper->source_data));
+      if (!wrapper->write_source) {
+        AD_TRY (traceWriteSource (AD_ARGS, detector, wrapper->write_info,
+          &wrapper->write_source));
       }
 
       // Step 2: 分析使用链（如果尚未分析）
-      if (!wrapper->all_uses) {
-        AD_TRY (analyzeSourceUse (AD_ARGS, wrapper->rhs, wrapper->stmt, wrapper->stmt,
-          &wrapper->source_operand,
-          &wrapper->source_stmt,
-          &wrapper->all_uses,
-          &wrapper->total_use_count,
-          &wrapper->max_use_depth,
-          &wrapper->is_fully_analyzed
-        ));
+      if (!wrapper->uses && wrapper->write_info) {
+        vec<SourceUseInfo>* all_uses = NULL;
+        AD_TRY (analyzeSourceUse (AD_ARGS,
+          wrapper->write_info->rhs,
+          wrapper->write_info->stmt,
+          &all_uses));
 
-        // Step 3: 提取逃逸使用
-        AD_TRY (extractEscapedUses (AD_ARGS, wrapper->all_uses,
-          &wrapper->escape_uses,
-          &wrapper->escape_count,
-          &wrapper->has_escape
-        ));
+        if (all_uses) {
+          auto* use_wrapper = ggc_alloc<Wrapper_SourceUse_EscapedUse> ();
+          if (use_wrapper) {
+            memset (use_wrapper, 0, sizeof (Wrapper_SourceUse_EscapedUse));
+            use_wrapper->all_uses = all_uses;
 
-        // Step 4: 生成源级逃逸结论
-        AD_TRY (generateSourceEscapeConclude (AD_ARGS, wrapper->escape_uses,
-          &wrapper->total_escapes,
-          &wrapper->safe_debug_escapes,
-          &wrapper->rejecting_escapes,
-          &wrapper->has_rejecting_evidence
-        ));
+            if (!wrapper->uses) {
+              vec_alloc (wrapper->uses, 4);
+            }
+            vec_safe_push (wrapper->uses, use_wrapper);
+
+            // Step 3: 提取逃逸使用
+            EscapedUseResult* escaped_result = NULL;
+            AD_TRY (extractEscapedUses (AD_ARGS, all_uses, &escaped_result));
+            use_wrapper->escaped_result = escaped_result;
+          }
+        }
       }
 
-      // Step 5: 所有权转移分析（如果尚未分析）
-      if (!wrapper->move) {
-        AD_TRY (analyzeOwnershipMove (AD_ARGS, &temp_write_info,
-          wrapper->source_kind,
-          &wrapper->source_data.field_access,
-          &wrapper->move
-        ));
+      // Step 4: 生成源级逃逸结论（如果尚未生成）
+      if (!wrapper->escape_conclude && wrapper->uses) {
+        unsigned int total_escapes = 0;
+        unsigned int safe_debug_escapes = 0;
+        unsigned int rejecting_escapes = 0;
+        bool has_rejecting = false;
+
+        for (unsigned int j = 0; j < wrapper->uses->length (); j++) {
+          Wrapper_SourceUse_EscapedUse* uw = (*wrapper->uses)[j];
+          if (!uw || !uw->escaped_result || !uw->escaped_result->escapes) continue;
+
+          for (unsigned int k = 0; k < uw->escaped_result->escapes->length (); k++) {
+            SourceUseInfo const* escape_use = (*uw->escaped_result->escapes)[k];
+            if (!escape_use) continue;
+
+            total_escapes++;
+            if (isSafeDebugEscape (AD_ARGS, escape_use)) {
+              safe_debug_escapes++;
+            } else {
+              rejecting_escapes++;
+              has_rejecting = true;
+            }
+          }
+        }
+
+        wrapper->escape_conclude = ggc_alloc<SourceEscapeConclude> ();
+        if (wrapper->escape_conclude) {
+          memset (wrapper->escape_conclude, 0, sizeof (SourceEscapeConclude));
+          wrapper->escape_conclude->total_escapes = total_escapes;
+          wrapper->escape_conclude->safe_debug_escapes = safe_debug_escapes;
+          wrapper->escape_conclude->rejecting_escapes = rejecting_escapes;
+          wrapper->escape_conclude->has_rejecting_evidence = has_rejecting;
+          wrapper->escape_conclude->is_fully_analyzed = true;
+        }
       }
 
       total_success++;
@@ -222,8 +267,10 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>*& records
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>*& records
 ) AD_FUNCTION_BEGIN {
+  (void)ctx; (void)gcc_ctx;
+
   if (!detector.m_type_field_writes) {
     records = NULL;
     AD_RETURNE (OK);
@@ -249,11 +296,11 @@ ArrayDetectErrorCode driveFieldAnalysis (
 // ============================================================================
 // unwrapAnalysis
 // ============================================================================
-// 从 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 提取各分析阶段的结果
+// 从 Wrapper 提取各分析阶段的结果
 
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* record,
   WriteAnalysisDriverContext& driver_ctx
 ) AD_FUNCTION_BEGIN {
   (void)ctx; (void)gcc_ctx;
@@ -265,9 +312,19 @@ ArrayDetectErrorCode unwrapAnalysis (
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
-  // Wrapper 是扁平化结构，包含了所有分析阶段的结果
-  // 这里只标记已分析
+  // 从 Wrapper 提取数据到 driver_ctx
+  driver_ctx.write_info = record->write_info;
+  driver_ctx.source = record->write_source;
+  driver_ctx.escape_conclude = record->escape_conclude;
+
+  // 提取第一个 use 的结果（如果有）
+  if (record->uses && record->uses->length () > 0) {
+    Wrapper_SourceUse_EscapedUse* first_use = (*record->uses)[0];
+    if (first_use) {
+      driver_ctx.all_uses = first_use->all_uses;
+      driver_ctx.escaped_uses = first_use->escaped_result;
+    }
+  }
 
   driver_ctx.is_analyzed = true;
   driver_ctx.has_error = false;

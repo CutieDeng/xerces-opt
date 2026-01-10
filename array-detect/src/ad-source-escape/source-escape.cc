@@ -55,15 +55,15 @@ bool isKnownSafeDebugFunction (
 // 判断逃逸是否为安全调试逃逸
 bool isSafeDebugEscape (
   AD_FUNC_ARGS,
-  field_analysis::FieldUsePoint const * escape
+  SourceUseInfo const * escape
 ) {
   if (!escape || !escape->is_escape()) {
     return false;
   }
 
   // 只有参数传递和外部调用可能是调试调用
-  if (escape->escape_kind != field_analysis::FIELD_ESC_PARAMETER &&
-      escape->escape_kind != field_analysis::FIELD_ESC_EXTERNAL_CALL) {
+  if (escape->escape_kind != SU_ESCAPE_PARAMETER &&
+      escape->escape_kind != SU_ESCAPE_EXTERNAL_CALL) {
     return false;
   }
 
@@ -79,7 +79,7 @@ bool isSafeDebugEscape (
 
 ArrayDetectErrorCode generateSourceEscapeConclude (
   AD_FUNC_ARGS,
-  vec<field_analysis::FieldUsePoint const*>* escaped_uses,
+  vec<SourceUseInfo const*>* escaped_uses,
   unsigned int* out_total_escapes,
   unsigned int* out_safe_debug_escapes,
   unsigned int* out_rejecting_escapes,
@@ -105,7 +105,7 @@ ArrayDetectErrorCode generateSourceEscapeConclude (
 
   // 遍历所有逃逸，区分调试逃逸和非调试逃逸
   for (unsigned int i = 0; i < escaped_uses->length (); i++) {
-    field_analysis::FieldUsePoint const * escape = (*escaped_uses)[i];
+    SourceUseInfo const * escape = (*escaped_uses)[i];
     if (isSafeDebugEscape (AD_ARGS, escape)) {
       (*out_safe_debug_escapes)++;
     } else {

@@ -6,13 +6,21 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "source-escape.hh"
+#include "source-use.hh"
+#include "escaped-use.hh"
+#include "field-wrapper.hh"
+#include "array-detector.hh"
 
 namespace array_detector {
   class ArrayDetector;
-  struct TypeFieldAnalysisData;
+  // TypeFieldAnalysisData is defined in type-field-hashmap-traits.hh which is
+  // included after array-detector.hh. We use the full type name here.
 } // namespace array_detector
 
 namespace array_detect_ns {
+
+// TypeFieldAnalysisData 从 array_detector 命名空间引入
+using array_detector::TypeFieldAnalysisData;
 
 // ============================================================================
 // 字段逃逸结论 (FieldEscapeConclude)
@@ -69,14 +77,14 @@ struct FieldEscapeConclude {
 // field_data -> FieldEscapeConclude
 ArrayDetectErrorCode summarizeFieldEscape (
   AD_FUNC_ARGS,
-  array_detector::TypeFieldAnalysisData * field_data,
+  TypeFieldAnalysisData * field_data,
   FieldEscapeConclude * &result
 );
 
 // 向后兼容别名
 inline ArrayDetectErrorCode summarizeTypeFieldEscapes (
   AD_FUNC_ARGS_DECL,
-  array_detector::TypeFieldAnalysisData * field_data,
+  TypeFieldAnalysisData * field_data,
   FieldEscapeConclude * &result
 ) { return summarizeFieldEscape(AD_FUNC_ARGS_CALL, field_data, result); }
 

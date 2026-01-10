@@ -14,7 +14,7 @@
 // analyze-move   : FieldWriteInfo, WriteSource -> MoveAnalysis
 //
 // [字段级分析]
-// conclude-field : (listof WriteAnalysis) -> FieldConclude
+// conclude-field : (listof WriteAnalysis) -> FieldEscapeConclude, OwnershipConclude
 //
 // 聚合结构：
 // - WriteAnalysis : 单次写入的完整分析（聚合所有一对一关系）
