@@ -116,9 +116,6 @@ struct SourceUseResult {
   void * original_write_info;       // 原始 FieldWriteInfo*
 };
 
-// 向后兼容别名
-typedef SourceUseResult SourceUseAnalysisResult;
-
 // ============================================================================
 // 分析配置常量
 // ============================================================================
@@ -177,11 +174,5 @@ void printSourceUseResult (
   SourceUseResult const *result,
   FILE *output
 );
-
-// 向后兼容别名
-inline void printSourceUseAnalysisResult (
-  SourceUseResult const *result,
-  FILE *output
-) { printSourceUseResult(result, output); }
 
 } // namespace array_detect_ns

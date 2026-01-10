@@ -466,16 +466,16 @@ ArrayDetectErrorCode analyzeAllOwnershipMoves (
     AD_RETURNE (OK);
   }
 
-  typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldWriteOps* tfwo = (*iter).second;
+    TypeFieldAnalysisData* tfwo = (*iter).second;
     if (!tfwo || !tfwo->writes) continue;
 
     for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
-      field_analysis::FieldWriteAnalysisWrapper* wrapper = (*tfwo->writes)[i];
+      field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*tfwo->writes)[i];
       if (!wrapper) continue;
 
       // 从 wrapper 创建临时 FieldWriteInfo

@@ -8,10 +8,10 @@
 //
 // [写入级分析 - Wrapper 合并所有 1:1 关系]
 // field-write + write-source + use-analysis + escape-conclude + move-analysis?
-//   => FieldWriteAnalysisWrapper
+//   => Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude
 //
 // [字段级分析 - 汇总所有写入的分析结果]
-// field, (listof field-write-analysis-wrapper)
+// field, (listof wrapper)
 //   -> field-conclude
 //   => FieldAnalysis
 //
@@ -43,7 +43,7 @@ namespace field_analysis {
 // 前置声明
 // ============================================================================
 
-struct FieldWriteAnalysisWrapper;  // 写入级完整分析 (统一 Wrapper)
+struct Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;  // 写入级完整分析 (统一 Wrapper)
 struct FieldMoveAnalysis;          // 所有权转移分析 (可选组件)
 struct FieldConclude;              // 字段级结论
 struct FieldAnalysis;              // 字段级完整分析
@@ -210,12 +210,12 @@ struct FieldMoveAnalysis {
 };
 
 // ============================================================================
-// FieldWriteAnalysisWrapper: 写入级完整分析（统一 Wrapper）
+// Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude: 写入级完整分析（统一 Wrapper）
 // ============================================================================
 // 合并: FieldWrite + WriteSource + UseAnalysis + EscapeConclude
 // 扁平化结构，消除冗余字段
 
-struct FieldWriteAnalysisWrapper {
+struct Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude {
   // ========== FieldWrite 部分: 字段写入基本信息 ==========
   tree type;                    // TYPE_MAIN_VARIANT
   tree field;                   // FIELD_DECL
@@ -291,105 +291,11 @@ struct FieldAnalysis {
   tree type;
   tree field;
 
-  vec<FieldWriteAnalysisWrapper*>* writes;  // 所有字段写入分析
+  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>* writes;  // 所有字段写入分析
   FieldConclude conclude;                    // 汇总结论
 };
 
 } // namespace field_analysis
-
-// ============================================================================
-// 向后兼容：枚举值别名
-// ============================================================================
-
-namespace field_analysis {
-  // 旧枚举值 -> 新枚举值
-  constexpr FieldSourceKind SRC_UNKNOWN = FIELD_SRC_UNKNOWN;
-  constexpr FieldSourceKind SRC_FUNCTION_CALL = FIELD_SRC_FUNCTION_CALL;
-  constexpr FieldSourceKind SRC_CONSTANT = FIELD_SRC_CONSTANT;
-  constexpr FieldSourceKind SRC_FIELD_ACCESS = FIELD_SRC_FIELD_ACCESS;
-  constexpr FieldSourceKind SRC_COMPUTATION = FIELD_SRC_COMPUTATION;
-  constexpr FieldSourceKind SRC_PHI = FIELD_SRC_PHI;
-
-  constexpr FieldEscapeKind ESC_NONE = FIELD_ESC_NONE;
-  constexpr FieldEscapeKind ESC_RETURN = FIELD_ESC_RETURN;
-  constexpr FieldEscapeKind ESC_PARAMETER = FIELD_ESC_PARAMETER;
-  constexpr FieldEscapeKind ESC_GLOBAL = FIELD_ESC_GLOBAL;
-  constexpr FieldEscapeKind ESC_HEAP = FIELD_ESC_HEAP;
-  constexpr FieldEscapeKind ESC_FIELD = FIELD_ESC_FIELD;
-  constexpr FieldEscapeKind ESC_INDIRECT_CALL = FIELD_ESC_INDIRECT_CALL;
-  constexpr FieldEscapeKind ESC_VIRTUAL_CALL = FIELD_ESC_VIRTUAL_CALL;
-  constexpr FieldEscapeKind ESC_EXTERNAL_CALL = FIELD_ESC_EXTERNAL_CALL;
-  constexpr FieldEscapeKind ESC_UNKNOWN = FIELD_ESC_UNKNOWN;
-
-  constexpr FieldMoveVerdict MOVE_CERTAIN = FIELD_MOVE_CERTAIN;
-  constexpr FieldMoveVerdict MOVE_IMPOSSIBLE = FIELD_MOVE_IMPOSSIBLE;
-  constexpr FieldMoveVerdict MOVE_CONDITIONAL = FIELD_MOVE_CONDITIONAL;
-  constexpr FieldMoveVerdict MOVE_NOT_APPLICABLE = FIELD_MOVE_NOT_APPLICABLE;
-
-  // 旧类型别名
-  using SourceKind = FieldSourceKind;
-  using UseKind = FieldUseKind;
-  using EscapeKind = FieldEscapeKind;
-  using CallKind = FieldCallKind;
-  using MoveVerdict = FieldMoveVerdict;
-  using UsePoint = FieldUsePoint;
-  using MoveAnalysis = FieldMoveAnalysis;
-  using InvalidationPoint = FieldInvalidationPoint;
-
-  // 旧结构别名 (指向 Wrapper 的分段)
-  // 注意：这些只是为了编译兼容，语义上已被 Wrapper 替代
-  using FieldWrite = FieldWriteAnalysisWrapper;
-  using WriteSource = FieldWriteAnalysisWrapper;
-  using UseAnalysis = FieldWriteAnalysisWrapper;
-  using EscapeConclude = FieldWriteAnalysisWrapper;
-  using FieldWriteAnalysis = FieldWriteAnalysisWrapper;
-
-  // 旧 Data 结构别名
-  using FunctionCallData = FieldFunctionCallData;
-  using ConstantData = FieldConstantData;
-  using ComputationData = FieldComputationData;
-  using PhiData = FieldPhiData;
-}
-
-// ============================================================================
-// 向后兼容：映射到旧命名空间
-// ============================================================================
-
-namespace array_detect_ns {
-  using FieldWriteAnalysisWrapper = field_analysis::FieldWriteAnalysisWrapper;
-  using FieldMoveAnalysis = field_analysis::FieldMoveAnalysis;
-  using FieldConclude = field_analysis::FieldConclude;
-  using FieldAnalysis = field_analysis::FieldAnalysis;
-  using FieldUsePoint = field_analysis::FieldUsePoint;
-  using FieldSourceDataUnion = field_analysis::FieldSourceDataUnion;
-
-  // 枚举别名
-  using FieldSourceKind = field_analysis::FieldSourceKind;
-  using FieldUseKind = field_analysis::FieldUseKind;
-  using FieldEscapeKind = field_analysis::FieldEscapeKind;
-  using FieldMoveVerdict = field_analysis::FieldMoveVerdict;
-
-  // 旧名称别名
-  using SourceKind = field_analysis::FieldSourceKind;
-  using UseKind = field_analysis::FieldUseKind;
-  using EscapeKind = field_analysis::FieldEscapeKind;
-  using MoveVerdict = field_analysis::FieldMoveVerdict;
-}
-
-namespace array_detector {
-  using FieldWriteAnalysisWrapper = field_analysis::FieldWriteAnalysisWrapper;
-  using FieldAnalysis = field_analysis::FieldAnalysis;
-  using FieldSourceKind = field_analysis::FieldSourceKind;
-  using FieldSourceDataUnion = field_analysis::FieldSourceDataUnion;
-
-  // 旧名称别名
-  using WriteSource = field_analysis::FieldWriteAnalysisWrapper;
-  using FieldWrite = field_analysis::FieldWriteAnalysisWrapper;
-  using FieldWriteAnalysis = field_analysis::FieldWriteAnalysisWrapper;
-
-  // 前向声明（供 field-wrapper 使用）
-  struct WriteOriginalSource;
-}
 
 // ============================================================================
 // Wrapper 创建函数
@@ -398,7 +304,7 @@ namespace array_detector {
 
 namespace array_detect_ns {
 
-using field_analysis::FieldWriteAnalysisWrapper;
+using field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;
 
 // 前向声明
 struct FieldWriteInfo;
@@ -407,7 +313,7 @@ struct FieldWriteInfo;
 ArrayDetectErrorCode createFieldWriteWrapper (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  FieldWriteAnalysisWrapper*& wrapper
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& wrapper
 );
 
 } // namespace array_detect_ns

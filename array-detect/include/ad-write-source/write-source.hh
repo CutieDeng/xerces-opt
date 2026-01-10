@@ -35,9 +35,6 @@ enum SourceType {
   SOURCE_PHI             // PHI 节点
 };
 
-// 向后兼容别名
-typedef SourceType FieldSourceType;
-
 // 函数调用来源信息
 struct FunctionCallSource {
   gimple *call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
@@ -93,9 +90,6 @@ struct WriteOriginalSource {
   } data;
 };
 
-// 向后兼容别名
-typedef WriteOriginalSource FieldSourceInfo;
-
 // ============================================================================
 // Variant 访问宏
 // ============================================================================
@@ -108,14 +102,6 @@ typedef WriteOriginalSource FieldSourceInfo;
 #define SOURCE_IS_PHI(src) ((src).source_type == ::array_detector::SOURCE_PHI)
 #define SOURCE_IS_UNKNOWN(src) ((src).source_type == ::array_detector::SOURCE_UNKNOWN)
 
-// 向后兼容宏
-#define FIELD_SOURCE_IS_FUNCTION_CALL(src) SOURCE_IS_FUNCTION_CALL(src)
-#define FIELD_SOURCE_IS_CONSTANT(src) SOURCE_IS_CONSTANT(src)
-#define FIELD_SOURCE_IS_FIELD_ACCESS(src) SOURCE_IS_FIELD_ACCESS(src)
-#define FIELD_SOURCE_IS_COMPUTATION(src) SOURCE_IS_COMPUTATION(src)
-#define FIELD_SOURCE_IS_PHI(src) SOURCE_IS_PHI(src)
-#define FIELD_SOURCE_IS_UNKNOWN(src) SOURCE_IS_UNKNOWN(src)
-
 // 安全访问来源数据
 #define SOURCE_GET_FUNCTION_CALL(src) \
   (SOURCE_IS_FUNCTION_CALL(src) ? &((src).data.function_call) : nullptr)
@@ -127,13 +113,6 @@ typedef WriteOriginalSource FieldSourceInfo;
   (SOURCE_IS_COMPUTATION(src) ? &((src).data.computation) : nullptr)
 #define SOURCE_GET_PHI(src) \
   (SOURCE_IS_PHI(src) ? &((src).data.phi) : nullptr)
-
-// 向后兼容 GET 宏
-#define FIELD_SOURCE_GET_FUNCTION_CALL(src) SOURCE_GET_FUNCTION_CALL(src)
-#define FIELD_SOURCE_GET_CONSTANT(src) SOURCE_GET_CONSTANT(src)
-#define FIELD_SOURCE_GET_FIELD_ACCESS(src) SOURCE_GET_FIELD_ACCESS(src)
-#define FIELD_SOURCE_GET_COMPUTATION(src) SOURCE_GET_COMPUTATION(src)
-#define FIELD_SOURCE_GET_PHI(src) SOURCE_GET_PHI(src)
 
 // ============================================================================
 // Variant 模式匹配宏（类似 Rust 的 if let）
@@ -186,8 +165,8 @@ ArrayDetectErrorCode traceWriteSource (
   AD_FUNC_ARGS,
   ArrayDetector& detector,
   FieldWriteInfo* write_info,
-  FieldSourceKind* out_kind,        // 直接写入来源类型
-  FieldSourceDataUnion* out_data    // 直接写入来源数据
+  field_analysis::FieldSourceKind* out_kind,        // 直接写入来源类型
+  field_analysis::FieldSourceDataUnion* out_data    // 直接写入来源数据
 );
 
 // Pipeline 接口：追踪所有字段赋值

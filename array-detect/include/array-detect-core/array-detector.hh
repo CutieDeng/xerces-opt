@@ -5,7 +5,7 @@
 #include "state.hh"
 #include "info.hh"
 #include "array-detect-context-gcc-interface.hh"
-#include "analysis-data.hh"
+#include "field-write.hh"
 #include "type-field-hash.hh"
 #include "field-analysis.hh"
 
@@ -13,37 +13,28 @@
 // 前置声明：各分析模块的结果类型
 // ============================================================================
 // 数据流关系（新设计）：
-// - field -> (listof FieldWriteAnalysisWrapper)
+// - field -> (listof Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude)
 // - 每个 Wrapper 包含: FieldWrite + WriteSource + UseAnalysis + EscapeConclude
 // - field, (listof wrapper) -> FieldConclude
 // ============================================================================
 
 namespace array_detect_ns {
   // 使用 field_analysis 命名空间的类型
-  using FieldWriteAnalysisWrapper = field_analysis::FieldWriteAnalysisWrapper;
+  using Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude = field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;
   using FieldMoveAnalysis = field_analysis::FieldMoveAnalysis;
 
-  // 旧类型名称的向后兼容别名
-  struct FieldWriteInfo;              // 保留用于 analysis-data.hh 兼容
-  struct SourceUseResult;             // 保留用于 source-escape-collection.hh 兼容
-  struct EscapedUseResult;            // 保留用于 escape-synthesizer.hh 兼容
-  struct SourceEscapeConclude;        // 保留用于 escape-synthesizer.hh 兼容
-  struct FieldEscapeConclude;         // 保留用于 escape-synthesizer.hh 兼容
-  struct OwnershipMoveResult;         // 保留用于 ownership-transfer-analysis.hh 兼容
-
-  // 向后兼容别名
-  typedef FieldWriteInfo FieldWriteCapture;
-  typedef SourceUseResult SourceUseAnalysisResult;
-  typedef EscapedUseResult EscapeExtractionResult;
-  typedef SourceEscapeConclude EscapeEvidenceResult;
-  typedef FieldEscapeConclude TypeFieldEscapeSummary;
-  typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
+  // 前置声明：各分析模块的结果类型
+  struct FieldWriteInfo;
+  struct SourceUseResult;
+  struct EscapedUseResult;
+  struct SourceEscapeConclude;
+  struct FieldEscapeConclude;
+  struct OwnershipMoveResult;
 }
 
 namespace array_detector {
 
-  struct WriteOriginalSource;  // 写入原始来源（旧类型，保留兼容）
-  typedef WriteOriginalSource FieldSourceInfo;  // 向后兼容
+  struct WriteOriginalSource;  // 写入原始来源
 
   using namespace ::array_detect_ns;
   using namespace ::field_analysis;
@@ -78,7 +69,7 @@ namespace array_detector {
 // TypeFieldAnalysisData: 类型字段分析数据
 // ============================================================================
 // 单个 (type, field) 的完整分析结果
-// 使用 FieldWriteAnalysisWrapper 替代旧的分离结构
+// 使用 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 替代旧的分离结构
 //
 // (type-field-analysis-data
 //   type        : tree
@@ -93,7 +84,7 @@ struct TypeFieldAnalysisData {
   tree field_decl;
 
   // 写入操作分析列表（使用统一 Wrapper）
-  vec<FieldWriteAnalysisWrapper*>* writes;
+  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>* writes;
 
   // 是否存在拒绝证据
   bool has_rejecting_evidence;
@@ -104,15 +95,6 @@ struct TypeFieldAnalysisData {
   // 保留字段
   void* reserved;
 };
-
-// ============================================================================
-// 向后兼容别名
-// ============================================================================
-
-typedef TypeFieldAnalysisData TypeFieldWriteOps;
-
-// 旧的 FieldWriteAnalysisRecord 别名 -> 新的 Wrapper
-typedef FieldWriteAnalysisWrapper FieldWriteAnalysisRecord;
 
 // 类型-字段键：用于 hash_map 的复合键
 struct TypeFieldKey {
@@ -140,7 +122,7 @@ struct ArrayDetector {
   vec<FieldInfo*>* m_fields;
 
   // 新的数据结构：使用 hash_map 按 (type, field) 存储写入操作记录
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* m_type_field_writes;
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* m_type_field_writes;
 
 };
 

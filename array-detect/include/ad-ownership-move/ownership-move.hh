@@ -60,13 +60,6 @@ enum OwnershipMoveVerdict {
   MOVE_NOT_APPLICABLE              // 不适用（非字段访问源）
 };
 
-// 向后兼容别名
-typedef OwnershipMoveVerdict OwnershipTransferVerdict;
-constexpr OwnershipMoveVerdict TRANSFER_CERTAIN = MOVE_CERTAIN;
-constexpr OwnershipMoveVerdict TRANSFER_IMPOSSIBLE = MOVE_IMPOSSIBLE;
-constexpr OwnershipMoveVerdict TRANSFER_CONDITIONAL = MOVE_CONDITIONAL;
-constexpr OwnershipMoveVerdict TRANSFER_NOT_APPLICABLE = MOVE_NOT_APPLICABLE;
-
 // ============================================================================
 // 所有权转移结果 (OwnershipMoveResult)
 // ============================================================================
@@ -95,9 +88,6 @@ struct OwnershipMoveResult {
   bool is_analyzed;
   char const* verdict_description;
 };
-
-// 向后兼容别名
-typedef OwnershipMoveResult OwnershipTransferAnalysisResult;
 
 // ============================================================================
 // 核心分析函数

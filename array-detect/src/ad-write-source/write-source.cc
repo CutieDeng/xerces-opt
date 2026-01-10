@@ -14,6 +14,7 @@
 namespace array_detector {
 
 using namespace ::array_detect_ns;
+using namespace ::field_analysis;
 
 // ============================================================================
 // 内部实现
@@ -443,7 +444,7 @@ ArrayDetectErrorCode traceFieldAssignments (
 ) AD_FUNCTION_BEGIN {
   AD_DEBUG_PRINT ("Tracing field assignments (new module)");
 
-  typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
   unsigned int processed_count = 0;
   unsigned int source_extracted_count = 0;
 
@@ -454,13 +455,13 @@ ArrayDetectErrorCode traceFieldAssignments (
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldWriteOps *tfwo = (*iter).second;
+    TypeFieldAnalysisData *tfwo = (*iter).second;
     if (!tfwo || !tfwo->writes) {
       continue;
     }
 
     for (unsigned int j = 0; j < tfwo->writes->length (); ++j) {
-      FieldWriteAnalysisWrapper *wrapper = (*tfwo->writes)[j];
+      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude *wrapper = (*tfwo->writes)[j];
       if (!wrapper) {
         continue;
       }
@@ -484,7 +485,7 @@ ArrayDetectErrorCode traceFieldAssignments (
         &wrapper->source_kind, &wrapper->source_data));
       source_extracted_count++;
 
-      // 调试输出（传 NULL 跳过，因为 FieldSourceInfo 已重构）
+      // 调试输出（传 NULL 跳过，因为 WriteOriginalSource 已重构）
       TypeFieldKey key = (*iter).first;
       AD_TRY (printFieldWriteSourceInfoFromWrapper (AD_ARGS, key.type, key.field_decl, wrapper, NULL));
     }

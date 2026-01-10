@@ -1,8 +1,8 @@
 #include "capacity-association.hh"
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
-#include "analysis-data.hh"
-#include "field-source-variant.hh"
+#include "field-write.hh"
+#include "write-source.hh"
 #include "info-print.hh"
 #include "bound-condition-analyzer.hh"
 #include "string-utils.hh"
@@ -322,7 +322,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
     unsigned int write_count = pointer_field_data->writes->length ();
 
     for (unsigned int i = 0; i < write_count; i++) {
-      FieldWriteAnalysisWrapper* wrapper = (*pointer_field_data->writes)[i];
+      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*pointer_field_data->writes)[i];
       if (!wrapper) continue;
 
       // 检查来源是否为函数调用

@@ -2,7 +2,7 @@
 // ad-field-wrapper 模块实现
 // ============================================================================
 // Field 分析聚合数据结构和 Wrapper 组装函数
-// 数据流：各分析阶段结果 -> FieldWriteAnalysisWrapper
+// 数据流：各分析阶段结果 -> Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude
 // ============================================================================
 
 #include "field-wrapper.hh"
@@ -81,7 +81,7 @@ FieldUseKind fillWrapperUseAnalysis_convertUseKind (SourceUseKind kind) {
 ArrayDetectErrorCode createFieldWriteWrapper (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  FieldWriteAnalysisWrapper*& wrapper
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& wrapper
 ) AD_FUNCTION_BEGIN {
   (void)ctx;
   (void)gcc_ctx;
@@ -91,11 +91,11 @@ ArrayDetectErrorCode createFieldWriteWrapper (
   }
 
   // 分配 Wrapper
-  wrapper = ggc_alloc<FieldWriteAnalysisWrapper> ();
+  wrapper = ggc_alloc<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude> ();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (FieldWriteAnalysisWrapper));
+  memset (wrapper, 0, sizeof (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude));
 
   // 填充 FieldWrite 部分
   wrapper->type = write_info->type;
@@ -134,7 +134,7 @@ ArrayDetectErrorCode createFieldWriteWrapper (
 
 ArrayDetectErrorCode fillWrapperSource (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   WriteOriginalSource* source
 ) AD_FUNCTION_BEGIN {
   (void)ctx;
@@ -216,7 +216,7 @@ ArrayDetectErrorCode fillWrapperSource (
 
 ArrayDetectErrorCode fillWrapperUseAnalysis (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   SourceUseResult* use_result,
   EscapedUseResult* escaped_uses
 ) AD_FUNCTION_BEGIN {
@@ -281,7 +281,7 @@ ArrayDetectErrorCode fillWrapperUseAnalysis (
 
 ArrayDetectErrorCode fillWrapperEscapeConclude (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   SourceEscapeConclude* conclude
 ) AD_FUNCTION_BEGIN {
   (void)ctx;
@@ -306,7 +306,7 @@ ArrayDetectErrorCode fillWrapperEscapeConclude (
 
 ArrayDetectErrorCode fillWrapperOwnershipMove (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   OwnershipMoveResult* move_result
 ) AD_FUNCTION_BEGIN {
   (void)ctx;

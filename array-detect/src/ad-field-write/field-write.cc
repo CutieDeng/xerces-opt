@@ -2,7 +2,7 @@
 // ad-field-write 模块实现
 // ============================================================================
 // 收集所有字段写入操作
-// 数据流：whole-program -> (mapof (type, field) (listof FieldWriteAnalysisWrapper))
+// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude))
 // ============================================================================
 
 #include "field-write.hh"
@@ -39,17 +39,17 @@ namespace {
 
 ArrayDetectErrorCode collectAllFieldWrites_initMap (
   AD_FUNC_ARGS,
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>*& map
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>*& map
 ) AD_FUNCTION_BEGIN {
   (void) ctx;
   (void) gcc_ctx;
 
-  auto* raw_ptr = ggc_alloc<hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>>();
+  auto* raw_ptr = ggc_alloc<hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>>();
   if (!raw_ptr) {
     AD_RETURNE (MEMORY_ERROR);
   }
 
-  map = new (raw_ptr) hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>();
+  map = new (raw_ptr) hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>();
   if (!map) {
     AD_RETURNE (MEMORY_ERROR);
   }
@@ -61,17 +61,17 @@ ArrayDetectErrorCode collectAllFieldWrites_initMap (
 // ----------------------------------------------------------------------------
 // collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper_insertToMap
 // ----------------------------------------------------------------------------
-// 将 FieldWriteAnalysisWrapper 插入到 (type, field) 对应的写入列表中
+// 将 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 插入到 (type, field) 对应的写入列表中
 //
 // 语义：(map, type, field, wrapper) -> map[type,field].writes.push(wrapper)
 // 前置条件：map 已初始化（非 NULL）
 
 ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper_insertToMap (
   AD_FUNC_ARGS,
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* map,
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   tree type,
   tree field_decl,
-  FieldWriteAnalysisWrapper* wrapper
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper
 ) AD_FUNCTION_BEGIN {
   if (!map || !type || !field_decl || !wrapper) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -81,21 +81,21 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   key.type = type;
   key.field_decl = field_decl;
 
-  TypeFieldWriteOps** existing_ptr = map->get (key);
-  TypeFieldWriteOps* tfwo = NULL;
+  TypeFieldAnalysisData** existing_ptr = map->get (key);
+  TypeFieldAnalysisData* tfwo = NULL;
 
   if (existing_ptr && *existing_ptr) {
     tfwo = *existing_ptr;
   } else {
-    tfwo = ggc_alloc<TypeFieldWriteOps>();
+    tfwo = ggc_alloc<TypeFieldAnalysisData>();
     if (!tfwo) {
       AD_RETURNE (MEMORY_ERROR);
     }
-    memset (tfwo, 0, sizeof (TypeFieldWriteOps));
+    memset (tfwo, 0, sizeof (TypeFieldAnalysisData));
 
     tfwo->type = type;
     tfwo->field_decl = field_decl;
-    tfwo->writes = ggc_alloc<vec<FieldWriteAnalysisWrapper*>>();
+    tfwo->writes = ggc_alloc<vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>>();
     if (!tfwo->writes) {
       AD_RETURNE (MEMORY_ERROR);
     }
@@ -113,7 +113,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
 // ----------------------------------------------------------------------------
 // collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper
 // ----------------------------------------------------------------------------
-// 从字段写入信息创建 FieldWriteAnalysisWrapper 并插入到 map
+// 从字段写入信息创建 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 并插入到 map
 
 ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWrapper (
   AD_FUNC_ARGS,
@@ -124,14 +124,14 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   tree containing_type,
   basic_block bb,
   tree func_decl,
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* map
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map
 ) AD_FUNCTION_BEGIN {
 
-  FieldWriteAnalysisWrapper* wrapper = ggc_alloc<FieldWriteAnalysisWrapper>();
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = ggc_alloc<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude>();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (FieldWriteAnalysisWrapper));
+  memset (wrapper, 0, sizeof (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude));
 
   // FieldWrite 部分
   wrapper->type = containing_type;
@@ -177,7 +177,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock (
   AD_FUNC_ARGS,
   basic_block bb,
   tree func_decl,
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* map,
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   unsigned int& write_count
 ) AD_FUNCTION_BEGIN {
   gimple_stmt_iterator gsi;
@@ -213,7 +213,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock (
 ArrayDetectErrorCode collectAllFieldWrites_scanFunction (
   AD_FUNC_ARGS,
   struct cgraph_node* node,
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* map,
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   unsigned int& write_count
 ) AD_FUNCTION_BEGIN {
   // 跳过内联克隆：其代码已复制到目标函数，扫描会导致重复收集。

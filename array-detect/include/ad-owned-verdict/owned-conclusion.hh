@@ -3,7 +3,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "array-detector.hh"
-#include "field-source-variant.hh"
+#include "write-source.hh"
 
 namespace array_detect_ns {
 
@@ -137,7 +137,7 @@ struct FieldOwnedConclusion {
 // ============================================================================
 
 // 源类型分类
-SourceTypeCategory categorizeSourceType (FieldSourceInfo* source_info);
+SourceTypeCategory categorizeSourceType (WriteOriginalSource* source_info);
 
 // 字符串转换函数
 char const* rejectionReasonToString (RejectionReason r);

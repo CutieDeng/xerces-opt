@@ -5,7 +5,7 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "source-escape-collection.hh"
+#include "source-use.hh"
 #include "field-wrapper.hh"
 
 namespace array_detect_ns {
@@ -33,9 +33,6 @@ struct EscapedUseResult {
   void * original_write_info;       // 原始 FieldWriteInfo*
 };
 
-// 向后兼容别名
-typedef EscapedUseResult EscapeExtractionResult;
-
 // ============================================================================
 // 接口函数
 // ============================================================================
@@ -59,11 +56,5 @@ void printEscapedUseResult (
   EscapedUseResult const * result,
   FILE * output
 );
-
-// 向后兼容别名
-inline void printEscapeExtractionResult (
-  EscapedUseResult const * result,
-  FILE * output
-) { printEscapedUseResult(result, output); }
 
 } // namespace array_detect_ns

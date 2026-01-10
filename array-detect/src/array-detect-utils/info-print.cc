@@ -2,8 +2,8 @@
 #include "array-detector.hh"
 #include "virtual-call-analysis.hh"
 #include "gcc-ext-util.hh"
-#include "field-source-variant.hh"
-#include "analysis-data.hh"
+#include "write-source.hh"
+#include "field-write.hh"
 
 using array_detector::ArrayDetector;
 using namespace array_detector;  // 为了使用 LET 宏中的类型
@@ -374,8 +374,8 @@ ArrayDetectErrorCode printFieldWriteSourceInfo (
   AD_FUNC_ARGS,
   tree type,
   tree field_decl,
-  ::array_detect_ns::FieldWriteCapture const &capture,
-  ::array_detector::FieldSourceInfo *source_info
+  ::array_detect_ns::FieldWriteInfo const &capture,
+  ::array_detector::WriteOriginalSource *source_info
 ) AD_FUNCTION_BEGIN {
   (void)capture;
 
@@ -432,8 +432,8 @@ ArrayDetectErrorCode printFieldWriteSourceInfoFromWrapper (
   AD_FUNC_ARGS,
   tree type,
   tree field_decl,
-  void const *wrapper,  // FieldWriteAnalysisWrapper*，但此函数不使用
-  ::array_detector::FieldSourceInfo *source_info
+  void const *wrapper,  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*，但此函数不使用
+  ::array_detector::WriteOriginalSource *source_info
 ) AD_FUNCTION_BEGIN {
   (void)wrapper;
 

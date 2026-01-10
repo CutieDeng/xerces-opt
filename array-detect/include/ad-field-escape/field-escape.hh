@@ -61,9 +61,6 @@ struct FieldEscapeConclude {
   vec<SourceEscapeConclude*> * all_source_concludes;
 };
 
-// 向后兼容别名
-typedef FieldEscapeConclude TypeFieldEscapeSummary;
-
 // ============================================================================
 // 接口函数
 // ============================================================================

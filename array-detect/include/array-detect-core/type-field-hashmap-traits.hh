@@ -5,7 +5,7 @@
 // ============================================================================
 // TypeFieldKey 的 hash_map trait 类型定义
 // ============================================================================
-// 为 hash_map<TypeFieldKey, TypeFieldWriteOps*> 提供专门的 trait 类型
+// 为 hash_map<TypeFieldKey, TypeFieldAnalysisData*> 提供专门的 trait 类型
 // 使用 GCC 的 simple_hashmap_traits 包装 default_hash_traits
 // 
 // 注意：这个文件必须在 array-detector.hh 的命名空间定义之后包含
@@ -16,7 +16,6 @@
 namespace array_detector {
   struct TypeFieldKey;
   struct TypeFieldAnalysisData;
-  // TypeFieldWriteOps 是 TypeFieldAnalysisData 的别名，在 array-detector.hh 中定义
 }
 
 // 注意：这个文件在 array-detector.hh 末尾被包含

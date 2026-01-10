@@ -488,16 +488,16 @@ ArrayDetectErrorCode collectAllFieldEscapes (
     AD_RETURNE (OK);
   }
 
-  typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldWriteOps * write_ops = (*iter).second;
+    TypeFieldAnalysisData * write_ops = (*iter).second;
     if (!write_ops || !write_ops->writes) continue;
 
     for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-      FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude * wrapper = (*write_ops->writes)[i];
       if (!wrapper) continue;
 
       // 从 wrapper 的 FieldWrite 部分提取数据进行分析

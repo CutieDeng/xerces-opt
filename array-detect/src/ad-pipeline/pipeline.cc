@@ -16,11 +16,13 @@
 // ============================================================================
 
 #include "pipeline.hh"
-#include "field-write-collector.hh"
-#include "write-operation-trace.hh"
-#include "source-escape-collection.hh"
-#include "escape-synthesizer.hh"
-#include "ownership-transfer-analysis.hh"
+#include "field-write.hh"
+#include "write-source.hh"
+#include "source-use.hh"
+#include "escaped-use.hh"
+#include "source-escape.hh"
+#include "field-escape.hh"
+#include "ownership-move.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -65,13 +67,13 @@ ArrayDetectErrorCode runPipeline (
   // Step 1: 收集字段写入 (ad-field-write)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_COLLECT_WRITES;
-  AD_TRY (collectTypesAndFields (detector, AD_ARGS));
+  AD_TRY (collectAllFieldWrites (AD_ARGS, detector));
 
   // ========================================================================
   // Step 2: 追踪写入来源 (ad-write-source)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_TRACE_SOURCES;
-  AD_TRY (traceFieldAssignments (detector, AD_ARGS));
+  AD_TRY (traceFieldAssignments (AD_ARGS, detector));
 
   // ========================================================================
   // Step 3: 分析使用链 (ad-source-use)
@@ -86,7 +88,7 @@ ArrayDetectErrorCode runPipeline (
   // Step 4: 合成逃逸证据 (ad-escaped-use, ad-source-escape, ad-field-escape)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_SYNTHESIZE_ESCAPES;
-  vec<EscapeEvidenceResult*> * evidence_results = NULL;
+  vec<SourceEscapeConclude*> * evidence_results = NULL;
   unsigned int total_synthesized = 0;
   AD_TRY (synthesizeAllFieldEscapes (AD_ARGS, detector, evidence_results, total_synthesized));
 

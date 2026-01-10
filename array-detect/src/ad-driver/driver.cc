@@ -64,14 +64,14 @@ void printDriverContext (
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  FieldWriteAnalysisRecord*& result
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& result
 ) AD_FUNCTION_BEGIN {
   if (!write_info) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // Step 1: 创建 Wrapper
-  FieldWriteAnalysisWrapper* wrapper = NULL;
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = NULL;
   AD_TRY (createFieldWriteWrapper (AD_ARGS, write_info, wrapper));
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
@@ -132,7 +132,7 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
     AD_RETURNE (OK);
   }
 
-  typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
   unsigned int total_driven = 0;
   unsigned int total_success = 0;
@@ -140,11 +140,11 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldWriteOps* tfwo = (*iter).second;
+    TypeFieldAnalysisData* tfwo = (*iter).second;
     if (!tfwo || !tfwo->writes) continue;
 
     for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
-      FieldWriteAnalysisWrapper* wrapper = (*tfwo->writes)[i];
+      Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*tfwo->writes)[i];
       if (!wrapper) continue;
 
       total_driven++;
@@ -222,7 +222,7 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<FieldWriteAnalysisRecord*>*& records
+  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>*& records
 ) AD_FUNCTION_BEGIN {
   if (!detector.m_type_field_writes) {
     records = NULL;
@@ -234,7 +234,7 @@ ArrayDetectErrorCode driveFieldAnalysis (
   key.type = type;
   key.field_decl = field_decl;
 
-  TypeFieldWriteOps** tfwo_ptr = detector.m_type_field_writes->get (key);
+  TypeFieldAnalysisData** tfwo_ptr = detector.m_type_field_writes->get (key);
   if (!tfwo_ptr || !*tfwo_ptr || !(*tfwo_ptr)->writes) {
     records = NULL;
     AD_RETURNE (OK);
@@ -249,11 +249,11 @@ ArrayDetectErrorCode driveFieldAnalysis (
 // ============================================================================
 // unwrapAnalysis
 // ============================================================================
-// 从 FieldWriteAnalysisRecord 提取各分析阶段的结果
+// 从 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 提取各分析阶段的结果
 
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisRecord* record,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
   WriteAnalysisDriverContext& driver_ctx
 ) AD_FUNCTION_BEGIN {
   (void)ctx; (void)gcc_ctx;
@@ -265,7 +265,7 @@ ArrayDetectErrorCode unwrapAnalysis (
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // FieldWriteAnalysisRecord 是 FieldWriteAnalysisWrapper 的别名
+  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
   // Wrapper 是扁平化结构，包含了所有分析阶段的结果
   // 这里只标记已分析
 

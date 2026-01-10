@@ -44,9 +44,6 @@ struct SourceEscapeConclude {
   void * original_write_info;           // 原始 FieldWriteInfo*
 };
 
-// 向后兼容别名
-typedef SourceEscapeConclude EscapeEvidenceResult;
-
 // ============================================================================
 // 接口函数
 // ============================================================================
@@ -89,11 +86,5 @@ void printSourceEscapeConclude (
   SourceEscapeConclude const * result,
   FILE * output
 );
-
-// 向后兼容别名
-inline void printEscapeEvidenceResult (
-  SourceEscapeConclude const * result,
-  FILE * output
-) { printSourceEscapeConclude(result, output); }
 
 } // namespace array_detect_ns

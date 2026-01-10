@@ -1,11 +1,11 @@
 #include "owned-conclusion.hh"
 #include "array-detector.hh"
 #include "gcc-ext-util.hh"
-#include "analysis-data.hh"
-#include "field-source-variant.hh"
-#include "source-escape-collection.hh"
-#include "escape-synthesizer.hh"
-#include "ownership-transfer-analysis.hh"
+#include "field-write.hh"
+#include "write-source.hh"
+#include "source-use.hh"
+#include "source-escape.hh"
+#include "ownership-move.hh"
 #include "info-print.hh"
 #include "string-utils.hh"
 
@@ -31,8 +31,8 @@ static char const* getSourceTypeDescriptionFromKind (field_analysis::FieldSource
   }
 }
 
-// 向后兼容：旧的 FieldSourceType 版本
-static char const* getSourceTypeDescription (FieldSourceType source_type) {
+// 向后兼容：旧的 SourceType 版本
+static char const* getSourceTypeDescription (SourceType source_type) {
   switch (source_type) {
     case SOURCE_FUNCTION_CALL: return "function call";
     case SOURCE_FIELD_ACCESS: return "field access";
@@ -48,7 +48,7 @@ static char const* getSourceTypeDescription (FieldSourceType source_type) {
 // 源类型分类（细化）- 从 Wrapper 读取
 // ============================================================================
 
-SourceTypeCategory categorizeSourceTypeFromWrapper (FieldWriteAnalysisWrapper* wrapper) {
+SourceTypeCategory categorizeSourceTypeFromWrapper (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
   if (!wrapper) {
     return SRC_CAT_UNSUPPORTED;
   }
@@ -78,8 +78,8 @@ SourceTypeCategory categorizeSourceTypeFromWrapper (FieldWriteAnalysisWrapper* w
   }
 }
 
-// 向后兼容：旧的 FieldSourceInfo* 版本
-SourceTypeCategory categorizeSourceType (FieldSourceInfo* source_info) {
+// 向后兼容：旧的 WriteOriginalSource* 版本
+SourceTypeCategory categorizeSourceType (WriteOriginalSource* source_info) {
   if (!source_info) {
     return SRC_CAT_UNSUPPORTED;
   }
@@ -161,7 +161,7 @@ char const* sourceTypeCategoryToString (SourceTypeCategory c) {
 
 static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   RejectionReason reason
 ) {
   (void)ctx;
@@ -207,7 +207,7 @@ static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
 
 static OwnedSupportingEvidence* createSupportingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -242,18 +242,18 @@ static OwnedSupportingEvidence* createSupportingEvidenceFromWrapper (
 // 向后兼容版本（旧的 record 接口）
 static OwnedRejectingEvidence* createRejectingEvidence (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisRecord* record,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
   RejectionReason reason
 ) {
-  // FieldWriteAnalysisRecord 现在是 FieldWriteAnalysisWrapper 的别名
+  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
   return createRejectingEvidenceFromWrapper (AD_ARGS, record, reason);
 }
 
 static OwnedSupportingEvidence* createSupportingEvidence (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisRecord* record
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record
 ) {
-  // FieldWriteAnalysisRecord 现在是 FieldWriteAnalysisWrapper 的别名
+  // Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名
   return createSupportingEvidenceFromWrapper (AD_ARGS, record);
 }
 
@@ -296,7 +296,7 @@ static OwnedConclusionVerdict computeVerdict (
 // Owned 语义要求：指针的唯一所有者，不与其他代码共享
 // 简化判定：存在非调试逃逸 => 拒绝 owned
 
-static bool isWrapperEscapeRejecting (FieldWriteAnalysisWrapper* wrapper) {
+static bool isWrapperEscapeRejecting (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
   if (!wrapper) {
     return false;
   }
@@ -304,7 +304,7 @@ static bool isWrapperEscapeRejecting (FieldWriteAnalysisWrapper* wrapper) {
 }
 
 // 向后兼容
-static bool isEscapeEvidenceRejecting (EscapeEvidenceResult* evidence) {
+static bool isEscapeEvidenceRejecting (SourceEscapeConclude* evidence) {
   if (!evidence) {
     return false;
   }
@@ -315,7 +315,7 @@ static bool isEscapeEvidenceRejecting (EscapeEvidenceResult* evidence) {
 // 辅助函数：检查 Wrapper 的所有权转移是否拒绝 owned
 // ============================================================================
 
-static bool isWrapperTransferRejecting (FieldWriteAnalysisWrapper* wrapper) {
+static bool isWrapperTransferRejecting (Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper) {
   if (!wrapper || !wrapper->move) {
     // 没有所有权转移分析，保守起见不拒绝
     return false;
@@ -326,14 +326,14 @@ static bool isWrapperTransferRejecting (FieldWriteAnalysisWrapper* wrapper) {
 }
 
 // 向后兼容
-static bool isTransferResultRejecting (OwnershipTransferAnalysisResult* transfer) {
+static bool isTransferResultRejecting (OwnershipMoveResult* transfer) {
   if (!transfer) {
     // 没有所有权转移分析，保守起见不拒绝
     return false;
   }
 
-  // TRANSFER_IMPOSSIBLE 表示共享所有权，拒绝 owned
-  return transfer->verdict == TRANSFER_IMPOSSIBLE;
+  // MOVE_IMPOSSIBLE 表示共享所有权，拒绝 owned
+  return transfer->verdict == MOVE_IMPOSSIBLE;
 }
 
 // ============================================================================
@@ -348,7 +348,7 @@ static bool isTransferResultRejecting (OwnershipTransferAnalysisResult* transfer
 
 static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisWrapper* wrapper,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper,
   FieldWriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
   result.category = FIELD_WRITE_CAT_UNKNOWN;
@@ -412,10 +412,10 @@ static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
-// 向后兼容（FieldWriteAnalysisRecord 现在是 FieldWriteAnalysisWrapper 的别名）
+// 向后兼容（Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 现在是 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 的别名）
 static ArrayDetectErrorCode analyzeFieldWriteForOwned (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisRecord* record,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
   FieldWriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
   AD_TRY (analyzeFieldWriteWrapperForOwned (AD_ARGS, record, result));
@@ -483,7 +483,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   unsigned int neutral_count = 0;
 
   for (unsigned int i = 0; i < total_field_writes; i++) {
-    FieldWriteAnalysisWrapper* wrapper = (*field_data->writes)[i];
+    Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* wrapper = (*field_data->writes)[i];
     if (!wrapper) continue;
 
     FieldWriteOwnedAnalysisResult field_write_result;
@@ -572,7 +572,7 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
   vec<FieldOwnedConclusion*, va_gc>* conclusions = NULL;
   vec_alloc (conclusions, 16);
 
-  typedef hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
   unsigned int total_fields = 0;
   unsigned int owned_yes = 0;
@@ -583,7 +583,7 @@ ArrayDetectErrorCode analyzeAllFieldOwnedConclusions (
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
-    TypeFieldWriteOps* tfwo = (*iter).second;
+    TypeFieldAnalysisData* tfwo = (*iter).second;
     if (!tfwo) continue;
 
     total_fields++;

@@ -16,14 +16,14 @@ ArrayDetectErrorCode init (ArrayDetector &self, AD_FUNC_ARGS) AD_FUNCTION_BEGIN 
   // 初始化新的数据结构：使用 hash_map
   // 使用 ggc_alloc 分配内存（GCC 垃圾回收）
   // 注意：ggc_alloc<T>() 只分配内存，不调用构造函数
-  hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>* raw_ptr = 
-      ggc_alloc<hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>>();
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* raw_ptr = 
+      ggc_alloc<hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>>();
   if (raw_ptr == nullptr) {
     AD_RETURNE (MEMORY_ERROR);
   }
   // 使用 placement new 在已分配的内存上构造 hash_map 对象
   // 这是关键：ggc_alloc 只分配内存，必须使用 placement new 调用构造函数
-  self.m_type_field_writes = new (raw_ptr) hash_map<TypeFieldKey, TypeFieldWriteOps*, TypeFieldHashMapTraits>();
+  self.m_type_field_writes = new (raw_ptr) hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>();
   if (self.m_type_field_writes == nullptr) {
     AD_RETURNE (MEMORY_ERROR);
   }

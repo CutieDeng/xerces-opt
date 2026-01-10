@@ -4,7 +4,7 @@
 // ad-driver 模块
 // ============================================================================
 // 细节驱动逻辑模块
-// 展开 FieldWriteAnalysisWrapper，驱动单个写入的完整分析流程
+// 展开 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude，驱动单个写入的完整分析流程
 // 调用各子分析模块（8个数据结构模块）
 // ============================================================================
 
@@ -24,7 +24,7 @@
 namespace array_detect_ns {
 
 using array_detector::ArrayDetector;
-using array_detector::FieldWriteAnalysisRecord;
+using field_analysis::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude;
 using array_detector::WriteOriginalSource;
 
 // ============================================================================
@@ -61,11 +61,11 @@ struct WriteAnalysisDriverContext {
 // ============================================================================
 
 // 驱动单个写入的完整分析
-// 从 FieldWriteInfo 开始，执行完整分析流程，生成 FieldWriteAnalysisWrapper
+// 从 FieldWriteInfo 开始，执行完整分析流程，生成 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  FieldWriteAnalysisRecord*& result
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*& result
 );
 
 // 驱动所有写入的分析（Pipeline 接口）
@@ -82,14 +82,14 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<FieldWriteAnalysisRecord*>*& records
+  vec<Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude*>*& records
 );
 
 // 展开 wrapper 获取各部分
-// 从 FieldWriteAnalysisRecord 提取各分析阶段的结果
+// 从 Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude 提取各分析阶段的结果
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  FieldWriteAnalysisRecord* record,
+  Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude* record,
   WriteAnalysisDriverContext& driver_ctx
 );
 

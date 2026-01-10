@@ -5,7 +5,7 @@
 #include "array-detect-context-gcc.hh"
 #include "state.hh"
 #include "prelude.hh"
-#include "analysis-data.hh"
+#include "field-write.hh"
 
 namespace array_detect_ns {
 

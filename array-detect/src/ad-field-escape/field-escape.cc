@@ -2,7 +2,7 @@
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "gcc-ext-util.hh"
-#include "field-source-variant.hh"
+#include "write-source.hh"
 
 namespace array_detect_ns {
 
@@ -55,11 +55,11 @@ ArrayDetectErrorCode summarizeFieldEscape (
   }
 
   // 分配汇总结构
-  TypeFieldEscapeSummary * summary = ggc_alloc<TypeFieldEscapeSummary> ();
+  FieldEscapeConclude * summary = ggc_alloc<FieldEscapeConclude> ();
   if (!summary) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (summary, 0, sizeof (TypeFieldEscapeSummary));
+  memset (summary, 0, sizeof (FieldEscapeConclude));
 
   // 设置标识
   summary->type = field_data->type;
@@ -72,7 +72,7 @@ ArrayDetectErrorCode summarizeFieldEscape (
   // 遍历所有字段写入分析 Wrapper
   if (field_data->writes) {
     for (unsigned int i = 0; i < field_data->writes->length (); i++) {
-      array_detector::FieldWriteAnalysisWrapper * wrapper =
+      array_detector::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude * wrapper =
         (*field_data->writes)[i];
       if (!wrapper) continue;
 
@@ -137,7 +137,7 @@ ArrayDetectErrorCode summarizeFieldEscape (
 ArrayDetectErrorCode synthesizeAllFieldEscapes (
   AD_FUNC_ARGS,
   array_detector::ArrayDetector &detector,
-  vec<EscapeEvidenceResult*> * &evidence_results,
+  vec<SourceEscapeConclude*> * &evidence_results,
   unsigned int &total_synthesized
 ) AD_FUNCTION_BEGIN {
   total_synthesized = 0;
@@ -148,17 +148,17 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
   }
 
   // 分配结果向量
-  evidence_results = ggc_alloc<vec<EscapeEvidenceResult*>> ();
+  evidence_results = ggc_alloc<vec<SourceEscapeConclude*>> ();
   evidence_results->create (0);
 
   // 遍历所有 (type, field) 的写入操作
-  typedef hash_map<array_detector::TypeFieldKey, array_detector::TypeFieldWriteOps*, array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
+  typedef hash_map<array_detector::TypeFieldKey, array_detector::TypeFieldAnalysisData*, array_detector::TypeFieldHashMapTraits> TypeFieldHashMap;
 
   for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
        iter != detector.m_type_field_writes->end ();
        ++iter) {
     array_detector::TypeFieldKey const &key = (*iter).first;
-    array_detector::TypeFieldWriteOps * write_ops = (*iter).second;
+    array_detector::TypeFieldAnalysisData * write_ops = (*iter).second;
 
     (void)key;
     if (!write_ops || !write_ops->writes) continue;
@@ -168,7 +168,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 
     // 遍历该 (type, field) 的所有写入分析 Wrapper
     for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-      array_detector::FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+      array_detector::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude * wrapper = (*write_ops->writes)[i];
       if (!wrapper) continue;
 
       // 从 wrapper 的 FieldUseAnalysis 部分读取数据
@@ -217,7 +217,7 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
       // 汇总统计
       if (write_ops->writes) {
         for (unsigned i = 0; i < write_ops->writes->length (); i++) {
-          array_detector::FieldWriteAnalysisWrapper * wrapper = (*write_ops->writes)[i];
+          array_detector::Wrapper_FieldWrite_WriteSource_UseAnalysis_EscapeConclude * wrapper = (*write_ops->writes)[i];
           if (!wrapper) continue;
 
           conclude->total_writes++;

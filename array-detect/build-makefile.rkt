@@ -357,34 +357,28 @@
   (define so-ext (if is-macos? "dylib" "so"))
   (define output-so-path (build-path out-dir (format "plugin-array-detect.~a" so-ext)))
   (define modules
-    '("array-detect-core"
-      "array-detect-field-write-collector"
+    '(;; 核心基础设施模块
+      "array-detect-core"
       "array-detect-context"
       "array-detect-gcc-integration"
       "array-detect-utils"
-      "array-detect-pipeline-orchestrator"
-      "array-detect-field-source-tracer"
-      "array-detect-escape-use-collector"
-      "array-detect-escape-evidence-synthesizer"
-      "array-detect-ownership-transfer-analyzer"
-      "array-detect-owned-verdict-generator"
-      "array-detect-capacity-field-associator"
-      "array-detect-array-access-collector"
-      "array-detect-bound-condition-analyzer"
-      "array-detect-unified-result-aggregator"
       "array-detect-lto-transform"
-      ;; 新模块 (基础数据结构)
+      ;; ad- 数据结构模块
       "ad-field-write"
       "ad-write-source"
       "ad-source-use"
       "ad-ownership-move"
-      ;; 新模块 (拆分自 escape-evidence-synthesizer)
       "ad-escaped-use"
       "ad-source-escape"
       "ad-field-escape"
-      ;; 新模块 (wrapper 独立)
       "ad-field-wrapper"
-      ;; 新模块 (控制流)
+      ;; ad- 分析模块 (renamed from array-detect-*)
+      "ad-owned-verdict"
+      "ad-capacity-associator"
+      "ad-array-access"
+      "ad-bound-condition"
+      "ad-result-aggregator"
+      ;; ad- 控制流模块
       "ad-pipeline"
       "ad-driver"))
   (define src-path "src")
@@ -403,7 +397,7 @@
     (for/list ([m modules])
       (~a (build-path include-path m))))
   (define extra-include-paths
-    (list (~a (build-path include-path "array-detect-result"))))
+    '())
   (define base-args-promise
     (delay
       (define plugin-path (force (get-cc-plugin-path cc-path)))
