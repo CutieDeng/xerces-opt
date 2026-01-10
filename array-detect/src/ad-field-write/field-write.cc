@@ -2,7 +2,7 @@
 // ad-field-write 模块实现
 // ============================================================================
 // 收集所有字段写入操作
-// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_WriteInfo_WriteSource_SourceEscapeConclude))
+// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove))
 // ============================================================================
 
 #include "field-write.hh"
@@ -71,7 +71,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   tree type,
   tree field_decl,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper
 ) AD_FUNCTION_BEGIN {
   if (!map || !type || !field_decl || !wrapper) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -120,11 +120,11 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude>();
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove>();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude));
+  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove));
 
   // 存储 FieldWriteInfo 指针
   wrapper->write_info = write_info;

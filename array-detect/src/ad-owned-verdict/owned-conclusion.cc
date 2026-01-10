@@ -119,7 +119,7 @@ char const* sourceTypeCategoryToString (SourceTypeCategory c) {
 
 static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper,
   RejectionReason reason
 ) {
   (void)ctx;
@@ -176,7 +176,7 @@ static OwnedRejectingEvidence* createRejectingEvidenceFromWrapper (
 
 static OwnedSupportingEvidence* createSupportingEvidenceFromWrapper (
   AD_FUNC_ARGS,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -232,7 +232,7 @@ static OwnedConclusionVerdict computeVerdict (
 // 辅助函数：检查 Wrapper 的逃逸结论是否拒绝 owned
 // ============================================================================
 
-static bool isWrapperEscapeRejecting (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper) {
+static bool isWrapperEscapeRejecting (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper) {
   if (!wrapper || !wrapper->escape_conclude) {
     return false;
   }
@@ -245,7 +245,7 @@ static bool isWrapperEscapeRejecting (Wrapper_WriteInfo_WriteSource_SourceEscape
 
 static ArrayDetectErrorCode analyzeFieldWriteWrapperForOwned (
   AD_FUNC_ARGS,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper,
   FieldWriteOwnedAnalysisResult& result
 ) AD_FUNCTION_BEGIN {
   result.category = FIELD_WRITE_CAT_UNKNOWN;
@@ -354,7 +354,7 @@ ArrayDetectErrorCode analyzeFieldOwnedConclusion (
   unsigned int neutral_count = 0;
 
   for (unsigned int i = 0; i < total_field_writes; i++) {
-    Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*field_data->writes)[i];
+    Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper = (*field_data->writes)[i];
     if (!wrapper) continue;
 
     FieldWriteOwnedAnalysisResult field_write_result;

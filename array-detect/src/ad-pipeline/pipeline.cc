@@ -14,7 +14,8 @@
 // 4. extractSourceEscapeUseInfo     -> ad-source-escape-use-info (per write)
 // 5. synthesizeSourceEscapeConclude -> ad-source-escape-conclude (per write)
 // 6. summarizeFieldEscapeConclude   -> ad-field-escape-conclude (per field)
-// 7. analyzeAllOwnershipMoves       -> ad-ownership-move
+// 7. analyzeOwnershipMove           -> ad-ownership-move (per write)
+// 8. summarizeOwnershipConclude     -> ad-ownership-conclude (per field)
 // ============================================================================
 
 #include "pipeline.hh"
@@ -25,6 +26,7 @@
 #include "source-escape-conclude.hh"
 #include "field-escape-conclude.hh"
 #include "ownership-move.hh"
+#include "ownership-conclude.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 
@@ -97,7 +99,7 @@ ArrayDetectErrorCode runPipeline (
 
       // 遍历该字段的所有写入
       for (unsigned i = 0; i < tfad->writes->length (); i++) {
-        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
+        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*tfad->writes)[i];
         if (!wrapper) continue;
 
         // Step 4a: 提取逃逸使用信息 (per write)
@@ -128,8 +130,57 @@ ArrayDetectErrorCode runPipeline (
   g_pipeline_state.current_phase = PHASE_ANALYZE_OWNERSHIP;
   unsigned int transfer_analyzed = 0;
   unsigned int certain_transfers = 0;
-  AD_TRY (analyzeAllOwnershipMoves (AD_ARGS, detector, transfer_analyzed, certain_transfers));
+
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (!tfad || !tfad->writes) continue;
+
+      // Step 5a: 分析每个写入的所有权转移 (per write)
+      for (unsigned i = 0; i < tfad->writes->length (); i++) {
+        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*tfad->writes)[i];
+        if (!wrapper || !wrapper->write_info) continue;
+
+        // 只处理源为字段访问的写入
+        if (wrapper->write_source &&
+            wrapper->write_source->source_type == SOURCE_FIELD_ACCESS) {
+          AD_TRY (analyzeOwnershipMove (
+            AD_ARGS,
+            wrapper->write_info,
+            wrapper->write_source,
+            &wrapper->ownership_move
+          ));
+
+          if (wrapper->ownership_move) {
+            transfer_analyzed++;
+            // 打印调试信息
+            printOwnershipMove (AD_ARGS, ctx.debug_file, wrapper->ownership_move);
+
+            if (wrapper->ownership_move->verdict == MOVE_CERTAIN) {
+              certain_transfers++;
+            }
+          }
+        }
+      }
+
+      // Step 5b: 汇总字段级所有权结论 (per field)
+      AD_TRY (summarizeOwnershipConclude (
+        AD_ARGS,
+        tfad->type,
+        tfad->field_decl,
+        tfad->writes,
+        &tfad->ownership_conclude
+      ));
+    }
+  }
   g_pipeline_state.total_ownership_analyzed = transfer_analyzed;
+
+  AD_DEBUG_PRINT ("ownershipMove: %u analyzed, %u certain",
+                  transfer_analyzed, certain_transfers);
 
   // ========================================================================
   // Step 6: 输出调试信息

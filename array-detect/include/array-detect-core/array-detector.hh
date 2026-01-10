@@ -14,7 +14,7 @@
 // ============================================================================
 // 数据流关系（三层 Wrapper 结构）：
 // - 层级2: Wrapper_SourceUse_EscapedUse
-// - 层级1: Wrapper_WriteInfo_WriteSource_SourceEscapeConclude
+// - 层级1: Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove
 // - 层级3: Wrapper_FieldEscapeConclude_OwnershipConclude (per field)
 // ============================================================================
 
@@ -25,7 +25,7 @@ namespace array_detect_ns {
   struct EscapedUseResult;
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
-  struct OwnershipMoveResult;
+  struct OwnershipMove;
   struct OwnershipConclude;
 }
 

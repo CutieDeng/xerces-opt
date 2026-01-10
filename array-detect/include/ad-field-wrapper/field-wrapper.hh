@@ -12,10 +12,11 @@
 //     escape-use-info     : source-escape-use-info or #f)
 //
 // 层级1：写入级 Wrapper (per write operation)
-//   (wrapper-write-info-write-source-source-escape-conclude
+//   (wrapper-write-info-write-source-source-escape-conclude-ownership-move
 //     write-info      : field-write-info
 //     write-source    : write-original-source
 //     escape-conclude : source-escape-conclude
+//     ownership-move  : ownership-move or #f
 //     uses            : (listof wrapper-source-use-info-source-escape-use-info*))
 //
 // 层级3：字段级 Wrapper (per field)
@@ -45,6 +46,7 @@ namespace array_detect_ns {
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
   struct OwnershipConclude;
+  struct OwnershipMove;
 }
 
 namespace array_detector {
@@ -72,16 +74,18 @@ struct Wrapper_SourceUseInfo_SourceEscapeUseInfo {
 // ----------------------------------------------------------------------------
 // 层级1：写入级 Wrapper
 // ----------------------------------------------------------------------------
-// (wrapper-write-info-write-source-source-escape-conclude
+// (wrapper-write-info-write-source-source-escape-conclude-ownership-move
 //   write-info      : field-write-info
 //   write-source    : write-original-source
 //   escape-conclude : source-escape-conclude
+//   ownership-move  : ownership-move or #f
 //   uses            : (listof wrapper-source-use-info-source-escape-use-info*))
 
-struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude {
+struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
   ::array_detect_ns::FieldWriteInfo* write_info;
   ::array_detector::WriteOriginalSource* write_source;
   ::array_detect_ns::SourceEscapeConclude* escape_conclude;
+  ::array_detect_ns::OwnershipMove* ownership_move;
   vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses;
 };
 
@@ -92,7 +96,7 @@ struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude {
 struct Wrapper_FieldEscapeConclude_OwnershipConclude {
   tree type;
   tree field_decl;
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>* writes;
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes;
   ::array_detect_ns::FieldEscapeConclude* escape_conclude;
   ::array_detect_ns::OwnershipConclude* ownership_conclude;
 };

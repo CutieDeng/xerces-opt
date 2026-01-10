@@ -324,7 +324,7 @@ static ArrayDetectErrorCode analyzeCandidateAssociation (
     unsigned int write_count = pointer_field_data->writes->length ();
 
     for (unsigned int i = 0; i < write_count; i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*pointer_field_data->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper = (*pointer_field_data->writes)[i];
       if (!wrapper) continue;
 
       // 检查来源是否为函数调用

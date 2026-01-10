@@ -44,7 +44,7 @@ struct WriteAnalysisDriverContext {
   SourceEscapeConclude* escape_conclude;
 
   // 阶段 4 输出：所有权转移分析（可选，仅当来源是字段访问时）
-  OwnershipMoveResult* move_result;
+  OwnershipMove* move_result;
 
   // 标记
   bool is_analyzed;
@@ -60,7 +60,7 @@ struct WriteAnalysisDriverContext {
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*& result
+  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*& result
 );
 
 // 驱动所有写入的分析（Pipeline 接口）
@@ -77,14 +77,14 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>*& records
+  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>*& records
 );
 
 // 展开 wrapper 获取各部分
-// 从 Wrapper_WriteInfo_WriteSource_SourceEscapeConclude 提取各分析阶段的结果
+// 从 Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove 提取各分析阶段的结果
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* record,
+  field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* record,
   WriteAnalysisDriverContext& driver_ctx
 );
 

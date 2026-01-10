@@ -69,7 +69,7 @@ ArrayDetectErrorCode summarizeFieldEscapeConclude (
   AD_FUNC_ARGS,
   tree type,
   tree field_decl,
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude*, va_gc>* writes,
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes,
   FieldEscapeConclude** result
 ) AD_FUNCTION_BEGIN {
   if (!result) {
@@ -90,7 +90,7 @@ ArrayDetectErrorCode summarizeFieldEscapeConclude (
   // 遍历所有写入 wrapper
   if (writes) {
     for (unsigned int i = 0; i < writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*writes)[i];
       if (!wrapper) continue;
 
       summary->total_field_writes++;

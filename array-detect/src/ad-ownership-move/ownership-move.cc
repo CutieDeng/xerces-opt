@@ -6,7 +6,6 @@
 // ============================================================================
 
 #include "ownership-move.hh"
-#include "array-detector.hh"
 #include "gcc-ext-util.hh"
 #include "info-print.hh"
 
@@ -343,13 +342,13 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
 // ----------------------------------------------------------------------------
 // 主入口：分析单个字段写入的所有权转移
 // 输入：write_info, write_source
-// 输出：OwnershipMoveResult 指针
+// 输出：OwnershipMove 指针
 
 ArrayDetectErrorCode analyzeOwnershipMove (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
   WriteOriginalSource* write_source,
-  OwnershipMoveResult** out_move
+  OwnershipMove** out_move
 ) AD_FUNCTION_BEGIN {
   if (!write_info || !out_move) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -360,18 +359,18 @@ ArrayDetectErrorCode analyzeOwnershipMove (
 
   // 检查源操作数是否为字段访问
   if (!write_source || write_source->source_type != SOURCE_FIELD_ACCESS) {
-    // 不是字段访问，不适用（不分配 OwnershipMoveResult）
+    // 不是字段访问，不适用（不分配 OwnershipMove）
     AD_RETURNE (OK);
   }
 
   FieldAccessSource const* field_access = &write_source->data.field_access;
 
-  // 分配 OwnershipMoveResult
-  OwnershipMoveResult* result = ggc_alloc<OwnershipMoveResult> ();
+  // 分配 OwnershipMove
+  OwnershipMove* result = ggc_alloc<OwnershipMove> ();
   if (!result) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (result, 0, sizeof (OwnershipMoveResult));
+  memset (result, 0, sizeof (OwnershipMove));
 
   // 填充基本信息
   result->source_field = field_access->access_expr;
@@ -431,71 +430,14 @@ ArrayDetectErrorCode analyzeOwnershipMove (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeAllOwnershipMoves
-// ----------------------------------------------------------------------------
-// Pipeline 接口：分析所有字段写入操作的所有权转移
-
-ArrayDetectErrorCode analyzeAllOwnershipMoves (
-  AD_FUNC_ARGS,
-  ArrayDetector &detector,
-  unsigned int &total_analyzed,
-  unsigned int &total_certain_moves
-) AD_FUNCTION_BEGIN {
-  total_analyzed = 0;
-  total_certain_moves = 0;
-
-  if (!detector.m_type_field_writes) {
-    AD_RETURNE (OK);
-  }
-
-  typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
-
-  for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
-       iter != detector.m_type_field_writes->end ();
-       ++iter) {
-    TypeFieldAnalysisData* tfad = (*iter).second;
-    if (!tfad || !tfad->writes) continue;
-
-    for (unsigned int i = 0; i < tfad->writes->length (); i++) {
-      field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude* wrapper = (*tfad->writes)[i];
-      if (!wrapper || !wrapper->write_info) continue;
-
-      // 分析所有权转移
-      OwnershipMoveResult* move_result = NULL;
-      AD_TRY (analyzeOwnershipMove (
-        AD_ARGS,
-        wrapper->write_info,
-        wrapper->write_source,
-        &move_result
-      ));
-
-      if (move_result) {
-        total_analyzed++;
-        // 打印结果（调试信息）
-        printOwnershipMoveResult (AD_ARGS, ctx.debug_file, move_result);
-
-        if (move_result->verdict == MOVE_CERTAIN) {
-          total_certain_moves++;
-        }
-      }
-    }
-  }
-
-  AD_DEBUG_PRINT ("ownershipMove: %u analyzed, %u certain",
-                  total_analyzed, total_certain_moves);
-
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
-
-// ----------------------------------------------------------------------------
-// printOwnershipMoveResult
+// printOwnershipMove
 // ----------------------------------------------------------------------------
 // 打印所有权转移结果
 
-void printOwnershipMoveResult (
+void printOwnershipMove (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipMoveResult* result
+  OwnershipMove* result
 ) {
   (void)ctx;
   (void)gcc_ctx;
