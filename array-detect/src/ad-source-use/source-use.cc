@@ -2,7 +2,7 @@
 // ad-source-use 模块实现
 // ============================================================================
 // 分析源操作数的 SSA 使用链，收集所有使用点和逃逸信息
-// 数据流：source_operand -> (listof SourceUseInfo)
+// 数据流：source_operand -> (listof wrapper-source-use-info-escaped)
 // ============================================================================
 
 #include "source-use.hh"
@@ -20,6 +20,7 @@
 namespace array_detect_ns {
 
 using namespace ::array_detector;
+using namespace ::field_analysis;
 
 // ============================================================================
 // 内部实现
@@ -193,7 +194,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_detectEscapeKind (
 // ----------------------------------------------------------------------------
 // analyzeSourceUse_traceSSAUseChain_recordUsePoint
 // ----------------------------------------------------------------------------
-// 记录使用点 - 直接写入 SourceUseInfo
+// 记录使用点 - 创建 Wrapper_SourceUseInfo_Escaped
 
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   AD_FUNC_ARGS,
@@ -202,23 +203,40 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
   SourceUseKind use_kind,
   SourceUseEscapeKind escape_kind,
   char const * escape_target,
-  vec<SourceUseInfo>* all_uses
+  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* out_uses
 ) AD_FUNCTION_BEGIN {
-  if (!all_uses) {
+  if (!out_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  SourceUseInfo use_point;
-  use_point.kind = use_kind;
-  use_point.use_stmt = use_stmt;
-  use_point.use_operand = use_operand;
-  use_point.source_location = gimple_location (use_stmt);
-  use_point.bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
-  use_point.escape_kind = escape_kind;
-  use_point.escape_target = escape_target;
-  use_point.target_info.function_decl = NULL;
+  // 分配 Wrapper
+  auto* wrapper = ggc_alloc<Wrapper_SourceUseInfo_Escaped> ();
+  if (!wrapper) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+  memset (wrapper, 0, sizeof (Wrapper_SourceUseInfo_Escaped));
 
-  all_uses->safe_push (use_point);
+  // 分配 SourceUseInfo
+  auto* use_info = ggc_alloc<SourceUseInfo> ();
+  if (!use_info) {
+    AD_RETURNE (MEMORY_ERROR);
+  }
+
+  use_info->kind = use_kind;
+  use_info->use_stmt = use_stmt;
+  use_info->use_operand = use_operand;
+  use_info->source_location = gimple_location (use_stmt);
+  use_info->bb_index = gimple_bb (use_stmt) ? gimple_bb (use_stmt)->index : 0;
+  use_info->escape_kind = escape_kind;
+  use_info->escape_target = escape_target;
+  use_info->target_info.function_decl = NULL;
+
+  // 设置 Wrapper 字段
+  // 注意：escaped_info 由 escaped-use 模块填充，此处只设置 use_info
+  wrapper->use_info = use_info;
+  wrapper->escaped_info = NULL;
+
+  vec_safe_push (out_uses, wrapper);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -231,7 +249,7 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain_recordUsePoint (
 ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
   AD_FUNC_ARGS,
   tree ssa_name,
-  vec<SourceUseInfo>* all_uses,
+  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* out_uses,
   unsigned int depth,
   gimple * exclude_stmt
 ) AD_FUNCTION_BEGIN {
@@ -306,14 +324,14 @@ ArrayDetectErrorCode analyzeSourceUse_traceSSAUseChain (
       // 记录使用点
       AD_TRY (analyzeSourceUse_traceSSAUseChain_recordUsePoint (
         AD_ARGS, use_stmt, ssa_name, use_kind, escape_kind,
-        escape_target, all_uses
+        escape_target, out_uses
       ));
 
       // 如果是简单赋值，继续追踪结果 SSA
       if (use_kind == SU_USE_ASSIGN && is_gimple_assign (use_stmt)) {
         tree lhs = gimple_assign_lhs (use_stmt);
         if (lhs && TREE_CODE (lhs) == SSA_NAME) {
-          AD_TRY (analyzeSourceUse_traceSSAUseChain (AD_ARGS, lhs, all_uses, depth + 1, exclude_stmt));
+          AD_TRY (analyzeSourceUse_traceSSAUseChain (AD_ARGS, lhs, out_uses, depth + 1, exclude_stmt));
         }
       }
     }
@@ -375,24 +393,23 @@ char const * getUseKindString (SourceUseKind kind) {
 // analyzeSourceUse
 // ----------------------------------------------------------------------------
 // 主入口：分析源操作数的所有使用
-// 输出：(listof SourceUseInfo)
+// 输出：(listof wrapper-source-use-info-escaped)
 
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * exclude_stmt,
-  vec<SourceUseInfo>** out_uses
+  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>** out_uses
 ) AD_FUNCTION_BEGIN {
   if (!out_uses) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  // 分配结果向量
-  *out_uses = ggc_alloc<vec<SourceUseInfo>> ();
+  // 使用 vec_alloc 分配 GGC 管理的向量
+  vec_alloc (*out_uses, 4);
   if (!*out_uses) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  (*out_uses)->create (0);
 
   // 追踪 SSA 使用链
   if (source_operand && TREE_CODE (source_operand) == SSA_NAME) {
@@ -430,7 +447,7 @@ ArrayDetectErrorCode collectAllFieldEscapes (
     if (!tfad || !tfad->writes) continue;
 
     for (unsigned i = 0; i < tfad->writes->length (); i++) {
-      field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude * wrapper = (*tfad->writes)[i];
       if (!wrapper || !wrapper->write_info) continue;
 
       // 从 write_info 提取数据进行分析
@@ -438,29 +455,19 @@ ArrayDetectErrorCode collectAllFieldEscapes (
       tree source_operand = write_info->rhs;
       gimple * exclude_stmt = write_info->stmt;
 
-      // 分析源使用
-      vec<SourceUseInfo>* all_uses = NULL;
-      AD_TRY (analyzeSourceUse (AD_ARGS, source_operand, exclude_stmt, &all_uses));
+      // 分析源使用 - 直接获取 wrapper 列表
+      vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
+      AD_TRY (analyzeSourceUse (AD_ARGS, source_operand, exclude_stmt, &uses));
 
-      // 分配并填充 UseWrapper
-      if (!wrapper->uses) {
-        vec_alloc (wrapper->uses, 4);
-      }
-
-      auto* use_wrapper = ggc_alloc<field_analysis::Wrapper_SourceUse_EscapedUse> ();
-      if (!use_wrapper) {
-        AD_RETURNE (MEMORY_ERROR);
-      }
-      memset (use_wrapper, 0, sizeof (field_analysis::Wrapper_SourceUse_EscapedUse));
-      use_wrapper->all_uses = all_uses;
-
-      vec_safe_push (wrapper->uses, use_wrapper);
+      // 直接设置 wrapper->uses
+      wrapper->uses = uses;
       total_analyzed++;
 
       // 检查是否有逃逸
-      if (all_uses) {
-        for (unsigned j = 0; j < all_uses->length (); j++) {
-          if ((*all_uses)[j].is_escape ()) {
+      if (uses) {
+        for (unsigned j = 0; j < uses->length (); j++) {
+          Wrapper_SourceUseInfo_Escaped* use_wrapper = (*uses)[j];
+          if (use_wrapper && use_wrapper->escaped_info) {
             total_escaped++;
             break;
           }

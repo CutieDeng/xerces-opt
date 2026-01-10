@@ -16,28 +16,6 @@ using namespace ::field_analysis;
 namespace {
 
 // ----------------------------------------------------------------------------
-// synthesizeAllFieldEscapes_isSourceUseInfoSafeDebugEscape
-// ----------------------------------------------------------------------------
-// 判断 SourceUseInfo 是否为安全调试逃逸
-
-bool synthesizeAllFieldEscapes_isSourceUseInfoSafeDebugEscape (
-  AD_FUNC_ARGS,
-  SourceUseInfo const * use_info
-) {
-  if (!use_info || use_info->escape_kind == SU_ESCAPE_NONE) {
-    return false;
-  }
-
-  // 只有参数传递和外部调用可能是调试调用
-  if (use_info->escape_kind != SU_ESCAPE_PARAMETER &&
-      use_info->escape_kind != SU_ESCAPE_EXTERNAL_CALL) {
-    return false;
-  }
-
-  return isKnownSafeDebugFunction (AD_ARGS, use_info->escape_target);
-}
-
-// ----------------------------------------------------------------------------
 // countSourceType
 // ----------------------------------------------------------------------------
 // 统计来源类型分布
@@ -198,21 +176,16 @@ ArrayDetectErrorCode synthesizeAllFieldEscapes (
 
       if (wrapper->uses) {
         for (unsigned j = 0; j < wrapper->uses->length (); j++) {
-          Wrapper_SourceUse_EscapedUse * use_wrapper = (*wrapper->uses)[j];
-          if (!use_wrapper) continue;
+          Wrapper_SourceUseInfo_Escaped * use_wrapper = (*wrapper->uses)[j];
+          if (!use_wrapper || !use_wrapper->use_info) continue;
 
-          // 检查是否有逃逸结果
-          if (use_wrapper->escaped_result && use_wrapper->escaped_result->escapes) {
-            for (unsigned k = 0; k < use_wrapper->escaped_result->escapes->length (); k++) {
-              SourceUseInfo const * escape_use = (*use_wrapper->escaped_result->escapes)[k];
-              if (!escape_use) continue;
-
-              total_escape_count++;
-              if (synthesizeAllFieldEscapes_isSourceUseInfoSafeDebugEscape (AD_ARGS, escape_use)) {
-                safe_debug_count++;
-              } else {
-                rejecting_count++;
-              }
+          // 检查是否逃逸
+          if (use_wrapper->escaped_info) {
+            total_escape_count++;
+            if (use_wrapper->escaped_info->is_safe_debug) {
+              safe_debug_count++;
+            } else {
+              rejecting_count++;
             }
           }
         }

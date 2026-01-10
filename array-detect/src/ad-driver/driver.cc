@@ -9,6 +9,7 @@
 #include "driver.hh"
 #include "field-wrapper.hh"
 #include "array-detector.hh"
+#include "escaped-use.hh"
 #include "info-print.hh"
 
 namespace array_detect_ns {
@@ -23,8 +24,7 @@ using namespace ::field_analysis;
 void initDriverContext (WriteAnalysisDriverContext& ctx) {
   ctx.write_info = nullptr;
   ctx.source = nullptr;
-  ctx.all_uses = nullptr;
-  ctx.escaped_uses = nullptr;
+  ctx.uses = nullptr;
   ctx.escape_conclude = nullptr;
   ctx.move_result = nullptr;
   ctx.is_analyzed = false;
@@ -46,8 +46,7 @@ void printDriverContext (
   fprintf (out, "=== WriteAnalysisDriverContext ===\n");
   fprintf (out, "  write_info: %p\n", (void*)driver_ctx.write_info);
   fprintf (out, "  source: %p\n", (void*)driver_ctx.source);
-  fprintf (out, "  all_uses: %p\n", (void*)driver_ctx.all_uses);
-  fprintf (out, "  escaped_uses: %p\n", (void*)driver_ctx.escaped_uses);
+  fprintf (out, "  uses: %p\n", (void*)driver_ctx.uses);
   fprintf (out, "  escape_conclude: %p\n", (void*)driver_ctx.escape_conclude);
   fprintf (out, "  move_result: %p\n", (void*)driver_ctx.move_result);
   fprintf (out, "  is_analyzed: %s\n", driver_ctx.is_analyzed ? "true" : "false");
@@ -83,30 +82,15 @@ ArrayDetectErrorCode driveWriteAnalysis (
   AD_TRY (traceWriteSource (AD_ARGS, dummy_detector, write_info,
     &wrapper->write_source));
 
-  // Step 3: 分析使用链
-  vec<SourceUseInfo>* all_uses = NULL;
-  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, &all_uses));
+  // Step 3: 分析使用链 - 直接获取 Wrapper 列表
+  vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
+  AD_TRY (analyzeSourceUse (AD_ARGS, write_info->rhs, write_info->stmt, &uses));
+  wrapper->uses = uses;
 
-  if (all_uses) {
-    // 内联分配 UseWrapper 并添加到 uses 列表
-    auto* use_wrapper = ggc_alloc<Wrapper_SourceUse_EscapedUse> ();
-    if (use_wrapper) {
-      memset (use_wrapper, 0, sizeof (Wrapper_SourceUse_EscapedUse));
-      use_wrapper->all_uses = all_uses;
+  // Step 3.5: 提取逃逸信息 - 填充每个 wrapper 的 escaped_info
+  AD_TRY (extractEscapedUses (AD_ARGS, wrapper->uses));
 
-      if (!wrapper->uses) {
-        vec_alloc (wrapper->uses, 4);
-      }
-      vec_safe_push (wrapper->uses, use_wrapper);
-
-      // Step 4: 提取逃逸使用
-      EscapedUseResult* escaped_result = NULL;
-      AD_TRY (extractEscapedUses (AD_ARGS, all_uses, &escaped_result));
-      use_wrapper->escaped_result = escaped_result;
-    }
-  }
-
-  // Step 5: 生成源级逃逸结论
+  // Step 4: 生成源级逃逸结论
   // 统计所有 uses 中的逃逸
   unsigned int total_escapes = 0;
   unsigned int safe_debug_escapes = 0;
@@ -115,15 +99,12 @@ ArrayDetectErrorCode driveWriteAnalysis (
 
   if (wrapper->uses) {
     for (unsigned int i = 0; i < wrapper->uses->length (); i++) {
-      Wrapper_SourceUse_EscapedUse* uw = (*wrapper->uses)[i];
-      if (!uw || !uw->escaped_result || !uw->escaped_result->escapes) continue;
+      Wrapper_SourceUseInfo_Escaped* uw = (*wrapper->uses)[i];
+      if (!uw || !uw->use_info) continue;
 
-      for (unsigned int j = 0; j < uw->escaped_result->escapes->length (); j++) {
-        SourceUseInfo const* escape_use = (*uw->escaped_result->escapes)[j];
-        if (!escape_use) continue;
-
+      if (uw->escaped_info) {
         total_escapes++;
-        if (isSafeDebugEscape (AD_ARGS, escape_use)) {
+        if (uw->escaped_info->is_safe_debug) {
           safe_debug_escapes++;
         } else {
           rejecting_escapes++;
@@ -187,32 +168,18 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
 
       // Step 2: 分析使用链（如果尚未分析）
       if (!wrapper->uses && wrapper->write_info) {
-        vec<SourceUseInfo>* all_uses = NULL;
+        vec<Wrapper_SourceUseInfo_Escaped*, va_gc>* uses = NULL;
         AD_TRY (analyzeSourceUse (AD_ARGS,
           wrapper->write_info->rhs,
           wrapper->write_info->stmt,
-          &all_uses));
+          &uses));
+        wrapper->uses = uses;
 
-        if (all_uses) {
-          auto* use_wrapper = ggc_alloc<Wrapper_SourceUse_EscapedUse> ();
-          if (use_wrapper) {
-            memset (use_wrapper, 0, sizeof (Wrapper_SourceUse_EscapedUse));
-            use_wrapper->all_uses = all_uses;
-
-            if (!wrapper->uses) {
-              vec_alloc (wrapper->uses, 4);
-            }
-            vec_safe_push (wrapper->uses, use_wrapper);
-
-            // Step 3: 提取逃逸使用
-            EscapedUseResult* escaped_result = NULL;
-            AD_TRY (extractEscapedUses (AD_ARGS, all_uses, &escaped_result));
-            use_wrapper->escaped_result = escaped_result;
-          }
-        }
+        // Step 2.5: 提取逃逸信息
+        AD_TRY (extractEscapedUses (AD_ARGS, wrapper->uses));
       }
 
-      // Step 4: 生成源级逃逸结论（如果尚未生成）
+      // Step 3: 生成源级逃逸结论（如果尚未生成）
       if (!wrapper->escape_conclude && wrapper->uses) {
         unsigned int total_escapes = 0;
         unsigned int safe_debug_escapes = 0;
@@ -220,15 +187,12 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
         bool has_rejecting = false;
 
         for (unsigned int j = 0; j < wrapper->uses->length (); j++) {
-          Wrapper_SourceUse_EscapedUse* uw = (*wrapper->uses)[j];
-          if (!uw || !uw->escaped_result || !uw->escaped_result->escapes) continue;
+          Wrapper_SourceUseInfo_Escaped* uw = (*wrapper->uses)[j];
+          if (!uw || !uw->use_info) continue;
 
-          for (unsigned int k = 0; k < uw->escaped_result->escapes->length (); k++) {
-            SourceUseInfo const* escape_use = (*uw->escaped_result->escapes)[k];
-            if (!escape_use) continue;
-
+          if (uw->escaped_info) {
             total_escapes++;
-            if (isSafeDebugEscape (AD_ARGS, escape_use)) {
+            if (uw->escaped_info->is_safe_debug) {
               safe_debug_escapes++;
             } else {
               rejecting_escapes++;
@@ -316,15 +280,7 @@ ArrayDetectErrorCode unwrapAnalysis (
   driver_ctx.write_info = record->write_info;
   driver_ctx.source = record->write_source;
   driver_ctx.escape_conclude = record->escape_conclude;
-
-  // 提取第一个 use 的结果（如果有）
-  if (record->uses && record->uses->length () > 0) {
-    Wrapper_SourceUse_EscapedUse* first_use = (*record->uses)[0];
-    if (first_use) {
-      driver_ctx.all_uses = first_use->all_uses;
-      driver_ctx.escaped_uses = first_use->escaped_result;
-    }
-  }
+  driver_ctx.uses = record->uses;
 
   driver_ctx.is_analyzed = true;
   driver_ctx.has_error = false;

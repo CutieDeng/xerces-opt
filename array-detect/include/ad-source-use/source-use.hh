@@ -6,6 +6,7 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "field-write.hh"
+#include "field-wrapper.hh"
 
 namespace array_detector {
   class ArrayDetector;
@@ -98,12 +99,12 @@ constexpr unsigned int MAX_ESCAPE_ANALYSIS_DEPTH = 5;
 // ============================================================================
 
 // 主入口：分析源操作数的所有使用
-// 数据流：source_operand -> (listof SourceUseInfo)
+// 数据流：source_operand -> (listof wrapper-source-use-info-escaped)
 ArrayDetectErrorCode analyzeSourceUse (
   AD_FUNC_ARGS,
   tree source_operand,
   gimple * exclude_stmt,
-  vec<SourceUseInfo>** out_uses
+  vec<field_analysis::Wrapper_SourceUseInfo_Escaped*, va_gc>** out_uses
 );
 
 // ============================================================================

@@ -15,7 +15,6 @@
 #include "field-write.hh"
 #include "write-source.hh"
 #include "source-use.hh"
-#include "escaped-use.hh"
 #include "source-escape.hh"
 #include "ownership-move.hh"
 #include "field-wrapper.hh"
@@ -38,16 +37,13 @@ struct WriteAnalysisDriverContext {
   // 阶段 1 输出：写入来源
   WriteOriginalSource* source;
 
-  // 阶段 2 输出：使用分析
-  vec<SourceUseInfo>* all_uses;
+  // 阶段 2 输出：使用分析（每个 wrapper 包含 use_info 和 escaped_info）
+  vec<field_analysis::Wrapper_SourceUseInfo_Escaped*, va_gc>* uses;
 
-  // 阶段 3 输出：逃逸使用
-  EscapedUseResult* escaped_uses;
-
-  // 阶段 4 输出：源级逃逸结论
+  // 阶段 3 输出：源级逃逸结论
   SourceEscapeConclude* escape_conclude;
 
-  // 阶段 5 输出：所有权转移分析（可选，仅当来源是字段访问时）
+  // 阶段 4 输出：所有权转移分析（可选，仅当来源是字段访问时）
   OwnershipMoveResult* move_result;
 
   // 标记
