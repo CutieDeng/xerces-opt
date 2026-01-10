@@ -2,7 +2,7 @@
 
 #include "gcc-common.hh"
 #include "prelude.hh"
-#include "field-write.hh"
+#include "virtual-call-analysis.hh"
 #include "field-wrapper.hh"
 
 namespace array_detector {

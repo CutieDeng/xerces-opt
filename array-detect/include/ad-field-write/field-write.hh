@@ -69,27 +69,6 @@ struct FieldWriteInfo {
   int bb_index;                 // 基本块索引
 };
 
-// ============================================================================
-// 数据结构：源操作信息（函数调用）
-// ============================================================================
-
-enum CallType {
-  CALL_VIRTUAL,     // C++ 虚函数调用
-  CALL_DIRECT,      // 直接函数调用
-  CALL_INDIRECT,    // 间接函数调用（函数指针）
-  CALL_UNKNOWN      // 未知类型调用
-};
-
-struct SourceOperation {
-  gimple * call_stmt;           // GIMPLE_CALL 语句（GCC 内部管理）
-  CallType call_type;          // 调用类型
-  char const * function_name;   // 函数名（mangled，ggc_strdup 分配）
-  tree return_value_ssa;       // 返回值的 SSA_NAME（GCC 内部管理）
-  tree vtable_ref;             // 虚表引用（如果是虚函数，GCC 内部管理）
-  char const * signature;       // 调用签名（ggc_strdup 分配）
-  location_t location;         // 调用位置（GCC 内部管理）
-};
-
 } // namespace array_detect_ns
 
 // ============================================================================
