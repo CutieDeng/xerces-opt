@@ -52,6 +52,12 @@ namespace array_detect_ns {
   struct ReadCapacityEvidence;
   struct WriteCapacityEvidence;
   struct CapacityConclude;
+  // 数组读取分析相关
+  struct ArrayReadAccess;
+  struct ReadBoundCondition;
+  // 数组写入分析相关
+  struct ArrayWriteAccess;
+  struct WriteBoundCondition;
 }
 
 namespace array_detector {
@@ -74,6 +80,30 @@ namespace field_analysis {
 struct Wrapper_SourceUseInfo_SourceEscapeUseInfo {
   ::array_detect_ns::SourceUseInfo* use_info;
   ::array_detect_ns::SourceEscapeUseInfo* escape_use_info;  // 非逃逸时为 NULL
+};
+
+// ----------------------------------------------------------------------------
+// 层级1.5：数组读取的 Wrapper (per array-read)
+// ----------------------------------------------------------------------------
+// (wrapper-array-read-access-read-bound-conditions
+//   read-access       : array-read-access              ; 数组读取访问
+//   bound-conditions  : (listof read-bound-condition)) ; 边界条件列表 (一对多)
+
+struct Wrapper_ArrayReadAccess_ReadBoundConditions {
+  ::array_detect_ns::ArrayReadAccess* read_access;
+  vec<::array_detect_ns::ReadBoundCondition*, va_gc>* bound_conditions;  // 一对多
+};
+
+// ----------------------------------------------------------------------------
+// 层级1.5b：数组写入的 Wrapper (per array-write)
+// ----------------------------------------------------------------------------
+// (wrapper-array-write-access-write-bound-conditions
+//   write-access       : array-write-access              ; 数组写入访问
+//   bound-conditions   : (listof write-bound-condition)) ; 边界条件列表 (一对多)
+
+struct Wrapper_ArrayWriteAccess_WriteBoundConditions {
+  ::array_detect_ns::ArrayWriteAccess* write_access;
+  vec<::array_detect_ns::WriteBoundCondition*, va_gc>* bound_conditions;  // 一对多
 };
 
 // ----------------------------------------------------------------------------
@@ -117,6 +147,12 @@ struct Wrapper_FieldEscapeConclude_OwnershipConclude {
 
   // === 所有权分析结论 ===
   ::array_detect_ns::OwnershipConclude* ownership_conclude;
+
+  // === 数组读取分析 (per-read wrappers, 一对多) ===
+  vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>* array_reads;
+
+  // === 数组写入分析 (per-write wrappers, 一对多) ===
+  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* array_writes;
 
   // === 容量关联分析（三种证据）===
   vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>* malloc_evidences;

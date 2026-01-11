@@ -34,6 +34,8 @@
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "field-write-capacity.hh"
+#include "array-read-collect.hh"
+#include "array-read-bound.hh"
 #include "array-read-capacity.hh"
 #include "array-write-capacity.hh"
 #include "capacity-conclude.hh"
@@ -212,7 +214,7 @@ ArrayDetectErrorCode runPipeline (
   }
 
   // ========================================================================
-  // Step 7: 分析数组读容量关联 (ad-array-read-capacity)
+  // Step 7: 分析数组读容量关联 (ad-array-read-collect + ad-array-read-bound)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_READ_CAPACITY;
 
@@ -225,10 +227,55 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (collectAllReadEvidences (AD_ARGS, tfad));
+      // Step 7a: 收集数组读取访问 (ad-array-read-collect)
+      vec<ArrayReadAccess*, va_gc>* read_accesses = NULL;
+      AD_TRY (collectAllArrayReadAccesses (AD_ARGS, tfad->type, tfad->field_decl, &read_accesses));
+
+      if (!read_accesses || read_accesses->length () == 0) continue;
+
+      // Step 7b: 为每个读取分析边界条件并创建 Wrapper (ad-array-read-bound, 一对多)
+      for (unsigned i = 0; i < read_accesses->length (); i++) {
+        ArrayReadAccess* access = (*read_accesses)[i];
+        if (!access) continue;
+
+        // 分析所有边界条件 (一对多)
+        vec<ReadBoundCondition*, va_gc>* bound_conds = NULL;
+        AD_TRY (analyzeReadBoundConditions (AD_ARGS, access, &bound_conds));
+
+        // 创建 Wrapper (一对多)
+        Wrapper_ArrayReadAccess_ReadBoundConditions* wrapper =
+          ggc_alloc<Wrapper_ArrayReadAccess_ReadBoundConditions>();
+        wrapper->read_access = access;
+        wrapper->bound_conditions = bound_conds;
+
+        // 延迟初始化 array_reads
+        if (!tfad->array_reads) {
+          vec_alloc (tfad->array_reads, read_accesses->length ());
+        }
+        vec_safe_push (tfad->array_reads, wrapper);
+
+        // 为每个边界条件提取证据
+        if (bound_conds) {
+          for (unsigned j = 0; j < bound_conds->length (); j++) {
+            ReadBoundCondition* bound_cond = (*bound_conds)[j];
+            if (!bound_cond) continue;
+
+            ReadCapacityEvidence* evidence = NULL;
+            AD_TRY (extractReadCapacityEvidence (AD_ARGS, tfad->field_decl, bound_cond, &evidence));
+
+            if (evidence) {
+              // 延迟初始化 read_evidences
+              if (!tfad->read_evidences) {
+                vec_alloc (tfad->read_evidences, 4);
+              }
+              vec_safe_push (tfad->read_evidences, evidence);
+            }
+          }
+        }
+      }
     }
 
-    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs");
+    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs (split modules)");
   }
 
   // ========================================================================
