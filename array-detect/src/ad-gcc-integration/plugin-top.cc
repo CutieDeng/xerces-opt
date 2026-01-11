@@ -47,8 +47,11 @@ namespace {
 // LTO hook functions
 // ============================================================================
 
+// NOTE: LTO summary conversion from UnifiedFieldAnalysisResult has been removed.
+// The result-aggregator module was deleted. LTO summary functionality needs
+// to be re-implemented based on the new ad-array-read-capacity / ad-array-write-capacity modules.
+
 // Store results from execute() for later serialization
-static vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* g_wpa_results = nullptr;
 static bool g_wpa_analysis_done = false;
 static ::array_detect_ns::ArrayDetectContextGcc g_plugin_gcc_ctx;
 
@@ -78,8 +81,8 @@ static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
   ::array_detect_ns::ArrayDetectErrorCode result =
     ::array_detect_ns::runArrayDetect (local_ctx, local_gcc_ctx);
 
-  g_wpa_results =
-    (vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>*) local_ctx.unified_results;
+  // NOTE: Result storage for LTO summary has been removed.
+  // The UnifiedFieldAnalysisResult type was deleted along with result-aggregator module.
   g_wpa_analysis_done = true;
   return result;
 }
@@ -87,9 +90,9 @@ static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
 // Called after execute() to generate summary data
 static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
   (void) gcc_ctx;
-  AD_DEBUG_PRINT ("[ipa_generate_summary] called, g_wpa_results=%p", (void*)g_wpa_results);
+  AD_DEBUG_PRINT ("[ipa_generate_summary] called");
 
-  if (isWpaPhase () && !g_wpa_results && !g_wpa_analysis_done) {
+  if (isWpaPhase () && !g_wpa_analysis_done) {
     if (!getenv ("AD_ALLOW_WPA_ANALYSIS")) {
       AD_DEBUG_PRINT ("[ipa_generate_summary] WPA: skip analysis (set AD_ALLOW_WPA_ANALYSIS=1 to enable)");
       g_wpa_analysis_done = true;
@@ -99,21 +102,14 @@ static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
     }
   }
 
-  if (!in_lto_p && flag_generate_lto && !g_wpa_results && !g_wpa_analysis_done) {
+  if (!in_lto_p && flag_generate_lto && !g_wpa_analysis_done) {
     AD_DEBUG_PRINT ("[ipa_generate_summary] LGEN: running analysis for summary");
     runAnalysisAndStoreResults ();
   }
 
-  // Results already collected in execute(), convert to LTO summary format
-  if (g_wpa_results && !g_wpa_results->is_empty ()) {
-    // Get current source file name
-    char const* tu_file = main_input_filename ? main_input_filename : (in_lto_p ? "<lto-wpa>" : "<unknown>");
-
-    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
-      ::array_detect_ns::convertAllToLtoSummaries (g_wpa_results, tu_file);
-
-    ::array_detect_ns::setWpaLtoSummaries (summaries);
-  }
+  // NOTE: LTO summary conversion has been removed.
+  // The convertAllToLtoSummaries function was deleted along with result-aggregator module.
+  // To re-enable LTO summary, implement conversion from the new capacity analysis modules.
 
   if (!in_lto_p && flag_generate_lto && shouldEnableLtoSummaryBlob ()) {
     ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);

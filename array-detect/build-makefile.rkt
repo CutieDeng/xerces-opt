@@ -358,26 +358,31 @@
   (define output-so-path (build-path out-dir (format "plugin-array-detect.~a" so-ext)))
   (define modules
     '(;; 核心基础设施模块
-      "array-detect-core"
-      "array-detect-context"
-      "array-detect-gcc-integration"
-      "array-detect-utils"
-      "array-detect-lto-transform"
+      "ad-core"
+      "ad-context"
+      "ad-gcc-integration"
+      "ad-utils"
+      "ad-lto-transform"
       ;; ad- 数据结构模块
       "ad-field-write"
       "ad-write-source"
       "ad-source-use-info"
       "ad-ownership-move"
+      "ad-ownership-conclude"
       "ad-source-escape-use-info"
       "ad-source-escape-conclude"
       "ad-field-escape-conclude"
       "ad-field-wrapper"
-      ;; ad- 分析模块 (renamed from array-detect-*)
+      ;; ad- 分析模块
       "ad-owned-verdict"
-      "ad-capacity-associator"
-      "ad-array-access"
-      "ad-bound-condition"
-      "ad-result-aggregator"
+      "ad-field-write-capacity"
+      "ad-array-read-capacity"
+      "ad-array-write-capacity"
+      "ad-capacity-conclude"
+      "ad-array-read-collect"
+      "ad-array-read-bound"
+      "ad-array-write-collect"
+      "ad-array-write-bound"
       ;; ad- 控制流模块
       "ad-pipeline"
       "ad-driver"))

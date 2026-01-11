@@ -70,36 +70,17 @@ void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS);
 void readArrayDetectLtoSummarySections (AD_FUNC_ARGS);
 
 // ============================================================================
-// Conversion from analysis results
+// Conversion from analysis results (已废弃)
 // ============================================================================
 
-struct UnifiedFieldAnalysisResult;  // Forward declaration
-
-// Convert analysis result to LTO-serializable summary
-LtoUnifiedResultSummary* convertToLtoSummary (
-  UnifiedFieldAnalysisResult* result,
-  char const* tu_source_file
-);
-
-// Convert all results
-vec<LtoUnifiedResultSummary*, va_gc>* convertAllToLtoSummaries (
-  vec<UnifiedFieldAnalysisResult*, va_gc>* results,
-  char const* tu_source_file
-);
+// NOTE: convertToLtoSummary 和 convertAllToLtoSummaries 已移除
+// 这些函数依赖已废弃的 result-aggregator 模块
+// 如需 LTO 功能，请基于新的 ad-array-read-capacity / ad-array-write-capacity 模块重新实现
 
 // ============================================================================
-// LTRANS aggregation
+// LTRANS aggregation (已废弃)
 // ============================================================================
 
-// Merge summaries from multiple TUs by (type_name, field_name)
-// Returns aggregated results ready for final output
-vec<LtoUnifiedResultSummary*, va_gc>* aggregateLtransSummaries ();
-
-// Write final aggregated results to Racket datum (called in LTRANS)
-// Uses OVERWRITE mode (not append)
-void writeLtransAggregatedResults (char const* output_path);
-
-// Legacy: append mode (deprecated, use writeLtransAggregatedResults instead)
-void writeLtransResultsToRacketDatum (char const* output_path);
+// NOTE: aggregateLtransSummaries, writeLtransAggregatedResults, writeLtransResultsToRacketDatum 已移除
 
 } // namespace array_detect_ns

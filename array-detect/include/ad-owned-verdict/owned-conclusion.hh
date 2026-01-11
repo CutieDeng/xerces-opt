@@ -178,6 +178,5 @@ void printAllFieldOwnedConclusions (
 );
 
 // NOTE: writeResultsToRacketDatum() 已被删除
-// 请使用 result-aggregator.hh 中的 writeUnifiedResultsToRacketDatum()
 
 } // namespace array_detect_ns

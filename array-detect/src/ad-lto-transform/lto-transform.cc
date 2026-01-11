@@ -35,34 +35,10 @@ static void ensureLtransSummariesFromAnalysis (AD_FUNC_ARGS) {
 
   AD_DEBUG_PRINT ("[ensureLtransSummariesFromAnalysis] fallback analysis");
 
-  ::array_detect_ns::ArrayDetectContext analysis_ctx;
-  ::array_detect_ns::ArrayDetectContextGcc analysis_gcc_ctx;
-
-  ::array_detect_ns::initGccContext (analysis_ctx, analysis_gcc_ctx);
-  ::array_detect_ns::ArrayDetectErrorCode err =
-    ::array_detect_ns::initContextAdaptive (analysis_ctx, analysis_gcc_ctx);
-  if (err != ::array_detect_ns::OK) {
-    ::array_detect_ns::deinitContext (analysis_ctx, analysis_gcc_ctx);
-    return;
-  }
-
-  err = ::array_detect_ns::runArrayDetectorAnalysis (analysis_ctx, analysis_gcc_ctx);
-  vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>* results =
-    (vec<::array_detect_ns::UnifiedFieldAnalysisResult*, va_gc>*) analysis_ctx.unified_results;
-
-  if (err == ::array_detect_ns::OK && results && !results->is_empty ()) {
-    vec<LtoUnifiedResultSummary*, va_gc>* summaries =
-      ::array_detect_ns::convertAllToLtoSummaries (results, "<ltrans>");
-    if (summaries && !summaries->is_empty ()) {
-      ::array_detect_ns::setWpaLtoSummaries (summaries);
-      ::array_detect_ns::clearLtransLtoSummaries ();
-      ::array_detect_ns::appendLtransLtoSummaries (summaries);
-      AD_DEBUG_PRINT ("[ensureLtransSummariesFromAnalysis] populated summaries=%u",
-                      summaries->length ());
-    }
-  }
-
-  ::array_detect_ns::deinitContext (analysis_ctx, analysis_gcc_ctx);
+  // NOTE: LTO summary conversion from UnifiedFieldAnalysisResult has been removed.
+  // The result-aggregator module was deleted. Fallback analysis for LTRANS is disabled.
+  // To re-enable, implement conversion from the new capacity analysis modules.
+  AD_DEBUG_PRINT ("[ensureLtransSummariesFromAnalysis] fallback analysis disabled - result-aggregator module removed");
 }
 
 // ============================================================================
@@ -91,11 +67,13 @@ bool initLtoTransformContext (AD_FUNC_ARGS, LtoTransformContext* transform_ctx) 
   // Load summaries from LTO sections (populated by ipa_read_summary).
   ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
   bool loaded_from_section = hasLtransLtoSummaries ();
-  vec<LtoUnifiedResultSummary*, va_gc>* summaries = aggregateLtransSummaries ();
+  // NOTE: aggregateLtransSummaries was removed along with result-aggregator module.
+  // Using getLtransLtoSummaries instead.
+  vec<LtoUnifiedResultSummary*, va_gc>* summaries = getLtransLtoSummaries ();
   if (!summaries || summaries->is_empty ()) {
     AD_DEBUG_PRINT ("[initLtoTransformContext] WARNING: LTO summary blob missing; falling back to LTRANS analysis");
     ensureLtransSummariesFromAnalysis (AD_ARGS);
-    summaries = aggregateLtransSummaries ();
+    summaries = getLtransLtoSummaries ();
     if (!summaries || summaries->is_empty ()) {
       summaries = getWpaLtoSummaries ();
     }
@@ -444,7 +422,9 @@ unsigned int runLtoTransform (AD_FUNC_ARGS, function* fn) {
     if (!g_ltrans_aggregated_written) {
       char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
       if (aggregated_file) {
-        ::array_detect_ns::writeLtransAggregatedResults (aggregated_file);
+        // NOTE: writeLtransAggregatedResults was removed along with result-aggregator module.
+        // To re-enable, implement based on new capacity analysis modules.
+        (void) aggregated_file;
       }
       g_ltrans_aggregated_written = true;
     }
