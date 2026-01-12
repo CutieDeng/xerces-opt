@@ -81,6 +81,13 @@ static ArrayDetectErrorCode traceBasePointerToField (
           current = rhs;
           continue;
         }
+
+        // POINTER_PLUS_EXPR: arr[i] 变成 arr + i*sizeof(elem)
+        // 追溯第一个操作数（基指针）
+        if (rhs_code == POINTER_PLUS_EXPR) {
+          current = rhs;  // rhs1 是基指针
+          continue;
+        }
       }
       break;
     }
