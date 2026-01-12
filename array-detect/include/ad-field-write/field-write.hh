@@ -82,8 +82,6 @@ namespace array_detector {
 
 namespace array_detect_ns {
 
-using array_detector::ArrayDetector;
-
 // ============================================================================
 // 公开接口
 // ============================================================================
@@ -93,7 +91,7 @@ using array_detector::ArrayDetector;
 // 结果存入 detector.m_type_field_writes
 ArrayDetectErrorCode collectAllFieldWrites (
   AD_FUNC_ARGS,
-  ArrayDetector& detector
+  ::array_detector::ArrayDetector& detector
 );
 
 // 检查语句是否为字段写入

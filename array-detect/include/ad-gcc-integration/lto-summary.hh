@@ -70,17 +70,36 @@ void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS);
 void readArrayDetectLtoSummarySections (AD_FUNC_ARGS);
 
 // ============================================================================
-// Conversion from analysis results (已废弃)
+// Conversion from analysis results
 // ============================================================================
 
-// NOTE: convertToLtoSummary 和 convertAllToLtoSummaries 已移除
-// 这些函数依赖已废弃的 result-aggregator 模块
-// 如需 LTO 功能，请基于新的 ad-array-read-capacity / ad-array-write-capacity 模块重新实现
+// 前向声明
+struct FieldOwnedConclusion;
 
-// ============================================================================
-// LTRANS aggregation (已废弃)
-// ============================================================================
+namespace field_analysis {
+  struct Wrapper_FieldEscapeConclude_OwnershipConclude;
+}
 
-// NOTE: aggregateLtransSummaries, writeLtransAggregatedResults, writeLtransResultsToRacketDatum 已移除
+namespace array_detector {
+  class ArrayDetector;
+}
+
+// 从 FieldOwnedConclusion 转换为 LtoUnifiedResultSummary
+// conclusion: 字段 owned 结论
+// tfad: 对应的 TypeFieldAnalysisData (用于获取 capacity 证据)
+LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
+  AD_FUNC_ARGS,
+  FieldOwnedConclusion* conclusion,
+  field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+);
+
+// 批量转换所有 FieldOwnedConclusion 为 LtoUnifiedResultSummary
+// conclusions: 字段 owned 结论列表
+// detector: ArrayDetector (用于查找对应的 TypeFieldAnalysisData)
+vec<LtoUnifiedResultSummary*, va_gc>* convertAllFieldOwnedConclusionsToLtoSummaries (
+  AD_FUNC_ARGS,
+  vec<FieldOwnedConclusion*, va_gc>* conclusions,
+  ::array_detector::ArrayDetector& detector
+);
 
 } // namespace array_detect_ns

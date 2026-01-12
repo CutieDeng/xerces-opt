@@ -43,6 +43,10 @@
 #include "write-group.hh"
 #include "capacity-conclude.hh"
 #include "owned-conclusion.hh"
+#include "lto-summary.hh"
+
+// For flag_generate_lto
+#include "options.h"
 
 namespace array_detect_ns {
 
@@ -325,6 +329,19 @@ ArrayDetectErrorCode runPipeline (
   if (owned_conclusions) {
     AD_DEBUG_PRINT ("ownedConclusion: %u fields analyzed",
                     (unsigned)owned_conclusions->length ());
+  }
+
+  // ========================================================================
+  // Step 10b: LTO summary 转换 (仅在 -flto 编译时)
+  // ========================================================================
+  if (flag_generate_lto && owned_conclusions) {
+    vec<LtoUnifiedResultSummary*, va_gc>* lto_summaries =
+      convertAllFieldOwnedConclusionsToLtoSummaries (AD_ARGS, owned_conclusions, detector);
+    if (lto_summaries && lto_summaries->length () > 0) {
+      setWpaLtoSummaries (lto_summaries);
+      AD_DEBUG_PRINT ("ltoSummary: %u summaries prepared for serialization",
+                      (unsigned)lto_summaries->length ());
+    }
   }
 
   // ========================================================================

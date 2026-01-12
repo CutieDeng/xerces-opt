@@ -13,13 +13,11 @@ namespace array_detector {
 
 namespace array_detect_ns {
 
-using array_detector::ArrayDetector;
-
 // ----------------------------------------------------------------------------
 // printResults 函数（需要在 ArrayDetector 定义之后）
 // ----------------------------------------------------------------------------
 
-ArrayDetectErrorCode printResults (AD_FUNC_ARGS, ArrayDetector &detector);
+ArrayDetectErrorCode printResults (AD_FUNC_ARGS, ::array_detector::ArrayDetector &detector);
 
 // ----------------------------------------------------------------------------
 // 调试输出函数：打印 GIMPLE_CALL 语句的详细信息

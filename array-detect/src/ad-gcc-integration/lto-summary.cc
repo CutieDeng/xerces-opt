@@ -5,6 +5,9 @@
 #include "context.hh"
 #include "prelude.hh"
 #include "stor-layout.h"
+#include "owned-conclusion.hh"
+#include "array-detector.hh"
+#include "string-utils.hh"
 
 namespace array_detect_ns {
 
@@ -669,8 +672,157 @@ void readArrayDetectLtoSummarySections (AD_FUNC_ARGS) {
   g_ltrans_summaries_loaded = true;
 }
 
-// NOTE: convertToLtoSummary 和相关函数已移除
-// 这些函数依赖已废弃的 result-aggregator, array-access-collector, bound-condition-analyzer 模块
-// 如需 LTO 功能，请基于新的 ad-array-read-capacity / ad-array-write-capacity 模块重新实现
+// ============================================================================
+// Conversion from FieldOwnedConclusion to LtoUnifiedResultSummary
+// ============================================================================
+
+LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
+  AD_FUNC_ARGS,
+  FieldOwnedConclusion* conclusion,
+  ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+) {
+  if (!conclusion) return nullptr;
+
+  LtoUnifiedResultSummary* summary =
+    (LtoUnifiedResultSummary*) ggc_alloc_atomic (sizeof (LtoUnifiedResultSummary));
+  memset (summary, 0, sizeof (*summary));
+
+  // === 基本标识信息 ===
+  summary->tu_source_file = dup_cstr (main_input_filename);
+  summary->type_uid = conclusion->type ? TYPE_UID (conclusion->type) : 0;
+  summary->ptr_field_uid = conclusion->field_decl ? DECL_UID (conclusion->field_decl) : 0;
+  summary->type_name = dup_cstr (conclusion->type_name ? conclusion->type_name : "<anon>");
+  summary->ptr_field_name = dup_cstr (conclusion->field_name ? conclusion->field_name : "<anon>");
+  summary->owned_verdict = conclusion->verdict;
+
+  // === 模板参数 (如果类型是模板实例) ===
+  summary->template_args = nullptr;
+  // TODO: 从 conclusion->type 提取模板参数 (如果需要)
+
+  // === 从 tfad 提取 capacity 证据 ===
+  if (tfad) {
+    // 提取 malloc 容量关联的整数字段名称
+    if (tfad->malloc_evidences_map) {
+      unsigned int count = 0;
+      // 先统计数量
+      for (auto iter = tfad->malloc_evidences_map->begin ();
+           iter != tfad->malloc_evidences_map->end ();
+           ++iter) {
+        count++;
+      }
+      if (count) {
+        vec_alloc (summary->malloc_size_field_uids, count);
+        vec_alloc (summary->malloc_size_field_names, count);
+        for (auto iter = tfad->malloc_evidences_map->begin ();
+             iter != tfad->malloc_evidences_map->end ();
+             ++iter) {
+          tree integer_field = (*iter).first;
+          vec_safe_push (summary->malloc_size_field_uids,
+                         integer_field ? DECL_UID (integer_field) : 0u);
+          char const* name = safeGetFieldName (AD_ARGS, integer_field);
+          vec_safe_push (summary->malloc_size_field_names, dup_cstr (name));
+        }
+      }
+    }
+
+    // 提取 read 证据 (按 integer_field 分组)
+    if (tfad->read_evidences_map) {
+      unsigned int count = 0;
+      for (auto iter = tfad->read_evidences_map->begin ();
+           iter != tfad->read_evidences_map->end ();
+           ++iter) {
+        count++;
+      }
+      if (count) {
+        vec_alloc (summary->reads, count);
+        for (auto iter = tfad->read_evidences_map->begin ();
+             iter != tfad->read_evidences_map->end ();
+             ++iter) {
+          tree integer_field = (*iter).first;
+          LtoRelatedFieldsSummary* rf =
+            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
+          memset (rf, 0, sizeof (*rf));
+          vec_alloc (rf->field_uids, 1);
+          vec_alloc (rf->field_names, 1);
+          vec_safe_push (rf->field_uids, integer_field ? DECL_UID (integer_field) : 0u);
+          char const* name = safeGetFieldName (AD_ARGS, integer_field);
+          vec_safe_push (rf->field_names, dup_cstr (name));
+          vec_safe_push (summary->reads, rf);
+        }
+      }
+    }
+
+    // 提取 write 证据 (按 integer_field 分组)
+    if (tfad->write_evidences_map) {
+      unsigned int count = 0;
+      for (auto iter = tfad->write_evidences_map->begin ();
+           iter != tfad->write_evidences_map->end ();
+           ++iter) {
+        count++;
+      }
+      if (count) {
+        vec_alloc (summary->writes, count);
+        for (auto iter = tfad->write_evidences_map->begin ();
+             iter != tfad->write_evidences_map->end ();
+             ++iter) {
+          tree integer_field = (*iter).first;
+          LtoRelatedFieldsSummary* wf =
+            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
+          memset (wf, 0, sizeof (*wf));
+          vec_alloc (wf->field_uids, 1);
+          vec_alloc (wf->field_names, 1);
+          vec_safe_push (wf->field_uids, integer_field ? DECL_UID (integer_field) : 0u);
+          char const* name = safeGetFieldName (AD_ARGS, integer_field);
+          vec_safe_push (wf->field_names, dup_cstr (name));
+          vec_safe_push (summary->writes, wf);
+        }
+      }
+    }
+  }
+
+  return summary;
+}
+
+vec<LtoUnifiedResultSummary*, va_gc>* convertAllFieldOwnedConclusionsToLtoSummaries (
+  AD_FUNC_ARGS,
+  vec<FieldOwnedConclusion*, va_gc>* conclusions,
+  ::array_detector::ArrayDetector& detector
+) {
+  if (!conclusions || conclusions->is_empty ()) {
+    return nullptr;
+  }
+
+  vec<LtoUnifiedResultSummary*, va_gc>* summaries = nullptr;
+  vec_alloc (summaries, conclusions->length ());
+
+  for (unsigned i = 0; i < conclusions->length (); i++) {
+    FieldOwnedConclusion* conclusion = (*conclusions)[i];
+    if (!conclusion) continue;
+
+    // 查找对应的 TypeFieldAnalysisData
+    ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad = nullptr;
+    if (detector.m_type_field_writes && conclusion->type && conclusion->field_decl) {
+      ::array_detector::TypeFieldKey key = {
+        TYPE_MAIN_VARIANT (conclusion->type),
+        conclusion->field_decl
+      };
+      ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude** slot =
+        detector.m_type_field_writes->get (key);
+      if (slot) {
+        tfad = *slot;
+      }
+    }
+
+    LtoUnifiedResultSummary* summary =
+      convertFieldOwnedConclusionToLtoSummary (AD_ARGS, conclusion, tfad);
+    if (summary) {
+      vec_safe_push (summaries, summary);
+    }
+  }
+
+  AD_DEBUG_PRINT ("[convertAllFieldOwnedConclusionsToLtoSummaries] converted %u conclusions",
+                  vec_safe_length (summaries));
+  return summaries;
+}
 
 } // namespace array_detect_ns
