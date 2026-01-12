@@ -44,6 +44,7 @@
 #include "capacity-conclude.hh"
 #include "owned-conclusion.hh"
 #include "lto-summary.hh"
+#include "result-output.hh"
 
 // For flag_generate_lto
 #include "options.h"
@@ -381,6 +382,11 @@ ArrayDetectErrorCode runPipeline (
   if (owned_conclusions) {
     printAllFieldOwnedConclusions (AD_ARGS, ctx.debug_file, owned_conclusions);
   }
+
+  // ========================================================================
+  // Step 12: 输出结果到 AD_RESULT_FILE (非 LTO 模式)
+  // ========================================================================
+  AD_TRY (writeResultsToFile (AD_ARGS, owned_conclusions, detector));
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

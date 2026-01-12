@@ -8,6 +8,7 @@
 #include "context-init.hh"
 #include "context.hh"
 #include "pipeline.hh"
+#include "result-output.hh"
 
 // GCC headers for GIMPLE traversal
 #include "tree.h"
@@ -420,12 +421,8 @@ unsigned int runLtoTransform (AD_FUNC_ARGS, function* fn) {
     printOwnedFieldTable (AD_ARGS, g_transform_ctx);
 
     if (!g_ltrans_aggregated_written) {
-      char const* aggregated_file = getenv ("AD_AGGREGATED_FILE");
-      if (aggregated_file) {
-        // NOTE: writeLtransAggregatedResults was removed along with result-aggregator module.
-        // To re-enable, implement based on new capacity analysis modules.
-        (void) aggregated_file;
-      }
+      // 输出结果到 AD_RESULT_FILE (LTRANS 阶段)
+      writeLtransResultsToFile (AD_ARGS);
       g_ltrans_aggregated_written = true;
     }
   }

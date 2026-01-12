@@ -375,6 +375,7 @@
       "ad-field-wrapper"
       ;; ad- 分析模块
       "ad-owned-verdict"
+      "ad-result-output"
       "ad-malloc-capacity"
       "ad-malloc-group"
       "ad-array-read-collect"
