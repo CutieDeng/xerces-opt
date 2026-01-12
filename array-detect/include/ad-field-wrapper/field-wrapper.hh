@@ -106,6 +106,20 @@ struct Wrapper_ArrayWriteAccess_WriteBoundConditions {
   vec<::array_detect_ns::WriteBoundCondition*, va_gc>* bound_conditions;  // 一对多
 };
 
+// ============================================================================
+// Malloc 证据 Hashmap 类型定义
+// ============================================================================
+// (mapof integer-field (listof malloc-capacity-evidence))
+// Key: tree (FIELD_DECL) - 整数字段
+// Value: vec<MallocCapacityEvidence*> - 该字段关联的证据列表
+// 使用 GCC 内置的 ggc_ptr_hash<tree_node> 作为 tree 的 hash traits
+
+typedef simple_hashmap_traits<ggc_ptr_hash<tree_node>, vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>*>
+  TreeToMallocEvidencesTraits;
+
+typedef hash_map<tree, vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>*, TreeToMallocEvidencesTraits>
+  MallocEvidencesByIntegerFieldMap;
+
 // ----------------------------------------------------------------------------
 // 层级1：写入级 Wrapper
 // ----------------------------------------------------------------------------
@@ -132,10 +146,10 @@ struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
 // 层级3：字段级 Wrapper
 // ----------------------------------------------------------------------------
 // 扩展：添加容量分析相关字段
-//   malloc_evidences   : (listof malloc-capacity-evidence)
-//   read_evidences     : (listof read-capacity-evidence)
-//   write_evidences    : (listof write-capacity-evidence)
-//   capacity_conclude  : capacity-conclude
+//   malloc_evidences_map : (mapof integer-field (listof malloc-capacity-evidence))
+//   read_evidences       : (listof read-capacity-evidence)
+//   write_evidences      : (listof write-capacity-evidence)
+//   capacity_conclude    : capacity-conclude
 
 struct Wrapper_FieldEscapeConclude_OwnershipConclude {
   tree type;
@@ -154,8 +168,10 @@ struct Wrapper_FieldEscapeConclude_OwnershipConclude {
   // === 数组写入分析 (per-write wrappers, 一对多) ===
   vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* array_writes;
 
-  // === 容量关联分析（三种证据）===
-  vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>* malloc_evidences;
+  // === 容量关联分析 ===
+  // malloc 证据按 integer_field 分组 (hashmap)
+  MallocEvidencesByIntegerFieldMap* malloc_evidences_map;
+  // read/write 证据 (flat list，暂不分组)
   vec<::array_detect_ns::ReadCapacityEvidence*, va_gc>* read_evidences;
   vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>* write_evidences;
 

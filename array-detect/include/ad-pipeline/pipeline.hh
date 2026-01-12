@@ -30,8 +30,8 @@ enum AnalysisPhase {
   PHASE_SYNTHESIZE_ESCAPES, // 合成逃逸证据
   PHASE_ANALYZE_OWNERSHIP,  // 分析所有权转移
   PHASE_GENERATE_VERDICT,   // 生成 owned 判定
-  // 新的三种容量分析阶段
-  PHASE_MALLOC_CAPACITY,    // 分析 malloc 容量关联
+  // 容量分析阶段
+  PHASE_MALLOC_CAPACITY,    // 分析 malloc 容量关联 (直接输出 hashmap)
   PHASE_READ_CAPACITY,      // 分析数组读容量关联
   PHASE_WRITE_CAPACITY,     // 分析数组写容量关联
   PHASE_CAPACITY_CONCLUDE,  // 汇总容量结论

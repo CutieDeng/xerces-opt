@@ -6,8 +6,8 @@
 // 分析字段写入中的 malloc size 参数，寻找关联整数字段
 //
 // 数据流：
-//   pointer-field, field-write-info -> (listof malloc-capacity-evidence)
-//   pointer-field, (listof field-write-info) -> (listof malloc-capacity-evidence)
+//   field-write-info, write-original-source, type -> (listof malloc-capacity-evidence)
+//   (field, (listof field-write-info)) -> (mapof integer-field (listof malloc-capacity-evidence))
 //
 // 场景：分析 ptr = malloc(a) 中 a 被写入了哪些整数字段
 // 例如：obj.d = malloc(a); obj.a = a; obj.b = a;
@@ -117,11 +117,11 @@ void printMallocCapacityEvidence (
   MallocCapacityEvidence* evidence
 );
 
-// 打印所有 malloc 容量证据
+// 打印所有 malloc 容量证据（从 hashmap）
 void printAllMallocEvidences (
   AD_FUNC_ARGS,
   FILE* out,
-  vec<MallocCapacityEvidence*, va_gc>* evidences
+  MallocEvidencesByIntegerFieldMap* evidences_map
 );
 
 // 获取置信度名称

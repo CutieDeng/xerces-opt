@@ -456,7 +456,7 @@ ArrayDetectErrorCode analyzeMallocCapacity (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 收集所有 malloc 容量证据
+// 收集所有 malloc 容量证据（直接输出到 hashmap）
 // ============================================================================
 
 ArrayDetectErrorCode collectAllMallocEvidences (
@@ -473,22 +473,34 @@ ArrayDetectErrorCode collectAllMallocEvidences (
     if (!wrapper || !wrapper->write_info || !wrapper->write_source) continue;
 
     // 为每个 write wrapper 分析并收集证据
-    // wrapper->malloc_evidences 初始为 NULL，只在有证据时才分配
+    vec<MallocCapacityEvidence*, va_gc>* evidences = NULL;
     AD_TRY (analyzeMallocCapacity (
       AD_ARGS,
       wrapper->write_info,
       wrapper->write_source,
       tfad->type,
-      &wrapper->malloc_evidences
+      &evidences
     ));
 
-    // 汇总到字段级别（只在有证据时才初始化和添加）
-    if (wrapper->malloc_evidences && wrapper->malloc_evidences->length () > 0) {
-      if (!tfad->malloc_evidences) {
-        vec_alloc (tfad->malloc_evidences, wrapper->malloc_evidences->length ());
+    // 将证据直接插入到 hashmap 中（按 integer_field 分组）
+    if (evidences && evidences->length () > 0) {
+      // 延迟初始化 hashmap
+      if (!tfad->malloc_evidences_map) {
+        tfad->malloc_evidences_map = new MallocEvidencesByIntegerFieldMap ();
       }
-      for (unsigned j = 0; j < wrapper->malloc_evidences->length (); j++) {
-        vec_safe_push (tfad->malloc_evidences, (*wrapper->malloc_evidences)[j]);
+
+      for (unsigned j = 0; j < evidences->length (); j++) {
+        MallocCapacityEvidence* ev = (*evidences)[j];
+        if (!ev || !ev->integer_field) continue;
+
+        // 查找或创建该 integer_field 对应的 vec
+        vec<MallocCapacityEvidence*, va_gc>** slot =
+          &tfad->malloc_evidences_map->get_or_insert (ev->integer_field);
+
+        if (!*slot) {
+          vec_alloc (*slot, 4);
+        }
+        vec_safe_push (*slot, ev);
       }
     }
   }
@@ -531,21 +543,44 @@ void printMallocCapacityEvidence (
 }
 
 // ============================================================================
-// 打印所有 malloc 容量证据
+// 打印所有 malloc 容量证据（从 hashmap）
 // ============================================================================
 
 void printAllMallocEvidences (
   AD_FUNC_ARGS,
   FILE* out,
-  vec<MallocCapacityEvidence*, va_gc>* evidences
+  MallocEvidencesByIntegerFieldMap* evidences_map
 ) {
-  if (!out || !evidences) return;
+  if (!out || !evidences_map) return;
 
-  fprintf (out, "=== Malloc Capacity Evidences (%u) ===\n",
-           evidences->length ());
+  unsigned int total_count = 0;
+  unsigned int group_count = 0;
 
-  for (unsigned i = 0; i < evidences->length (); i++) {
-    printMallocCapacityEvidence (AD_ARGS, out, (*evidences)[i]);
+  // 先统计数量
+  for (auto iter = evidences_map->begin (); iter != evidences_map->end (); ++iter) {
+    group_count++;
+    if ((*iter).second) {
+      total_count += (*iter).second->length ();
+    }
+  }
+
+  fprintf (out, "=== Malloc Capacity Evidences (%u total, %u groups) ===\n",
+           total_count, group_count);
+
+  for (auto iter = evidences_map->begin (); iter != evidences_map->end (); ++iter) {
+    tree integer_field = (*iter).first;
+    vec<MallocCapacityEvidence*, va_gc>* evidences = (*iter).second;
+
+    char const* field_name = safeGetFieldName (AD_ARGS, integer_field);
+    unsigned int ev_count = evidences ? evidences->length () : 0;
+
+    fprintf (out, "  [%s]: %u evidences\n", field_name, ev_count);
+
+    if (evidences) {
+      for (unsigned i = 0; i < evidences->length (); i++) {
+        printMallocCapacityEvidence (AD_ARGS, out, (*evidences)[i]);
+      }
+    }
   }
 }
 

@@ -187,11 +187,26 @@ ArrayDetectErrorCode generateCapacityConclude (
     AD_RETURNE (OK);
   }
 
+  // 从 hashmap 提取 flat list 用于 summarize
+  vec<MallocCapacityEvidence*, va_gc>* malloc_evidences_flat = NULL;
+  if (tfad->malloc_evidences_map) {
+    for (auto iter = tfad->malloc_evidences_map->begin ();
+         iter != tfad->malloc_evidences_map->end ();
+         ++iter) {
+      vec<MallocCapacityEvidence*, va_gc>* evidences = (*iter).second;
+      if (evidences) {
+        for (unsigned i = 0; i < evidences->length (); i++) {
+          vec_safe_push (malloc_evidences_flat, (*evidences)[i]);
+        }
+      }
+    }
+  }
+
   AD_TRY (summarizeCapacityConclude (
     AD_ARGS,
     tfad->type,
     tfad->field_decl,
-    tfad->malloc_evidences,
+    malloc_evidences_flat,
     tfad->read_evidences,
     tfad->write_evidences,
     &tfad->capacity_conclude

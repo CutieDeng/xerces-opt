@@ -348,8 +348,8 @@ ArrayDetectErrorCode runPipeline (
       if (!tfad) continue;
 
       // 输出三种证据
-      if (tfad->malloc_evidences) {
-        printAllMallocEvidences (AD_ARGS, ctx.debug_file, tfad->malloc_evidences);
+      if (tfad->malloc_evidences_map) {
+        printAllMallocEvidences (AD_ARGS, ctx.debug_file, tfad->malloc_evidences_map);
       }
       if (tfad->read_evidences) {
         printAllReadEvidences (AD_ARGS, ctx.debug_file, tfad->read_evidences);
