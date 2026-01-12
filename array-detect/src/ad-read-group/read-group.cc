@@ -14,75 +14,59 @@ using namespace ::array_detector;
 using namespace ::field_analysis;
 
 // ============================================================================
-// 批量收集并分组 read 容量证据
+// 从所有收集的 reads 中提取并分组特定 (type, field) 的证据
 // ============================================================================
 
-ArrayDetectErrorCode collectAndGroupReadEvidences (
+ArrayDetectErrorCode groupReadEvidencesForField (
   AD_FUNC_ARGS,
+  vec<ArrayReadAccess*, va_gc>* all_reads,
   tree type,
   tree field_decl,
-  vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>** out_array_reads,
   ReadEvidencesByIntegerFieldMap** out_map
 ) AD_FUNCTION_BEGIN {
   if (!out_map) {
     AD_RETURNE (OK);
   }
 
-  // Step 1: 收集所有数组读取访问
-  vec<ArrayReadAccess*, va_gc>* read_accesses = NULL;
-  AD_TRY (collectAllArrayReadAccesses (AD_ARGS, type, field_decl, &read_accesses));
-
-  if (!read_accesses || read_accesses->length () == 0) {
+  if (!all_reads || all_reads->length () == 0) {
     AD_RETURNE (OK);
   }
 
-  // 初始化 hashmap
-  if (!*out_map) {
-    *out_map = new ReadEvidencesByIntegerFieldMap ();
-  }
-
-  // Step 2: 为每个访问分析边界条件
-  for (unsigned i = 0; i < read_accesses->length (); i++) {
-    ArrayReadAccess* access = (*read_accesses)[i];
+  // 遍历所有收集的 reads，过滤匹配 (type, field) 的访问
+  for (unsigned i = 0; i < all_reads->length (); i++) {
+    ArrayReadAccess* access = (*all_reads)[i];
     if (!access) continue;
 
-    // 分析所有边界条件（一对多）
-    vec<ReadBoundCondition*, va_gc>* bound_conds = NULL;
-    AD_TRY (analyzeReadBoundConditions (AD_ARGS, access, &bound_conds));
-
-    // 创建 Wrapper（一对多）
-    Wrapper_ArrayReadAccess_ReadBoundConditions* wrapper =
-      ggc_alloc<Wrapper_ArrayReadAccess_ReadBoundConditions>();
-    wrapper->read_access = access;
-    wrapper->bound_conditions = bound_conds;
-
-    // 添加到 array_reads 列表
-    if (out_array_reads) {
-      if (!*out_array_reads) {
-        vec_alloc (*out_array_reads, read_accesses->length ());
-      }
-      vec_safe_push (*out_array_reads, wrapper);
+    // 检查是否匹配目标 (type, field)
+    if (access->containing_type != type ||
+        access->pointer_field_decl != field_decl) {
+      continue;
     }
 
-    // 为每个边界条件提取证据并分组
-    if (bound_conds) {
-      for (unsigned j = 0; j < bound_conds->length (); j++) {
-        ReadBoundCondition* bound_cond = (*bound_conds)[j];
-        if (!bound_cond) continue;
+    // 单项分析：从 access 生成所有证据
+    vec<ReadCapacityEvidence*, va_gc>* evidences = NULL;
+    AD_TRY (analyzeReadAccessToEvidences (AD_ARGS, access, &evidences));
 
-        ReadCapacityEvidence* evidence = NULL;
-        AD_TRY (extractReadCapacityEvidence (AD_ARGS, field_decl, bound_cond, &evidence));
+    if (!evidences || evidences->length () == 0) {
+      continue;
+    }
 
-        if (evidence && evidence->integer_field) {
-          // 按 integer_field 分组到 hashmap
-          vec<ReadCapacityEvidence*, va_gc>** slot =
-            &(*out_map)->get_or_insert (evidence->integer_field);
-          if (!*slot) {
-            vec_alloc (*slot, 4);
-          }
-          vec_safe_push (*slot, evidence);
-        }
+    // 初始化 hashmap
+    if (!*out_map) {
+      *out_map = new ReadEvidencesByIntegerFieldMap ();
+    }
+
+    // 将证据按 integer_field 分组
+    for (unsigned j = 0; j < evidences->length (); j++) {
+      ReadCapacityEvidence* evidence = (*evidences)[j];
+      if (!evidence || !evidence->integer_field) continue;
+
+      vec<ReadCapacityEvidence*, va_gc>** slot =
+        &(*out_map)->get_or_insert (evidence->integer_field);
+      if (!*slot) {
+        vec_alloc (*slot, 4);
       }
+      vec_safe_push (*slot, evidence);
     }
   }
 
@@ -95,17 +79,18 @@ ArrayDetectErrorCode collectAndGroupReadEvidences (
 
 ArrayDetectErrorCode groupReadEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
+  vec<ArrayReadAccess*, va_gc>* all_reads,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
     AD_RETURNE (OK);
   }
 
-  AD_TRY (collectAndGroupReadEvidences (
+  AD_TRY (groupReadEvidencesForField (
     AD_ARGS,
+    all_reads,
     field_wrapper->type,
     field_wrapper->field_decl,
-    &field_wrapper->array_reads,
     &field_wrapper->read_evidences_map
   ));
 

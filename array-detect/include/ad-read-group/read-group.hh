@@ -6,10 +6,9 @@
 // 批量分组 read 容量证据
 //
 // 数据流：
-//   (type, pointer-field) -> (mapof integer-field (listof read-capacity-evidence))
+//   (listof array-read-access) -> 按 (type, field) 分组后按 integer-field 分组
 //
-// 场景：对指定 (type, field) 进行完整程序扫描，收集所有数组读取的边界检查证据
-//       并按整数字段分组
+// 场景：从全程序扫描得到的所有数组读取，分析并按字段分组证据
 // ============================================================================
 
 #include "prelude.hh"
@@ -28,21 +27,22 @@ using namespace ::field_analysis;
 // 函数声明
 // ============================================================================
 
-// 批量收集并分组 read 容量证据
-// 输入：type, field_decl
+// 从所有收集的 reads 中提取并分组特定 (type, field) 的证据
+// 输入：all_reads (全程序扫描结果), type, field_decl
 // 输出：ReadEvidencesByIntegerFieldMap* - 按 integer_field 分组的 hashmap
-// 同时填充 array_reads wrapper 列表
-ArrayDetectErrorCode collectAndGroupReadEvidences (
+ArrayDetectErrorCode groupReadEvidencesForField (
   AD_FUNC_ARGS,
+  vec<ArrayReadAccess*, va_gc>* all_reads,
   tree type,
   tree field_decl,
-  vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>** out_array_reads,
   ReadEvidencesByIntegerFieldMap** out_map
 );
 
-// 在字段级 Wrapper 上执行分组（直接填充 wrapper 的 read_evidences_map）
+// 在字段级 Wrapper 上执行分组（从全程序扫描结果中过滤）
+// 需要传入全程序扫描的所有 reads
 ArrayDetectErrorCode groupReadEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
+  vec<ArrayReadAccess*, va_gc>* all_reads,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 );
 

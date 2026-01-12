@@ -221,6 +221,14 @@ ArrayDetectErrorCode runPipeline (
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_READ_CAPACITY;
 
+  // Step 7a: 扫描整个程序一次，收集所有数组读取
+  vec<ArrayReadAccess*, va_gc>* all_reads = NULL;
+  AD_TRY (scanAllArrayReadAccesses (AD_ARGS, &all_reads));
+
+  AD_DEBUG_PRINT ("readCapacity: scanned %u array read accesses",
+                  all_reads ? all_reads->length () : 0);
+
+  // Step 7b: 为每个 (type, field) 分组读取证据
   if (detector.m_type_field_writes) {
     typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
@@ -230,10 +238,10 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (groupReadEvidencesForFieldWrapper (AD_ARGS, tfad));
+      AD_TRY (groupReadEvidencesForFieldWrapper (AD_ARGS, all_reads, tfad));
     }
 
-    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs");
+    AD_DEBUG_PRINT ("readCapacity: grouped all type-field pairs");
   }
 
   // ========================================================================
@@ -241,6 +249,14 @@ ArrayDetectErrorCode runPipeline (
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_WRITE_CAPACITY;
 
+  // Step 8a: 扫描整个程序一次，收集所有数组写入
+  vec<ArrayWriteAccess*, va_gc>* all_writes = NULL;
+  AD_TRY (scanAllArrayWriteAccesses (AD_ARGS, &all_writes));
+
+  AD_DEBUG_PRINT ("writeCapacity: scanned %u array write accesses",
+                  all_writes ? all_writes->length () : 0);
+
+  // Step 8b: 为每个 (type, field) 分组写入证据
   if (detector.m_type_field_writes) {
     typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
 
@@ -250,10 +266,10 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (groupWriteEvidencesForFieldWrapper (AD_ARGS, tfad));
+      AD_TRY (groupWriteEvidencesForFieldWrapper (AD_ARGS, all_writes, tfad));
     }
 
-    AD_DEBUG_PRINT ("writeCapacity: analyzed all type-field pairs");
+    AD_DEBUG_PRINT ("writeCapacity: grouped all type-field pairs");
   }
 
   // ========================================================================

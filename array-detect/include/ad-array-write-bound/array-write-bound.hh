@@ -156,4 +156,17 @@ void printAllWriteCapacityEvidences (
   vec<WriteCapacityEvidence*, va_gc>* evidences
 );
 
+// ============================================================================
+// 单项分析函数（新接口）
+// ============================================================================
+// 从单个 ArrayWriteAccess 分析并生成所有 WriteCapacityEvidence
+// 输入：access
+// 输出：(listof WriteCapacityEvidence*)
+// 数据流：array-write-access -> (listof write-capacity-evidence)
+ArrayDetectErrorCode analyzeWriteAccessToEvidences (
+  AD_FUNC_ARGS,
+  ArrayWriteAccess* access,
+  vec<WriteCapacityEvidence*, va_gc>** results
+);
+
 } // namespace array_detect_ns

@@ -314,4 +314,52 @@ void printAllWriteCapacityEvidences (
   }
 }
 
+// ============================================================================
+// 单项分析函数：从单个 ArrayWriteAccess 生成所有 WriteCapacityEvidence
+// ============================================================================
+
+ArrayDetectErrorCode analyzeWriteAccessToEvidences (
+  AD_FUNC_ARGS,
+  ArrayWriteAccess* access,
+  vec<WriteCapacityEvidence*, va_gc>** results
+) AD_FUNCTION_BEGIN {
+  *results = NULL;
+
+  if (!access) {
+    AD_RETURNE (OK);
+  }
+
+  // Step 1: 分析所有边界条件
+  vec<WriteBoundCondition*, va_gc>* bound_conds = NULL;
+  AD_TRY (analyzeWriteBoundConditions (AD_ARGS, access, &bound_conds));
+
+  if (!bound_conds || bound_conds->length () == 0) {
+    AD_RETURNE (OK);
+  }
+
+  // Step 2: 为每个边界条件提取证据
+  for (unsigned i = 0; i < bound_conds->length (); i++) {
+    WriteBoundCondition* bound_cond = (*bound_conds)[i];
+    if (!bound_cond || !bound_cond->has_field_bound) continue;
+
+    // 使用 access 中的 pointer_field_decl 作为 pointer_field
+    WriteCapacityEvidence* evidence = NULL;
+    AD_TRY (extractWriteCapacityEvidence (
+      AD_ARGS,
+      access->pointer_field_decl,
+      bound_cond,
+      &evidence
+    ));
+
+    if (evidence) {
+      if (!*results) {
+        vec_alloc (*results, 4);
+      }
+      vec_safe_push (*results, evidence);
+    }
+  }
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
 } // namespace array_detect_ns

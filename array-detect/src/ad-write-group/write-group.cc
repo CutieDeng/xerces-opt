@@ -14,75 +14,59 @@ using namespace ::array_detector;
 using namespace ::field_analysis;
 
 // ============================================================================
-// 批量收集并分组 write 容量证据
+// 从所有收集的 writes 中提取并分组特定 (type, field) 的证据
 // ============================================================================
 
-ArrayDetectErrorCode collectAndGroupWriteEvidences (
+ArrayDetectErrorCode groupWriteEvidencesForField (
   AD_FUNC_ARGS,
+  vec<ArrayWriteAccess*, va_gc>* all_writes,
   tree type,
   tree field_decl,
-  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>** out_array_writes,
   WriteEvidencesByIntegerFieldMap** out_map
 ) AD_FUNCTION_BEGIN {
   if (!out_map) {
     AD_RETURNE (OK);
   }
 
-  // Step 1: 收集所有数组写入访问
-  vec<ArrayWriteAccess*, va_gc>* write_accesses = NULL;
-  AD_TRY (collectAllArrayWriteAccesses (AD_ARGS, type, field_decl, &write_accesses));
-
-  if (!write_accesses || write_accesses->length () == 0) {
+  if (!all_writes || all_writes->length () == 0) {
     AD_RETURNE (OK);
   }
 
-  // 初始化 hashmap
-  if (!*out_map) {
-    *out_map = new WriteEvidencesByIntegerFieldMap ();
-  }
-
-  // Step 2: 为每个访问分析边界条件
-  for (unsigned i = 0; i < write_accesses->length (); i++) {
-    ArrayWriteAccess* access = (*write_accesses)[i];
+  // 遍历所有收集的 writes，过滤匹配 (type, field) 的访问
+  for (unsigned i = 0; i < all_writes->length (); i++) {
+    ArrayWriteAccess* access = (*all_writes)[i];
     if (!access) continue;
 
-    // 分析所有边界条件（一对多）
-    vec<WriteBoundCondition*, va_gc>* bound_conds = NULL;
-    AD_TRY (analyzeWriteBoundConditions (AD_ARGS, access, &bound_conds));
-
-    // 创建 Wrapper（一对多）
-    Wrapper_ArrayWriteAccess_WriteBoundConditions* wrapper =
-      ggc_alloc<Wrapper_ArrayWriteAccess_WriteBoundConditions>();
-    wrapper->write_access = access;
-    wrapper->bound_conditions = bound_conds;
-
-    // 添加到 array_writes 列表
-    if (out_array_writes) {
-      if (!*out_array_writes) {
-        vec_alloc (*out_array_writes, write_accesses->length ());
-      }
-      vec_safe_push (*out_array_writes, wrapper);
+    // 检查是否匹配目标 (type, field)
+    if (access->containing_type != type ||
+        access->pointer_field_decl != field_decl) {
+      continue;
     }
 
-    // 为每个边界条件提取证据并分组
-    if (bound_conds) {
-      for (unsigned j = 0; j < bound_conds->length (); j++) {
-        WriteBoundCondition* bound_cond = (*bound_conds)[j];
-        if (!bound_cond) continue;
+    // 单项分析：从 access 生成所有证据
+    vec<WriteCapacityEvidence*, va_gc>* evidences = NULL;
+    AD_TRY (analyzeWriteAccessToEvidences (AD_ARGS, access, &evidences));
 
-        WriteCapacityEvidence* evidence = NULL;
-        AD_TRY (extractWriteCapacityEvidence (AD_ARGS, field_decl, bound_cond, &evidence));
+    if (!evidences || evidences->length () == 0) {
+      continue;
+    }
 
-        if (evidence && evidence->integer_field) {
-          // 按 integer_field 分组到 hashmap
-          vec<WriteCapacityEvidence*, va_gc>** slot =
-            &(*out_map)->get_or_insert (evidence->integer_field);
-          if (!*slot) {
-            vec_alloc (*slot, 4);
-          }
-          vec_safe_push (*slot, evidence);
-        }
+    // 初始化 hashmap
+    if (!*out_map) {
+      *out_map = new WriteEvidencesByIntegerFieldMap ();
+    }
+
+    // 将证据按 integer_field 分组
+    for (unsigned j = 0; j < evidences->length (); j++) {
+      WriteCapacityEvidence* evidence = (*evidences)[j];
+      if (!evidence || !evidence->integer_field) continue;
+
+      vec<WriteCapacityEvidence*, va_gc>** slot =
+        &(*out_map)->get_or_insert (evidence->integer_field);
+      if (!*slot) {
+        vec_alloc (*slot, 4);
       }
+      vec_safe_push (*slot, evidence);
     }
   }
 
@@ -95,17 +79,18 @@ ArrayDetectErrorCode collectAndGroupWriteEvidences (
 
 ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
+  vec<ArrayWriteAccess*, va_gc>* all_writes,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
     AD_RETURNE (OK);
   }
 
-  AD_TRY (collectAndGroupWriteEvidences (
+  AD_TRY (groupWriteEvidencesForField (
     AD_ARGS,
+    all_writes,
     field_wrapper->type,
     field_wrapper->field_decl,
-    &field_wrapper->array_writes,
     &field_wrapper->write_evidences_map
   ));
 

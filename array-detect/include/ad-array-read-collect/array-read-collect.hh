@@ -3,12 +3,13 @@
 // ============================================================================
 // ad-array-read-collect 模块
 // ============================================================================
-// 收集指定 (type, field) 对应的所有数组读取访问
+// 全程序扫描，收集所有数组读取访问
 //
 // 数据流：
-//   (type, pointer-field) -> (listof array-read-access)
+//   () -> (listof array-read-access)
 //
-// 场景：分析 x = arr->data[i] 形式的数组读取
+// 场景：扫描整个程序一次，收集所有 x = arr->data[i] 形式的数组读取
+// ArrayReadAccess 中已包含 containing_type 和 pointer_field_decl
 // ============================================================================
 
 #include "prelude.hh"
@@ -58,25 +59,21 @@ struct ArrayReadAccess {
 // 检查表达式是否为数组读取
 bool isArrayReadExpr (tree expr);
 
-// 收集单个语句中的数组读取访问
-// 输入：stmt, fn, target_type (可选过滤), target_field (可选过滤)
-// 输出：result (如果匹配则返回 ArrayReadAccess*)
-ArrayDetectErrorCode collectArrayReadAccess (
+// 收集单个语句中的数组读取访问（内部函数）
+// 输入：stmt, fn
+// 输出：result (如果是数组读取则返回 ArrayReadAccess*)
+ArrayDetectErrorCode collectArrayReadAccessFromStmt (
   AD_FUNC_ARGS,
   gimple* stmt,
   function* fn,
-  tree target_type,
-  tree target_field,
   ArrayReadAccess** result
 );
 
-// 收集指定 (type, field) 的所有数组读取访问
-// 输入：type, field
-// 输出：(listof ArrayReadAccess*)
-ArrayDetectErrorCode collectAllArrayReadAccesses (
+// 扫描整个程序，收集所有数组读取访问
+// 输入：无
+// 输出：(listof ArrayReadAccess*) - 所有数组读取，已包含 type/field 信息
+ArrayDetectErrorCode scanAllArrayReadAccesses (
   AD_FUNC_ARGS,
-  tree type,
-  tree field,
   vec<ArrayReadAccess*, va_gc>** results
 );
 

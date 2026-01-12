@@ -3,12 +3,13 @@
 // ============================================================================
 // ad-array-write-collect 模块
 // ============================================================================
-// 收集指定 (type, field) 对应的所有数组写入访问
+// 全程序扫描，收集所有数组写入访问
 //
 // 数据流：
-//   (type, pointer-field) -> (listof array-write-access)
+//   () -> (listof array-write-access)
 //
-// 场景：分析 arr->data[i] = x 形式的数组写入
+// 场景：扫描整个程序一次，收集所有 arr->data[i] = x 形式的数组写入
+// ArrayWriteAccess 中已包含 containing_type 和 pointer_field_decl
 // ============================================================================
 
 #include "prelude.hh"
@@ -60,25 +61,21 @@ struct ArrayWriteAccess {
 // 检查表达式是否为数组写入
 bool isArrayWriteExpr (tree expr);
 
-// 收集单个语句中的数组写入访问
-// 输入：stmt, fn, target_type (可选过滤), target_field (可选过滤)
-// 输出：result (如果匹配则返回 ArrayWriteAccess*)
-ArrayDetectErrorCode collectArrayWriteAccess (
+// 收集单个语句中的数组写入访问（内部函数）
+// 输入：stmt, fn
+// 输出：result (如果是数组写入则返回 ArrayWriteAccess*)
+ArrayDetectErrorCode collectArrayWriteAccessFromStmt (
   AD_FUNC_ARGS,
   gimple* stmt,
   function* fn,
-  tree target_type,
-  tree target_field,
   ArrayWriteAccess** result
 );
 
-// 收集指定 (type, field) 的所有数组写入访问
-// 输入：type, field
-// 输出：(listof ArrayWriteAccess*)
-ArrayDetectErrorCode collectAllArrayWriteAccesses (
+// 扫描整个程序，收集所有数组写入访问
+// 输入：无
+// 输出：(listof ArrayWriteAccess*) - 所有数组写入，已包含 type/field 信息
+ArrayDetectErrorCode scanAllArrayWriteAccesses (
   AD_FUNC_ARGS,
-  tree type,
-  tree field,
   vec<ArrayWriteAccess*, va_gc>** results
 );
 

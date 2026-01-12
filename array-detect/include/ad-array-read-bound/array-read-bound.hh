@@ -156,4 +156,17 @@ void printAllReadCapacityEvidences (
   vec<ReadCapacityEvidence*, va_gc>* evidences
 );
 
+// ============================================================================
+// 单项分析函数（新接口）
+// ============================================================================
+// 从单个 ArrayReadAccess 分析并生成所有 ReadCapacityEvidence
+// 输入：access
+// 输出：(listof ReadCapacityEvidence*)
+// 数据流：array-read-access -> (listof read-capacity-evidence)
+ArrayDetectErrorCode analyzeReadAccessToEvidences (
+  AD_FUNC_ARGS,
+  ArrayReadAccess* access,
+  vec<ReadCapacityEvidence*, va_gc>** results
+);
+
 } // namespace array_detect_ns

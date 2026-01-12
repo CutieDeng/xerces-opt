@@ -1,7 +1,7 @@
 // ============================================================================
 // ad-array-read-collect 模块实现
 // ============================================================================
-// 收集指定 (type, field) 对应的所有数组读取访问
+// 全程序扫描，收集所有数组读取访问
 // ============================================================================
 
 #include "array-read-collect.hh"
@@ -27,7 +27,7 @@ bool isArrayReadExpr (tree expr) {
 // 追溯基础指针到字段访问 (内部函数)
 // ============================================================================
 
-static ArrayDetectErrorCode traceBasePointerToFieldInternal (
+static ArrayDetectErrorCode traceBasePointerToField (
   AD_FUNC_ARGS,
   tree base_pointer,
   tree* out_type,
@@ -110,12 +110,10 @@ static ArrayDetectErrorCode traceBasePointerToFieldInternal (
 // 收集单个语句中的数组读取访问
 // ============================================================================
 
-ArrayDetectErrorCode collectArrayReadAccess (
+ArrayDetectErrorCode collectArrayReadAccessFromStmt (
   AD_FUNC_ARGS,
   gimple* stmt,
   function* fn,
-  tree target_type,
-  tree target_field,
   ArrayReadAccess** result
 ) AD_FUNCTION_BEGIN {
   *result = NULL;
@@ -156,18 +154,10 @@ ArrayDetectErrorCode collectArrayReadAccess (
   // 追溯基指针到字段
   tree found_type = NULL_TREE;
   tree found_field = NULL_TREE;
-  AD_TRY (traceBasePointerToFieldInternal (AD_ARGS, base_pointer, &found_type, &found_field));
+  AD_TRY (traceBasePointerToField (AD_ARGS, base_pointer, &found_type, &found_field));
 
-  // 检查是否匹配目标字段
+  // 只收集基于字段的数组访问
   if (!found_type || !found_field) {
-    AD_RETURNE (OK);
-  }
-
-  if (target_type && TYPE_MAIN_VARIANT (found_type) != TYPE_MAIN_VARIANT (target_type)) {
-    AD_RETURNE (OK);
-  }
-
-  if (target_field && found_field != target_field) {
     AD_RETURNE (OK);
   }
 
@@ -191,13 +181,11 @@ ArrayDetectErrorCode collectArrayReadAccess (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 收集指定 (type, field) 的所有数组读取访问
+// 扫描整个程序，收集所有数组读取访问
 // ============================================================================
 
-ArrayDetectErrorCode collectAllArrayReadAccesses (
+ArrayDetectErrorCode scanAllArrayReadAccesses (
   AD_FUNC_ARGS,
-  tree type,
-  tree field,
   vec<ArrayReadAccess*, va_gc>** results
 ) AD_FUNCTION_BEGIN {
   if (!results) {
@@ -221,19 +209,12 @@ ArrayDetectErrorCode collectAllArrayReadAccesses (
 
         // 尝试收集数组读取
         ArrayReadAccess* access = NULL;
-        ArrayDetectErrorCode collect_err = collectArrayReadAccess (
-          AD_ARGS, stmt, fn, type, field, &access
-        );
-
-        if (collect_err != OK) {
-          pop_cfun ();
-          return collect_err;
-        }
+        AD_TRY (collectArrayReadAccessFromStmt (AD_ARGS, stmt, fn, &access));
 
         if (access) {
           // 延迟初始化
           if (!*results) {
-            vec_alloc (*results, 8);
+            vec_alloc (*results, 16);
           }
           vec_safe_push (*results, access);
         }
@@ -257,10 +238,12 @@ void printArrayReadAccess (
 ) {
   if (!out || !access) return;
 
+  char const* type_name = safeGetTypeName (AD_ARGS, access->containing_type);
   char const* field_name = safeGetFieldName (AD_ARGS, access->pointer_field_decl);
 
-  fprintf (out, "  [array-read] field '%s' at %s:%d\n",
-           field_name,
+  fprintf (out, "  [array-read] %s.%s at %s:%d\n",
+           type_name ? type_name : "?",
+           field_name ? field_name : "?",
            LOCATION_FILE (access->location) ? LOCATION_FILE (access->location) : "?",
            LOCATION_LINE (access->location));
 }
