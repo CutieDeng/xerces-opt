@@ -323,6 +323,20 @@ ArrayDetectErrorCode extractTemplateArgsFromType (
     if (template_info) {
       tree template_args_tree = TI_ARGS (template_info);
       if (template_args_tree) {
+        // 处理嵌套的 TREE_VEC (多级模板参数)
+        while (template_args_tree && TREE_CODE (template_args_tree) == TREE_VEC) {
+          int len = TREE_VEC_LENGTH (template_args_tree);
+          if (len > 0) {
+            tree first = TREE_VEC_ELT (template_args_tree, 0);
+            // 如果第一个元素也是 TREE_VEC，说明有嵌套，取最内层
+            if (first && TREE_CODE (first) == TREE_VEC) {
+              template_args_tree = first;
+              continue;
+            }
+          }
+          break;
+        }
+
         // 获取基础类型名
         char const* base_name = NULL;
         AD_TRY (get_type_name (AD_ARGS, type, base_name));
@@ -330,6 +344,8 @@ ArrayDetectErrorCode extractTemplateArgsFromType (
 
         // 提取模板参数
         int num_args = TREE_VEC_LENGTH (template_args_tree);
+        AD_DEBUG_PRINT ("[extractTemplateArgs] type=%s, num_args=%d", *out_base_name, num_args);
+
         vec<char const*, va_gc>* args = NULL;
         vec_alloc (args, num_args);
 
@@ -342,11 +358,15 @@ ArrayDetectErrorCode extractTemplateArgsFromType (
             char const* arg_type_name = NULL;
             AD_TRY (get_type_name (AD_ARGS, arg, arg_type_name));
             arg_str = arg_type_name ? arg_type_name : "<unknown>";
+            AD_DEBUG_PRINT ("[extractTemplateArgs]   arg[%d] (type) = %s", i, arg_str);
           } else if (TREE_CODE (arg) == INTEGER_CST) {
             // 非类型模板参数（整数常量）
             char buf[64];
             snprintf (buf, sizeof(buf), "%lld", (long long)TREE_INT_CST_LOW (arg));
             arg_str = ggc_strdup (buf);
+            AD_DEBUG_PRINT ("[extractTemplateArgs]   arg[%d] (int) = %s", i, arg_str);
+          } else {
+            AD_DEBUG_PRINT ("[extractTemplateArgs]   arg[%d] (unknown code=%d)", i, TREE_CODE (arg));
           }
 
           vec_safe_push (args, ggc_strdup (arg_str));
@@ -357,19 +377,27 @@ ArrayDetectErrorCode extractTemplateArgsFromType (
       }
     }
   }
+  AD_DEBUG_PRINT ("[extractTemplateArgs] cp-tree API not available or no template info");
+#else
+  AD_DEBUG_PRINT ("[extractTemplateArgs] cp-tree macros not defined, trying demangling fallback");
 #endif
 
   // 方案 2: 从 mangled name 使用 demangling 回退
   tree type_decl = TYPE_NAME (type);
+  AD_DEBUG_PRINT ("[extractTemplateArgs] TYPE_NAME -> %p (code=%d)",
+                  (void*)type_decl, type_decl ? TREE_CODE (type_decl) : -1);
   if (type_decl && TREE_CODE (type_decl) == TYPE_DECL) {
-    // 尝试获取 assembler name (mangled name)
-    tree assembler_name = DECL_ASSEMBLER_NAME_RAW (type_decl);
+    // 先尝试 DECL_ASSEMBLER_NAME（会触发 lazy 生成）
+    tree assembler_name = DECL_ASSEMBLER_NAME (type_decl);
+    AD_DEBUG_PRINT ("[extractTemplateArgs] DECL_ASSEMBLER_NAME -> %p", (void*)assembler_name);
     if (assembler_name && TREE_CODE (assembler_name) == IDENTIFIER_NODE) {
       char const* mangled = IDENTIFIER_POINTER (assembler_name);
+      AD_DEBUG_PRINT ("[extractTemplateArgs] trying demangling: %s", mangled ? mangled : "(null)");
       if (mangled && mangled[0] != '\0') {
         // Demangle
         int status = 0;
         char* demangled = abi::__cxa_demangle (mangled, NULL, NULL, &status);
+        AD_DEBUG_PRINT ("[extractTemplateArgs] demangle status=%d, result=%s", status, demangled ? demangled : "(null)");
         if (status == 0 && demangled) {
           // 解析 demangled name
           AD_TRY (parseTemplateArgsFromDemangled (AD_ARGS, demangled, out_base_name, out_template_args));
@@ -385,6 +413,7 @@ ArrayDetectErrorCode extractTemplateArgsFromType (
   char const* simple_name = NULL;
   AD_TRY (get_type_name (AD_ARGS, type, simple_name));
   *out_base_name = simple_name ? simple_name : "<unknown>";
+  AD_DEBUG_PRINT ("[extractTemplateArgs] fallback to simple name: %s", *out_base_name);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -525,7 +554,8 @@ ArrayDetectErrorCode formatTypeNameWithTemplateArgs (AD_FUNC_ARGS, tree type, ch
   }
   snprintf (ctx.address_format_buffer + offset, ctx.address_format_buffer_size - offset, ">");
 
-  AD_RETURNO (ctx.address_format_buffer);
+  // 使用 ggc_strdup 复制结果，避免 buffer 被后续调用覆盖
+  AD_RETURNO (ggc_strdup (ctx.address_format_buffer));
 } AD_FUNCTION_END
 
 // 调试信息增强：打印字段写入捕获信息

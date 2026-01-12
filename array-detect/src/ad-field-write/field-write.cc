@@ -273,9 +273,27 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_checkStat
     }
   }
 
-  // 使用 TYPE_MAIN_VARIANT 去除 cv-qualifiers，确保 const T 和 T 映射到同一键。
-  // 依据：gcc/tree.h:2352 TYPE_MAIN_VARIANT 返回类型的无限定符主变体。
-  tree containing_type = TYPE_MAIN_VARIANT (object_type);
+  // 优先使用 DECL_CONTEXT 获取包含类型（更准确，特别是对于模板类）
+  // DECL_CONTEXT 返回字段声明所在的类型
+  tree containing_type = NULL_TREE;
+  if (field_decl && DECL_CONTEXT (field_decl)) {
+    tree decl_ctx = DECL_CONTEXT (field_decl);
+    AD_DEBUG_PRINT ("[field-write] DECL_CONTEXT(field_decl) code=%d, TYPE_P=%d",
+                    TREE_CODE (decl_ctx), TYPE_P (decl_ctx) ? 1 : 0);
+    if (TYPE_P (decl_ctx)) {
+      containing_type = TYPE_MAIN_VARIANT (decl_ctx);
+      // 打印类型名来调试
+      char const* ctx_type_name = NULL;
+      gcc_ext_util::formatTypeNameWithTemplateArgs (AD_ARGS, containing_type, ctx_type_name);
+      AD_DEBUG_PRINT ("[field-write] DECL_CONTEXT type name: %s", ctx_type_name ? ctx_type_name : "(null)");
+    }
+  }
+
+  // 如果 DECL_CONTEXT 不可用，回退到 object_type
+  if (!containing_type) {
+    AD_DEBUG_PRINT ("[field-write] DECL_CONTEXT fallback to object_type");
+    containing_type = TYPE_MAIN_VARIANT (object_type);
+  }
   if (!containing_type) {
     AD_RETURNE (OK);
   }
