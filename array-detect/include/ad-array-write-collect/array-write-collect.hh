@@ -3,21 +3,27 @@
 // ============================================================================
 // ad-array-write-collect 模块
 // ============================================================================
-// 全程序扫描，收集所有数组写入访问
+// 全程序扫描，收集所有数组写入访问，直接填充到已有的 Wrapper 中
 //
 // 数据流：
-//   () -> (listof array-write-access)
+//   m_type_field_writes -> 填充各 Wrapper 的 array_writes 字段
 //
 // 场景：扫描整个程序一次，收集所有 arr->data[i] = x 形式的数组写入
-// ArrayWriteAccess 中已包含 containing_type 和 pointer_field_decl
+// 直接利用已有的 m_type_field_writes hashmap，将 access 填充到对应 Wrapper
 // ============================================================================
 
 #include "prelude.hh"
 #include "context.hh"
 #include "gcc-common.hh"
 #include "array-detect-context-gcc.hh"
+#include "array-detector.hh"
 
 namespace array_detect_ns {
+
+using ::array_detector::TypeFieldKey;
+using ::array_detector::TypeFieldHashMapTraits;
+using ::array_detector::TypeFieldAnalysisData;
+using ::field_analysis::Wrapper_ArrayWriteAccess_WriteBoundConditions;
 
 // ============================================================================
 // 数组写入访问
@@ -71,12 +77,12 @@ ArrayDetectErrorCode collectArrayWriteAccessFromStmt (
   ArrayWriteAccess** result
 );
 
-// 扫描整个程序，收集所有数组写入访问
-// 输入：无
-// 输出：(listof ArrayWriteAccess*) - 所有数组写入，已包含 type/field 信息
+// 扫描整个程序，收集所有数组写入访问，直接填充到 Wrapper 的 array_writes 字段
+// 输入：type_field_map - 现有的 (type, field) -> Wrapper hashmap
+// 输出：直接填充各 Wrapper 的 array_writes 字段
 ArrayDetectErrorCode scanAllArrayWriteAccesses (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>** results
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* type_field_map
 );
 
 // 打印数组写入访问
@@ -86,11 +92,11 @@ void printArrayWriteAccess (
   ArrayWriteAccess* access
 );
 
-// 打印所有数组写入访问
-void printAllArrayWriteAccesses (
+// 打印特定 (type, field) 的数组写入访问列表
+void printArrayWriteAccessesForField (
   AD_FUNC_ARGS,
   FILE* out,
-  vec<ArrayWriteAccess*, va_gc>* accesses
+  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* wrappers
 );
 
 } // namespace array_detect_ns

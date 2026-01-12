@@ -6,9 +6,9 @@
 // 批量分组 write 容量证据
 //
 // 数据流：
-//   (listof array-write-access) -> 按 (type, field) 分组后按 integer-field 分组
+//   Wrapper.array_writes -> 分析 + 按 integer-field 分组
 //
-// 场景：从全程序扫描得到的所有数组写入，分析并按字段分组证据
+// 场景：从 Wrapper 的 array_writes 字段读取数组写入，分析并按整数字段分组证据
 // ============================================================================
 
 #include "prelude.hh"
@@ -27,22 +27,18 @@ using namespace ::field_analysis;
 // 函数声明
 // ============================================================================
 
-// 从所有收集的 writes 中提取并分组特定 (type, field) 的证据
-// 输入：all_writes (全程序扫描结果), type, field_decl
+// 从 Wrapper 的 array_writes 中提取并分组证据（按 integer-field 分组）
+// 输入：write_wrappers (Wrapper 的 array_writes 字段)
 // 输出：WriteEvidencesByIntegerFieldMap* - 按 integer_field 分组的 hashmap
 ArrayDetectErrorCode groupWriteEvidencesForField (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>* all_writes,
-  tree type,
-  tree field_decl,
+  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* write_wrappers,
   WriteEvidencesByIntegerFieldMap** out_map
 );
 
-// 在字段级 Wrapper 上执行分组（从全程序扫描结果中过滤）
-// 需要传入全程序扫描的所有 writes
+// 在字段级 Wrapper 上执行分组（从 Wrapper 的 array_writes 读取）
 ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>* all_writes,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 );
 

@@ -221,12 +221,23 @@ ArrayDetectErrorCode runPipeline (
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_READ_CAPACITY;
 
-  // Step 7a: 扫描整个程序一次，收集所有数组读取
-  vec<ArrayReadAccess*, va_gc>* all_reads = NULL;
-  AD_TRY (scanAllArrayReadAccesses (AD_ARGS, &all_reads));
+  // Step 7a: 扫描整个程序一次，收集所有数组读取（直接填充到 Wrapper）
+  AD_TRY (scanAllArrayReadAccesses (AD_ARGS, detector.m_type_field_writes));
 
-  AD_DEBUG_PRINT ("readCapacity: scanned %u array read accesses",
-                  all_reads ? all_reads->length () : 0);
+  // 统计总数
+  unsigned total_read_accesses = 0;
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (tfad && tfad->array_reads) {
+        total_read_accesses += tfad->array_reads->length ();
+      }
+    }
+  }
+  AD_DEBUG_PRINT ("readCapacity: scanned %u array read accesses", total_read_accesses);
 
   // Step 7b: 为每个 (type, field) 分组读取证据
   if (detector.m_type_field_writes) {
@@ -238,7 +249,7 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (groupReadEvidencesForFieldWrapper (AD_ARGS, all_reads, tfad));
+      AD_TRY (groupReadEvidencesForFieldWrapper (AD_ARGS, tfad));
     }
 
     AD_DEBUG_PRINT ("readCapacity: grouped all type-field pairs");
@@ -249,12 +260,23 @@ ArrayDetectErrorCode runPipeline (
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_WRITE_CAPACITY;
 
-  // Step 8a: 扫描整个程序一次，收集所有数组写入
-  vec<ArrayWriteAccess*, va_gc>* all_writes = NULL;
-  AD_TRY (scanAllArrayWriteAccesses (AD_ARGS, &all_writes));
+  // Step 8a: 扫描整个程序一次，收集所有数组写入（直接填充到 Wrapper）
+  AD_TRY (scanAllArrayWriteAccesses (AD_ARGS, detector.m_type_field_writes));
 
-  AD_DEBUG_PRINT ("writeCapacity: scanned %u array write accesses",
-                  all_writes ? all_writes->length () : 0);
+  // 统计总数
+  unsigned total_write_accesses = 0;
+  if (detector.m_type_field_writes) {
+    typedef hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits> TypeFieldHashMap;
+    for (TypeFieldHashMap::iterator iter = detector.m_type_field_writes->begin ();
+         iter != detector.m_type_field_writes->end ();
+         ++iter) {
+      TypeFieldAnalysisData * tfad = (*iter).second;
+      if (tfad && tfad->array_writes) {
+        total_write_accesses += tfad->array_writes->length ();
+      }
+    }
+  }
+  AD_DEBUG_PRINT ("writeCapacity: scanned %u array write accesses", total_write_accesses);
 
   // Step 8b: 为每个 (type, field) 分组写入证据
   if (detector.m_type_field_writes) {
@@ -266,7 +288,7 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (groupWriteEvidencesForFieldWrapper (AD_ARGS, all_writes, tfad));
+      AD_TRY (groupWriteEvidencesForFieldWrapper (AD_ARGS, tfad));
     }
 
     AD_DEBUG_PRINT ("writeCapacity: grouped all type-field pairs");

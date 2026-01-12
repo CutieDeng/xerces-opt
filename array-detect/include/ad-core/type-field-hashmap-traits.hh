@@ -5,7 +5,7 @@
 // ============================================================================
 // TypeFieldKey 的 hash_map trait 类型定义
 // ============================================================================
-// 为 hash_map<TypeFieldKey, FieldWrapper*> 提供专门的 trait 类型
+// 为 hash_map<TypeFieldKey, ...> 提供专门的 trait 类型
 // 使用 GCC 的 simple_hashmap_traits 包装 default_hash_traits
 //
 // 注意：这个文件必须在 array-detector.hh 的命名空间定义之后包含
@@ -27,9 +27,9 @@ namespace field_analysis {
 
 namespace array_detector {
 
-// TypeFieldKey 的 hash_map trait 类型
-// 使用 simple_hashmap_traits 包装 default_hash_traits<TypeFieldKey>
-// Value 类型使用 field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude*
+// ============================================================================
+// TypeFieldKey -> Wrapper* 的 hashmap traits
+// ============================================================================
 typedef simple_hashmap_traits<default_hash_traits<TypeFieldKey>, ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude*> TypeFieldHashMapTraits;
 
 // 向后兼容别名

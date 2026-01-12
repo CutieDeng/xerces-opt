@@ -14,34 +14,28 @@ using namespace ::array_detector;
 using namespace ::field_analysis;
 
 // ============================================================================
-// 从所有收集的 reads 中提取并分组特定 (type, field) 的证据
+// 从 Wrapper 的 array_reads 中提取并分组证据
 // ============================================================================
 
 ArrayDetectErrorCode groupReadEvidencesForField (
   AD_FUNC_ARGS,
-  vec<ArrayReadAccess*, va_gc>* all_reads,
-  tree type,
-  tree field_decl,
+  vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>* read_wrappers,
   ReadEvidencesByIntegerFieldMap** out_map
 ) AD_FUNCTION_BEGIN {
   if (!out_map) {
     AD_RETURNE (OK);
   }
 
-  if (!all_reads || all_reads->length () == 0) {
+  if (!read_wrappers || read_wrappers->length () == 0) {
     AD_RETURNE (OK);
   }
 
-  // 遍历所有收集的 reads，过滤匹配 (type, field) 的访问
-  for (unsigned i = 0; i < all_reads->length (); i++) {
-    ArrayReadAccess* access = (*all_reads)[i];
-    if (!access) continue;
+  // 遍历所有 read wrappers
+  for (unsigned i = 0; i < read_wrappers->length (); i++) {
+    Wrapper_ArrayReadAccess_ReadBoundConditions* read_wrapper = (*read_wrappers)[i];
+    if (!read_wrapper || !read_wrapper->read_access) continue;
 
-    // 检查是否匹配目标 (type, field)
-    if (access->containing_type != type ||
-        access->pointer_field_decl != field_decl) {
-      continue;
-    }
+    ArrayReadAccess* access = read_wrapper->read_access;
 
     // 单项分析：从 access 生成所有证据
     vec<ReadCapacityEvidence*, va_gc>* evidences = NULL;
@@ -79,7 +73,6 @@ ArrayDetectErrorCode groupReadEvidencesForField (
 
 ArrayDetectErrorCode groupReadEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  vec<ArrayReadAccess*, va_gc>* all_reads,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
@@ -88,9 +81,7 @@ ArrayDetectErrorCode groupReadEvidencesForFieldWrapper (
 
   AD_TRY (groupReadEvidencesForField (
     AD_ARGS,
-    all_reads,
-    field_wrapper->type,
-    field_wrapper->field_decl,
+    field_wrapper->array_reads,
     &field_wrapper->read_evidences_map
   ));
 

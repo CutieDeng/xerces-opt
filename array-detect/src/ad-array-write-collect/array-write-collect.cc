@@ -1,7 +1,7 @@
 // ============================================================================
 // ad-array-write-collect 模块实现
 // ============================================================================
-// 全程序扫描，收集所有数组写入访问
+// 全程序扫描，收集所有数组写入访问，直接填充到已有的 Wrapper 中
 // ============================================================================
 
 #include "array-write-collect.hh"
@@ -11,6 +11,11 @@
 #include <cstring>
 
 namespace array_detect_ns {
+
+using ::array_detector::TypeFieldKey;
+using ::array_detector::TypeFieldHashMapTraits;
+using ::array_detector::TypeFieldAnalysisData;
+using ::field_analysis::Wrapper_ArrayWriteAccess_WriteBoundConditions;
 
 // ============================================================================
 // 检查表达式是否为数组写入
@@ -182,16 +187,18 @@ ArrayDetectErrorCode collectArrayWriteAccessFromStmt (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 扫描整个程序，收集所有数组写入访问
+// 扫描整个程序，收集所有数组写入访问，直接填充到 Wrapper
 // ============================================================================
 
 ArrayDetectErrorCode scanAllArrayWriteAccesses (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>** results
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* type_field_map
 ) AD_FUNCTION_BEGIN {
-  if (!results) {
+  if (!type_field_map) {
     AD_RETURNE (OK);
   }
+
+  unsigned total_accesses = 0;
 
   // 遍历所有函数收集数组写入
   struct cgraph_node* node;
@@ -213,11 +220,24 @@ ArrayDetectErrorCode scanAllArrayWriteAccesses (
         AD_TRY (collectArrayWriteAccessFromStmt (AD_ARGS, stmt, fn, &access));
 
         if (access) {
-          // 延迟初始化
-          if (!*results) {
-            vec_alloc (*results, 16);
+          // 查找对应的 Wrapper
+          TypeFieldKey key = { access->containing_type, access->pointer_field_decl };
+          TypeFieldAnalysisData** slot = type_field_map->get (key);
+
+          if (slot && *slot) {
+            TypeFieldAnalysisData* wrapper = *slot;
+
+            // 创建 Wrapper_ArrayWriteAccess_WriteBoundConditions
+            Wrapper_ArrayWriteAccess_WriteBoundConditions* write_wrapper =
+              ggc_alloc<Wrapper_ArrayWriteAccess_WriteBoundConditions> ();
+            memset (write_wrapper, 0, sizeof (Wrapper_ArrayWriteAccess_WriteBoundConditions));
+            write_wrapper->write_access = access;
+            write_wrapper->bound_conditions = NULL;  // 后续由 bound 模块填充
+
+            // 添加到 Wrapper 的 array_writes 字段
+            vec_safe_push (wrapper->array_writes, write_wrapper);
+            total_accesses++;
           }
-          vec_safe_push (*results, access);
         }
       }
     }
@@ -225,6 +245,7 @@ ArrayDetectErrorCode scanAllArrayWriteAccesses (
     pop_cfun ();
   }
 
+  AD_DEBUG_PRINT ("scanAllArrayWriteAccesses: collected %u accesses", total_accesses);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -250,21 +271,24 @@ void printArrayWriteAccess (
 }
 
 // ============================================================================
-// 打印所有数组写入访问
+// 打印特定 (type, field) 的数组写入访问列表
 // ============================================================================
 
-void printAllArrayWriteAccesses (
+void printArrayWriteAccessesForField (
   AD_FUNC_ARGS,
   FILE* out,
-  vec<ArrayWriteAccess*, va_gc>* accesses
+  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* wrappers
 ) {
-  if (!out || !accesses) return;
+  if (!out || !wrappers) return;
 
   fprintf (out, "=== Array Write Accesses (%u) ===\n",
-           accesses->length ());
+           wrappers->length ());
 
-  for (unsigned i = 0; i < accesses->length (); i++) {
-    printArrayWriteAccess (AD_ARGS, out, (*accesses)[i]);
+  for (unsigned i = 0; i < wrappers->length (); i++) {
+    Wrapper_ArrayWriteAccess_WriteBoundConditions* w = (*wrappers)[i];
+    if (w && w->write_access) {
+      printArrayWriteAccess (AD_ARGS, out, w->write_access);
+    }
   }
 }
 

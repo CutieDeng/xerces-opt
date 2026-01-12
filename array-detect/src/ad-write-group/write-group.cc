@@ -14,34 +14,28 @@ using namespace ::array_detector;
 using namespace ::field_analysis;
 
 // ============================================================================
-// 从所有收集的 writes 中提取并分组特定 (type, field) 的证据
+// 从 Wrapper 的 array_writes 中提取并分组证据
 // ============================================================================
 
 ArrayDetectErrorCode groupWriteEvidencesForField (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>* all_writes,
-  tree type,
-  tree field_decl,
+  vec<Wrapper_ArrayWriteAccess_WriteBoundConditions*, va_gc>* write_wrappers,
   WriteEvidencesByIntegerFieldMap** out_map
 ) AD_FUNCTION_BEGIN {
   if (!out_map) {
     AD_RETURNE (OK);
   }
 
-  if (!all_writes || all_writes->length () == 0) {
+  if (!write_wrappers || write_wrappers->length () == 0) {
     AD_RETURNE (OK);
   }
 
-  // 遍历所有收集的 writes，过滤匹配 (type, field) 的访问
-  for (unsigned i = 0; i < all_writes->length (); i++) {
-    ArrayWriteAccess* access = (*all_writes)[i];
-    if (!access) continue;
+  // 遍历所有 write wrappers
+  for (unsigned i = 0; i < write_wrappers->length (); i++) {
+    Wrapper_ArrayWriteAccess_WriteBoundConditions* write_wrapper = (*write_wrappers)[i];
+    if (!write_wrapper || !write_wrapper->write_access) continue;
 
-    // 检查是否匹配目标 (type, field)
-    if (access->containing_type != type ||
-        access->pointer_field_decl != field_decl) {
-      continue;
-    }
+    ArrayWriteAccess* access = write_wrapper->write_access;
 
     // 单项分析：从 access 生成所有证据
     vec<WriteCapacityEvidence*, va_gc>* evidences = NULL;
@@ -79,7 +73,6 @@ ArrayDetectErrorCode groupWriteEvidencesForField (
 
 ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  vec<ArrayWriteAccess*, va_gc>* all_writes,
   Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
@@ -88,9 +81,7 @@ ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
 
   AD_TRY (groupWriteEvidencesForField (
     AD_ARGS,
-    all_writes,
-    field_wrapper->type,
-    field_wrapper->field_decl,
+    field_wrapper->array_writes,
     &field_wrapper->write_evidences_map
   ));
 

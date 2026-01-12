@@ -1,7 +1,7 @@
 // ============================================================================
 // ad-array-read-collect 模块实现
 // ============================================================================
-// 全程序扫描，收集所有数组读取访问
+// 全程序扫描，收集所有数组读取访问，直接填充到已有的 Wrapper 中
 // ============================================================================
 
 #include "array-read-collect.hh"
@@ -11,6 +11,11 @@
 #include <cstring>
 
 namespace array_detect_ns {
+
+using ::array_detector::TypeFieldKey;
+using ::array_detector::TypeFieldHashMapTraits;
+using ::array_detector::TypeFieldAnalysisData;
+using ::field_analysis::Wrapper_ArrayReadAccess_ReadBoundConditions;
 
 // ============================================================================
 // 检查表达式是否为数组读取
@@ -181,16 +186,18 @@ ArrayDetectErrorCode collectArrayReadAccessFromStmt (
 } AD_FUNCTION_END
 
 // ============================================================================
-// 扫描整个程序，收集所有数组读取访问
+// 扫描整个程序，收集所有数组读取访问，直接填充到 Wrapper
 // ============================================================================
 
 ArrayDetectErrorCode scanAllArrayReadAccesses (
   AD_FUNC_ARGS,
-  vec<ArrayReadAccess*, va_gc>** results
+  hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* type_field_map
 ) AD_FUNCTION_BEGIN {
-  if (!results) {
+  if (!type_field_map) {
     AD_RETURNE (OK);
   }
+
+  unsigned total_accesses = 0;
 
   // 遍历所有函数收集数组读取
   struct cgraph_node* node;
@@ -212,11 +219,24 @@ ArrayDetectErrorCode scanAllArrayReadAccesses (
         AD_TRY (collectArrayReadAccessFromStmt (AD_ARGS, stmt, fn, &access));
 
         if (access) {
-          // 延迟初始化
-          if (!*results) {
-            vec_alloc (*results, 16);
+          // 查找对应的 Wrapper
+          TypeFieldKey key = { access->containing_type, access->pointer_field_decl };
+          TypeFieldAnalysisData** slot = type_field_map->get (key);
+
+          if (slot && *slot) {
+            TypeFieldAnalysisData* wrapper = *slot;
+
+            // 创建 Wrapper_ArrayReadAccess_ReadBoundConditions
+            Wrapper_ArrayReadAccess_ReadBoundConditions* read_wrapper =
+              ggc_alloc<Wrapper_ArrayReadAccess_ReadBoundConditions> ();
+            memset (read_wrapper, 0, sizeof (Wrapper_ArrayReadAccess_ReadBoundConditions));
+            read_wrapper->read_access = access;
+            read_wrapper->bound_conditions = NULL;  // 后续由 bound 模块填充
+
+            // 添加到 Wrapper 的 array_reads 字段
+            vec_safe_push (wrapper->array_reads, read_wrapper);
+            total_accesses++;
           }
-          vec_safe_push (*results, access);
         }
       }
     }
@@ -224,6 +244,7 @@ ArrayDetectErrorCode scanAllArrayReadAccesses (
     pop_cfun ();
   }
 
+  AD_DEBUG_PRINT ("scanAllArrayReadAccesses: collected %u accesses", total_accesses);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -249,21 +270,24 @@ void printArrayReadAccess (
 }
 
 // ============================================================================
-// 打印所有数组读取访问
+// 打印特定 (type, field) 的数组读取访问列表
 // ============================================================================
 
-void printAllArrayReadAccesses (
+void printArrayReadAccessesForField (
   AD_FUNC_ARGS,
   FILE* out,
-  vec<ArrayReadAccess*, va_gc>* accesses
+  vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>* wrappers
 ) {
-  if (!out || !accesses) return;
+  if (!out || !wrappers) return;
 
   fprintf (out, "=== Array Read Accesses (%u) ===\n",
-           accesses->length ());
+           wrappers->length ());
 
-  for (unsigned i = 0; i < accesses->length (); i++) {
-    printArrayReadAccess (AD_ARGS, out, (*accesses)[i]);
+  for (unsigned i = 0; i < wrappers->length (); i++) {
+    Wrapper_ArrayReadAccess_ReadBoundConditions* w = (*wrappers)[i];
+    if (w && w->read_access) {
+      printArrayReadAccess (AD_ARGS, out, w->read_access);
+    }
   }
 }
 
