@@ -531,7 +531,12 @@ ArrayDetectErrorCode analyzeMallocCapacity (
     evidence->location = gimple_location (call_stmt);
     evidence->description = "Allocation size references integer field";
 
-    AD_DEBUG_PRINT ("[malloc-capacity] %s() -> field '%s'",
+    // 增强调试信息：包含类型模板
+    char const* type_name = NULL;
+    gcc_ext_util::formatTypeNameWithTemplateArgs (AD_ARGS, containing_type, type_name);
+    AD_DEBUG_PRINT ("[malloc-capacity] %s.%s: %s() -> field '%s'",
+                    type_name ? type_name : "?",
+                    safeGetFieldName (AD_ARGS, write_info->field_decl),
                     func_name,
                     safeGetFieldName (AD_ARGS, integer_field));
 

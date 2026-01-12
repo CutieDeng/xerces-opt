@@ -486,12 +486,54 @@ ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char co
   AD_RETURNO (base_type_name);
 } AD_FUNCTION_END
 
+// 辅助函数：格式化包含模板参数的完整类型名
+// 输出格式: "TypeName<Arg1, Arg2>" 或 "TypeName" (无模板参数时)
+ArrayDetectErrorCode formatTypeNameWithTemplateArgs (AD_FUNC_ARGS, tree type, char const *&result) AD_FUNCTION_BEGIN {
+  if (!type) {
+    AD_RETURNO ("<null-type>");
+  }
+
+  // 提取模板参数
+  char const* base_name = NULL;
+  vec<char const*, va_gc>* template_args = NULL;
+  AD_TRY (extractTemplateArgsFromType (AD_ARGS, type, &base_name, &template_args));
+
+  if (!base_name) {
+    // 回退到普通类型名
+    char const* type_name = NULL;
+    AD_TRY (formatTypeNameWithNamespace (AD_ARGS, type, type_name));
+    AD_RETURNO (type_name ? type_name : "<unknown>");
+  }
+
+  // 如果没有模板参数，直接返回基础类型名
+  if (!template_args || template_args->is_empty ()) {
+    AD_RETURNO (base_name);
+  }
+
+  // 格式化带模板参数的类型名
+  if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
+    AD_RETURNE (RESOURCE_ERROR);
+  }
+
+  // 构建格式化字符串: "TypeName<Arg1, Arg2, ...>"
+  int offset = snprintf (ctx.address_format_buffer, ctx.address_format_buffer_size, "%s<", base_name);
+  for (unsigned i = 0; i < template_args->length () && offset < (int)ctx.address_format_buffer_size - 2; i++) {
+    if (i > 0) {
+      offset += snprintf (ctx.address_format_buffer + offset, ctx.address_format_buffer_size - offset, ", ");
+    }
+    offset += snprintf (ctx.address_format_buffer + offset, ctx.address_format_buffer_size - offset, "%s", (*template_args)[i]);
+  }
+  snprintf (ctx.address_format_buffer + offset, ctx.address_format_buffer_size - offset, ">");
+
+  AD_RETURNO (ctx.address_format_buffer);
+} AD_FUNCTION_END
+
 // 调试信息增强：打印字段写入捕获信息
-// 包括：类型名（含命名空间）、字段名、字段类型名
+// 包括：类型名（含模板参数）、字段名、字段类型名
 ArrayDetectErrorCode logFieldWriteCapture (AD_FUNC_ARGS, tree containing_type, tree field_decl) AD_FUNCTION_BEGIN {
-  // 获取类型名（含命名空间）
+  // 获取类型名（含模板参数）
   char const * type_name = NULL;
-  AD_TRY (formatTypeNameWithNamespace (AD_ARGS, containing_type, type_name));
+  AD_TRY (formatTypeNameWithTemplateArgs (AD_ARGS, containing_type, type_name));
   
   // 获取字段名
   char const * field_name = NULL;

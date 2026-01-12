@@ -55,6 +55,10 @@ ArrayDetectErrorCode getFieldName (AD_FUNC_ARGS, tree field_decl, char const *&r
 // 返回：成功返回 OK，result 指向格式化的字段类型名字符串（GCC 内部管理，无需释放）
 ArrayDetectErrorCode formatFieldTypeName (AD_FUNC_ARGS, tree field_type, char const *&result);
 
+// 辅助函数：格式化包含模板参数的完整类型名
+// 输出格式: "TypeName<Arg1, Arg2>" 或 "TypeName" (无模板参数时)
+ArrayDetectErrorCode formatTypeNameWithTemplateArgs (AD_FUNC_ARGS, tree type, char const *&result);
+
 // 检测是否是编译器生成的字段（如虚表指针 vptr）
 // 使用 DECL_ARTIFICIAL 检测，不依赖字段名硬编码
 // 返回：成功返回 OK，result 为 true 表示是编译器生成的字段

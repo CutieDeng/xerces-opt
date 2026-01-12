@@ -12,6 +12,9 @@
 #include "array-detector.hh"
 #include "string-utils.hh"
 #include "gcc-ext-util.hh"
+#include "malloc-capacity.hh"
+#include "array-read-bound.hh"
+#include "array-write-bound.hh"
 
 // For flag_generate_lto
 #include "options.h"
@@ -81,44 +84,71 @@ void writeOwnedFieldDatum (
   fprintf (out, " ");
   writeEscapedString (out, conclusion->field_name);
 
-  // (malloc-size "field1" "field2" ...)
+  // (malloc-size (total . N) ("field1" . count) ("field2" . count) ...)
   fprintf (out, " (malloc-size");
-  if (tfad && tfad->malloc_evidences_map) {
-    for (auto iter = tfad->malloc_evidences_map->begin ();
-         iter != tfad->malloc_evidences_map->end ();
-         ++iter) {
-      tree integer_field = (*iter).first;
-      char const* name = safeGetFieldName (AD_ARGS, integer_field);
-      fprintf (out, " ");
-      writeEscapedString (out, name);
+  if (tfad) {
+    // total = 字段写入操作总数（malloc 证据的来源）
+    unsigned total = tfad->writes ? tfad->writes->length () : 0;
+    fprintf (out, " (total . %u)", total);
+    // 各字段计数
+    if (tfad->malloc_evidences_map) {
+      for (auto iter = tfad->malloc_evidences_map->begin ();
+           iter != tfad->malloc_evidences_map->end ();
+           ++iter) {
+        tree integer_field = (*iter).first;
+        vec<MallocCapacityEvidence*, va_gc>* evidences = (*iter).second;
+        unsigned count = evidences ? evidences->length () : 0;
+        char const* name = safeGetFieldName (AD_ARGS, integer_field);
+        fprintf (out, " (");
+        writeEscapedString (out, name);
+        fprintf (out, " . %u)", count);
+      }
     }
   }
   fprintf (out, ")");
 
-  // (reads "field1" "field2" ...)
+  // (reads (total . N) ("field1" . count) ("field2" . count) ...)
   fprintf (out, " (reads");
-  if (tfad && tfad->read_evidences_map) {
-    for (auto iter = tfad->read_evidences_map->begin ();
-         iter != tfad->read_evidences_map->end ();
-         ++iter) {
-      tree integer_field = (*iter).first;
-      char const* name = safeGetFieldName (AD_ARGS, integer_field);
-      fprintf (out, " ");
-      writeEscapedString (out, name);
+  if (tfad) {
+    // total = 数组读取访问总数
+    unsigned total = tfad->array_reads ? tfad->array_reads->length () : 0;
+    fprintf (out, " (total . %u)", total);
+    // 各字段计数
+    if (tfad->read_evidences_map) {
+      for (auto iter = tfad->read_evidences_map->begin ();
+           iter != tfad->read_evidences_map->end ();
+           ++iter) {
+        tree integer_field = (*iter).first;
+        vec<ReadCapacityEvidence*, va_gc>* evidences = (*iter).second;
+        unsigned count = evidences ? evidences->length () : 0;
+        char const* name = safeGetFieldName (AD_ARGS, integer_field);
+        fprintf (out, " (");
+        writeEscapedString (out, name);
+        fprintf (out, " . %u)", count);
+      }
     }
   }
   fprintf (out, ")");
 
-  // (writes "field1" "field2" ...)
+  // (writes (total . N) ("field1" . count) ("field2" . count) ...)
   fprintf (out, " (writes");
-  if (tfad && tfad->write_evidences_map) {
-    for (auto iter = tfad->write_evidences_map->begin ();
-         iter != tfad->write_evidences_map->end ();
-         ++iter) {
-      tree integer_field = (*iter).first;
-      char const* name = safeGetFieldName (AD_ARGS, integer_field);
-      fprintf (out, " ");
-      writeEscapedString (out, name);
+  if (tfad) {
+    // total = 数组写入访问总数
+    unsigned total = tfad->array_writes ? tfad->array_writes->length () : 0;
+    fprintf (out, " (total . %u)", total);
+    // 各字段计数
+    if (tfad->write_evidences_map) {
+      for (auto iter = tfad->write_evidences_map->begin ();
+           iter != tfad->write_evidences_map->end ();
+           ++iter) {
+        tree integer_field = (*iter).first;
+        vec<WriteCapacityEvidence*, va_gc>* evidences = (*iter).second;
+        unsigned count = evidences ? evidences->length () : 0;
+        char const* name = safeGetFieldName (AD_ARGS, integer_field);
+        fprintf (out, " (");
+        writeEscapedString (out, name);
+        fprintf (out, " . %u)", count);
+      }
     }
   }
   fprintf (out, ")");
