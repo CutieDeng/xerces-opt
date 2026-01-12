@@ -16,9 +16,9 @@
 // 6. summarizeFieldEscapeConclude   -> ad-field-escape-conclude (per field)
 // 7. analyzeOwnershipMove           -> ad-ownership-move (per write)
 // 8. summarizeOwnershipConclude     -> ad-ownership-conclude (per field)
-// 9. collectAllMallocEvidences      -> ad-field-write-capacity (per field)
-// 10. collectAllReadEvidences       -> ad-array-read-capacity (per field)
-// 11. collectAllWriteEvidences      -> ad-array-write-capacity (per field)
+// 9. groupMallocEvidences           -> ad-malloc-group (per field)
+// 10. groupReadEvidences            -> ad-read-group (per field)
+// 11. groupWriteEvidences           -> ad-write-group (per field)
 // 12. generateCapacityConclude      -> ad-capacity-conclude (per field)
 // ============================================================================
 
@@ -33,11 +33,14 @@
 #include "ownership-conclude.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
-#include "field-write-capacity.hh"
+#include "malloc-capacity.hh"
+#include "malloc-group.hh"
 #include "array-read-collect.hh"
 #include "array-read-bound.hh"
-#include "array-read-capacity.hh"
-#include "array-write-capacity.hh"
+#include "read-group.hh"
+#include "array-write-collect.hh"
+#include "array-write-bound.hh"
+#include "write-group.hh"
 #include "capacity-conclude.hh"
 #include "owned-conclusion.hh"
 
@@ -207,14 +210,14 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (collectAllMallocEvidences (AD_ARGS, tfad));
+      AD_TRY (groupMallocEvidencesForFieldWrapper (AD_ARGS, tfad));
     }
 
     AD_DEBUG_PRINT ("mallocCapacity: analyzed all type-field pairs");
   }
 
   // ========================================================================
-  // Step 7: 分析数组读容量关联 (ad-array-read-collect + ad-array-read-bound)
+  // Step 7: 分析数组读容量关联 (ad-read-group)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_READ_CAPACITY;
 
@@ -227,59 +230,14 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      // Step 7a: 收集数组读取访问 (ad-array-read-collect)
-      vec<ArrayReadAccess*, va_gc>* read_accesses = NULL;
-      AD_TRY (collectAllArrayReadAccesses (AD_ARGS, tfad->type, tfad->field_decl, &read_accesses));
-
-      if (!read_accesses || read_accesses->length () == 0) continue;
-
-      // Step 7b: 为每个读取分析边界条件并创建 Wrapper (ad-array-read-bound, 一对多)
-      for (unsigned i = 0; i < read_accesses->length (); i++) {
-        ArrayReadAccess* access = (*read_accesses)[i];
-        if (!access) continue;
-
-        // 分析所有边界条件 (一对多)
-        vec<ReadBoundCondition*, va_gc>* bound_conds = NULL;
-        AD_TRY (analyzeReadBoundConditions (AD_ARGS, access, &bound_conds));
-
-        // 创建 Wrapper (一对多)
-        Wrapper_ArrayReadAccess_ReadBoundConditions* wrapper =
-          ggc_alloc<Wrapper_ArrayReadAccess_ReadBoundConditions>();
-        wrapper->read_access = access;
-        wrapper->bound_conditions = bound_conds;
-
-        // 延迟初始化 array_reads
-        if (!tfad->array_reads) {
-          vec_alloc (tfad->array_reads, read_accesses->length ());
-        }
-        vec_safe_push (tfad->array_reads, wrapper);
-
-        // 为每个边界条件提取证据
-        if (bound_conds) {
-          for (unsigned j = 0; j < bound_conds->length (); j++) {
-            ReadBoundCondition* bound_cond = (*bound_conds)[j];
-            if (!bound_cond) continue;
-
-            ReadCapacityEvidence* evidence = NULL;
-            AD_TRY (extractReadCapacityEvidence (AD_ARGS, tfad->field_decl, bound_cond, &evidence));
-
-            if (evidence) {
-              // 延迟初始化 read_evidences
-              if (!tfad->read_evidences) {
-                vec_alloc (tfad->read_evidences, 4);
-              }
-              vec_safe_push (tfad->read_evidences, evidence);
-            }
-          }
-        }
-      }
+      AD_TRY (groupReadEvidencesForFieldWrapper (AD_ARGS, tfad));
     }
 
-    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs (split modules)");
+    AD_DEBUG_PRINT ("readCapacity: analyzed all type-field pairs");
   }
 
   // ========================================================================
-  // Step 8: 分析数组写容量关联 (ad-array-write-capacity)
+  // Step 8: 分析数组写容量关联 (ad-write-group)
   // ========================================================================
   g_pipeline_state.current_phase = PHASE_WRITE_CAPACITY;
 
@@ -292,7 +250,7 @@ ArrayDetectErrorCode runPipeline (
       TypeFieldAnalysisData * tfad = (*iter).second;
       if (!tfad) continue;
 
-      AD_TRY (collectAllWriteEvidences (AD_ARGS, tfad));
+      AD_TRY (groupWriteEvidencesForFieldWrapper (AD_ARGS, tfad));
     }
 
     AD_DEBUG_PRINT ("writeCapacity: analyzed all type-field pairs");
@@ -349,13 +307,13 @@ ArrayDetectErrorCode runPipeline (
 
       // 输出三种证据
       if (tfad->malloc_evidences_map) {
-        printAllMallocEvidences (AD_ARGS, ctx.debug_file, tfad->malloc_evidences_map);
+        printMallocEvidenceGroups (AD_ARGS, ctx.debug_file, tfad->malloc_evidences_map);
       }
-      if (tfad->read_evidences) {
-        printAllReadEvidences (AD_ARGS, ctx.debug_file, tfad->read_evidences);
+      if (tfad->read_evidences_map) {
+        printReadEvidenceGroups (AD_ARGS, ctx.debug_file, tfad->read_evidences_map);
       }
-      if (tfad->write_evidences) {
-        printAllWriteEvidences (AD_ARGS, ctx.debug_file, tfad->write_evidences);
+      if (tfad->write_evidences_map) {
+        printWriteEvidenceGroups (AD_ARGS, ctx.debug_file, tfad->write_evidences_map);
       }
       // 输出容量结论
       if (tfad->capacity_conclude) {

@@ -5,9 +5,9 @@
 // ============================================================================
 
 #include "capacity-conclude.hh"
-#include "field-write-capacity.hh"
-#include "array-read-capacity.hh"
-#include "array-write-capacity.hh"
+#include "malloc-capacity.hh"
+#include "array-read-bound.hh"
+#include "array-write-bound.hh"
 #include "string-utils.hh"
 
 #include <cstring>
@@ -188,6 +188,7 @@ ArrayDetectErrorCode generateCapacityConclude (
   }
 
   // 从 hashmap 提取 flat list 用于 summarize
+  // Malloc evidences
   vec<MallocCapacityEvidence*, va_gc>* malloc_evidences_flat = NULL;
   if (tfad->malloc_evidences_map) {
     for (auto iter = tfad->malloc_evidences_map->begin ();
@@ -202,13 +203,43 @@ ArrayDetectErrorCode generateCapacityConclude (
     }
   }
 
+  // Read evidences
+  vec<ReadCapacityEvidence*, va_gc>* read_evidences_flat = NULL;
+  if (tfad->read_evidences_map) {
+    for (auto iter = tfad->read_evidences_map->begin ();
+         iter != tfad->read_evidences_map->end ();
+         ++iter) {
+      vec<ReadCapacityEvidence*, va_gc>* evidences = (*iter).second;
+      if (evidences) {
+        for (unsigned i = 0; i < evidences->length (); i++) {
+          vec_safe_push (read_evidences_flat, (*evidences)[i]);
+        }
+      }
+    }
+  }
+
+  // Write evidences
+  vec<WriteCapacityEvidence*, va_gc>* write_evidences_flat = NULL;
+  if (tfad->write_evidences_map) {
+    for (auto iter = tfad->write_evidences_map->begin ();
+         iter != tfad->write_evidences_map->end ();
+         ++iter) {
+      vec<WriteCapacityEvidence*, va_gc>* evidences = (*iter).second;
+      if (evidences) {
+        for (unsigned i = 0; i < evidences->length (); i++) {
+          vec_safe_push (write_evidences_flat, (*evidences)[i]);
+        }
+      }
+    }
+  }
+
   AD_TRY (summarizeCapacityConclude (
     AD_ARGS,
     tfad->type,
     tfad->field_decl,
     malloc_evidences_flat,
-    tfad->read_evidences,
-    tfad->write_evidences,
+    read_evidences_flat,
+    write_evidences_flat,
     &tfad->capacity_conclude
   ));
 

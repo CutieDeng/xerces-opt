@@ -375,14 +375,15 @@
       "ad-field-wrapper"
       ;; ad- 分析模块
       "ad-owned-verdict"
-      "ad-field-write-capacity"
-      "ad-array-read-capacity"
-      "ad-array-write-capacity"
-      "ad-capacity-conclude"
+      "ad-malloc-capacity"
+      "ad-malloc-group"
       "ad-array-read-collect"
       "ad-array-read-bound"
+      "ad-read-group"
       "ad-array-write-collect"
       "ad-array-write-bound"
+      "ad-write-group"
+      "ad-capacity-conclude"
       ;; ad- 控制流模块
       "ad-pipeline"
       "ad-driver"))

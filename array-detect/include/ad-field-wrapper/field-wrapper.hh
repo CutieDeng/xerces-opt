@@ -120,6 +120,28 @@ typedef simple_hashmap_traits<ggc_ptr_hash<tree_node>, vec<::array_detect_ns::Ma
 typedef hash_map<tree, vec<::array_detect_ns::MallocCapacityEvidence*, va_gc>*, TreeToMallocEvidencesTraits>
   MallocEvidencesByIntegerFieldMap;
 
+// ============================================================================
+// Read 证据 Hashmap 类型定义
+// ============================================================================
+// (mapof integer-field (listof read-capacity-evidence))
+
+typedef simple_hashmap_traits<ggc_ptr_hash<tree_node>, vec<::array_detect_ns::ReadCapacityEvidence*, va_gc>*>
+  TreeToReadEvidencesTraits;
+
+typedef hash_map<tree, vec<::array_detect_ns::ReadCapacityEvidence*, va_gc>*, TreeToReadEvidencesTraits>
+  ReadEvidencesByIntegerFieldMap;
+
+// ============================================================================
+// Write 证据 Hashmap 类型定义
+// ============================================================================
+// (mapof integer-field (listof write-capacity-evidence))
+
+typedef simple_hashmap_traits<ggc_ptr_hash<tree_node>, vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>*>
+  TreeToWriteEvidencesTraits;
+
+typedef hash_map<tree, vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>*, TreeToWriteEvidencesTraits>
+  WriteEvidencesByIntegerFieldMap;
+
 // ----------------------------------------------------------------------------
 // 层级1：写入级 Wrapper
 // ----------------------------------------------------------------------------
@@ -171,9 +193,10 @@ struct Wrapper_FieldEscapeConclude_OwnershipConclude {
   // === 容量关联分析 ===
   // malloc 证据按 integer_field 分组 (hashmap)
   MallocEvidencesByIntegerFieldMap* malloc_evidences_map;
-  // read/write 证据 (flat list，暂不分组)
-  vec<::array_detect_ns::ReadCapacityEvidence*, va_gc>* read_evidences;
-  vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>* write_evidences;
+  // read 证据按 integer_field 分组 (hashmap)
+  ReadEvidencesByIntegerFieldMap* read_evidences_map;
+  // write 证据按 integer_field 分组 (hashmap)
+  WriteEvidencesByIntegerFieldMap* write_evidences_map;
 
   // === 容量关联结论 ===
   ::array_detect_ns::CapacityConclude* capacity_conclude;

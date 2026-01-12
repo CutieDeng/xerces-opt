@@ -1,13 +1,12 @@
 #pragma once
 
 // ============================================================================
-// ad-field-write-capacity 模块
+// ad-malloc-capacity 模块
 // ============================================================================
-// 分析字段写入中的 malloc size 参数，寻找关联整数字段
+// 分析单个字段写入中的 malloc size 参数，寻找关联整数字段
 //
 // 数据流：
 //   field-write-info, write-original-source, type -> (listof malloc-capacity-evidence)
-//   (field, (listof field-write-info)) -> (mapof integer-field (listof malloc-capacity-evidence))
 //
 // 场景：分析 ptr = malloc(a) 中 a 被写入了哪些整数字段
 // 例如：obj.d = malloc(a); obj.a = a; obj.b = a;
@@ -19,12 +18,10 @@
 #include "gcc-common.hh"
 #include "field-write.hh"
 #include "write-source.hh"
-#include "field-wrapper.hh"
 
 namespace array_detect_ns {
 
 using namespace ::array_detector;
-using namespace ::field_analysis;
 
 // ============================================================================
 // 置信度枚举
@@ -76,7 +73,7 @@ struct MallocCapacityEvidence {
 // ============================================================================
 
 // 分析单个字段写入的 malloc 容量关联
-// 输入：write_info, write_source
+// 输入：write_info, write_source, containing_type
 // 输出：(listof MallocCapacityEvidence*) - 可能关联多个整数字段
 ArrayDetectErrorCode analyzeMallocCapacity (
   AD_FUNC_ARGS,
@@ -84,14 +81,6 @@ ArrayDetectErrorCode analyzeMallocCapacity (
   WriteOriginalSource* write_source,
   tree containing_type,
   vec<MallocCapacityEvidence*, va_gc>** results
-);
-
-// 收集所有 malloc 容量证据
-// 输入：TypeFieldAnalysisData (包含所有写入)
-// 输出：填充 tfad->malloc_evidences
-ArrayDetectErrorCode collectAllMallocEvidences (
-  AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
 );
 
 // 查找 size 表达式关联的所有整数字段
@@ -110,21 +99,14 @@ bool isMallocLikeCall (gimple* stmt, char const** out_func_name);
 // 从 malloc 调用中提取 size 表达式
 tree extractMallocSizeExpr (gimple* call_stmt, char const* func_name);
 
-// 打印 malloc 容量证据
+// 获取置信度名称
+char const* mallocConfidenceToString (MallocEvidenceConfidence conf);
+
+// 打印单个 malloc 容量证据
 void printMallocCapacityEvidence (
   AD_FUNC_ARGS,
   FILE* out,
   MallocCapacityEvidence* evidence
 );
-
-// 打印所有 malloc 容量证据（从 hashmap）
-void printAllMallocEvidences (
-  AD_FUNC_ARGS,
-  FILE* out,
-  MallocEvidencesByIntegerFieldMap* evidences_map
-);
-
-// 获取置信度名称
-char const* mallocConfidenceToString (MallocEvidenceConfidence conf);
 
 } // namespace array_detect_ns
