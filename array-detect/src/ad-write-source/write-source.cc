@@ -139,7 +139,13 @@ ArrayDetectErrorCode traceWriteSource_extractSource_extractFromCall (
   tree fn = gimple_call_fn (call_stmt);
   if (fn && TREE_CODE (fn) == OBJ_TYPE_REF) {
     fc.call_type = CALL_VIRTUAL;
-    fc.function_name = ggc_strdup ("<virtual>");
+    // Try to extract actual virtual method name
+    char const* extracted_name = nullptr;
+    if (extractVirtualCallFunctionName (AD_ARGS, call_stmt, extracted_name) == OK && extracted_name) {
+      fc.function_name = ggc_strdup (extracted_name);
+    } else {
+      fc.function_name = ggc_strdup ("<virtual>");
+    }
   } else if (fn && TREE_CODE (fn) == ADDR_EXPR) {
     tree fn_decl = TREE_OPERAND (fn, 0);
     if (fn_decl && DECL_NAME (fn_decl)) {
@@ -148,6 +154,27 @@ ArrayDetectErrorCode traceWriteSource_extractSource_extractFromCall (
     } else {
       fc.function_name = ggc_strdup ("<unknown>");
       fc.call_type = CALL_UNKNOWN;
+    }
+  } else if (fn && TREE_CODE (fn) == SSA_NAME) {
+    // SSA_NAME may be from OBJ_TYPE_REF - check the definition
+    gimple* def_stmt = SSA_NAME_DEF_STMT (fn);
+    if (def_stmt && gimple_code (def_stmt) == GIMPLE_ASSIGN) {
+      tree rhs = gimple_assign_rhs1 (def_stmt);
+      if (rhs && TREE_CODE (rhs) == OBJ_TYPE_REF) {
+        fc.call_type = CALL_VIRTUAL;
+        char const* extracted_name = nullptr;
+        if (extractVirtualCallFunctionName (AD_ARGS, call_stmt, extracted_name) == OK && extracted_name) {
+          fc.function_name = ggc_strdup (extracted_name);
+        } else {
+          fc.function_name = ggc_strdup ("<virtual>");
+        }
+      } else {
+        fc.call_type = CALL_INDIRECT;
+        fc.function_name = ggc_strdup ("<indirect>");
+      }
+    } else {
+      fc.call_type = CALL_INDIRECT;
+      fc.function_name = ggc_strdup ("<indirect>");
     }
   } else {
     fc.call_type = CALL_INDIRECT;

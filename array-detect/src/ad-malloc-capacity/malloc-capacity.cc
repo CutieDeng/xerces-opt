@@ -102,7 +102,7 @@ static bool exprReferencesField (
 }
 
 // ============================================================================
-// 检查 gimple 语句是否为 malloc/calloc/realloc 调用
+// 检查 gimple 语句是否为 malloc/calloc/realloc 或类似分配调用
 // ============================================================================
 
 bool isMallocLikeCall (gimple* stmt, char const** out_func_name) {
@@ -110,22 +110,38 @@ bool isMallocLikeCall (gimple* stmt, char const** out_func_name) {
     return false;
   }
 
+  char const* name = nullptr;
+
+  // 尝试获取直接调用的函数声明
   tree fndecl = gimple_call_fndecl (stmt);
-  if (!fndecl) {
-    return false;
+  if (fndecl) {
+    tree id = DECL_NAME (fndecl);
+    if (id) {
+      name = IDENTIFIER_POINTER (id);
+    }
   }
 
-  tree id = DECL_NAME (fndecl);
-  if (!id) {
-    return false;
+  // 如果直接调用没有函数名，尝试从内部函数名获取
+  if (!name) {
+    tree fn = gimple_call_fn (stmt);
+    if (fn) {
+      // 虚函数调用 - 尝试从类型系统获取函数名
+      tree fn_type = TREE_TYPE (fn);
+      if (fn_type && TREE_CODE (fn_type) == POINTER_TYPE) {
+        tree pointed = TREE_TYPE (fn_type);
+        if (pointed && TREE_CODE (pointed) == FUNCTION_TYPE) {
+          // 这是一个函数指针调用，无法静态确定函数名
+          // 但可以尝试从调试信息获取
+        }
+      }
+    }
   }
 
-  char const* name = IDENTIFIER_POINTER (id);
   if (!name) {
     return false;
   }
 
-  // 检查是否为常见分配函数
+  // 检查是否为常见分配函数（精确匹配）
   if (strcmp (name, "malloc") == 0 ||
       strcmp (name, "calloc") == 0 ||
       strcmp (name, "realloc") == 0 ||
@@ -134,7 +150,19 @@ bool isMallocLikeCall (gimple* stmt, char const** out_func_name) {
       strcmp (name, "xrealloc") == 0 ||
       strcmp (name, "g_malloc") == 0 ||
       strcmp (name, "g_malloc0") == 0 ||
-      strcmp (name, "g_realloc") == 0) {
+      strcmp (name, "g_realloc") == 0 ||
+      strcmp (name, "operator new") == 0 ||
+      strcmp (name, "operator new[]") == 0) {
+    if (out_func_name) {
+      *out_func_name = name;
+    }
+    return true;
+  }
+
+  // 检查是否包含 "alloc" 子串（用于自定义分配器如 allocate, Allocate, etc.）
+  if (strstr (name, "alloc") != nullptr ||
+      strstr (name, "Alloc") != nullptr ||
+      strstr (name, "ALLOC") != nullptr) {
     if (out_func_name) {
       *out_func_name = name;
     }
@@ -158,11 +186,37 @@ tree extractMallocSizeExpr (gimple* call_stmt, char const* func_name) {
     return NULL_TREE;
   }
 
+  // 检查是否为虚函数调用（OBJ_TYPE_REF）
+  // 对于虚函数调用，arg[0] 是 this 指针，实际参数从 arg[1] 开始
+  bool is_virtual_call = false;
+  tree fn = gimple_call_fn (call_stmt);
+  if (fn && TREE_CODE (fn) == OBJ_TYPE_REF) {
+    is_virtual_call = true;
+  } else if (fn && TREE_CODE (fn) == SSA_NAME) {
+    gimple* def_stmt = SSA_NAME_DEF_STMT (fn);
+    if (def_stmt && is_gimple_assign (def_stmt)) {
+      tree rhs = gimple_assign_rhs1 (def_stmt);
+      if (rhs && TREE_CODE (rhs) == OBJ_TYPE_REF) {
+        is_virtual_call = true;
+      }
+    }
+  }
+
+  // 对于 allocate 虚函数，arg[1] 是 size（arg[0] 是 this）
+  if (is_virtual_call && strcmp (func_name, "allocate") == 0) {
+    if (nargs >= 2) {
+      return gimple_call_arg (call_stmt, 1);
+    }
+    return NULL_TREE;
+  }
+
   // malloc(size), xmalloc(size), g_malloc(size), g_malloc0(size): 第一个参数
   if (strcmp (func_name, "malloc") == 0 ||
       strcmp (func_name, "xmalloc") == 0 ||
       strcmp (func_name, "g_malloc") == 0 ||
-      strcmp (func_name, "g_malloc0") == 0) {
+      strcmp (func_name, "g_malloc0") == 0 ||
+      strcmp (func_name, "operator new") == 0 ||
+      strcmp (func_name, "operator new[]") == 0) {
     return gimple_call_arg (call_stmt, 0);
   }
 
@@ -181,6 +235,13 @@ tree extractMallocSizeExpr (gimple* call_stmt, char const* func_name) {
     if (nargs >= 2) {
       return gimple_call_arg (call_stmt, 1);
     }
+  }
+
+  // 对于 allocate 类函数（非虚函数），假设第一个参数是 size
+  if (strstr (func_name, "alloc") != nullptr ||
+      strstr (func_name, "Alloc") != nullptr ||
+      strstr (func_name, "ALLOC") != nullptr) {
+    return gimple_call_arg (call_stmt, 0);
   }
 
   // 默认返回第一个参数
@@ -401,8 +462,34 @@ ArrayDetectErrorCode analyzeMallocCapacity (
   }
 
   // 检查是否为 malloc-like 调用
+  // 首先尝试使用已经提取的函数名（对于虚函数调用尤其重要）
   char const* func_name = NULL;
-  if (!isMallocLikeCall (call_stmt, &func_name)) {
+  char const* pre_extracted_name = write_source->data.function_call.function_name;
+
+  if (pre_extracted_name && pre_extracted_name[0] != '<') {
+    // 使用预先提取的函数名（跳过 "<virtual>", "<indirect>" 等占位符）
+    // 检查是否为分配函数
+    if (strcmp (pre_extracted_name, "malloc") == 0 ||
+        strcmp (pre_extracted_name, "calloc") == 0 ||
+        strcmp (pre_extracted_name, "realloc") == 0 ||
+        strcmp (pre_extracted_name, "xmalloc") == 0 ||
+        strcmp (pre_extracted_name, "xcalloc") == 0 ||
+        strcmp (pre_extracted_name, "xrealloc") == 0 ||
+        strcmp (pre_extracted_name, "g_malloc") == 0 ||
+        strcmp (pre_extracted_name, "g_malloc0") == 0 ||
+        strcmp (pre_extracted_name, "g_realloc") == 0 ||
+        strcmp (pre_extracted_name, "operator new") == 0 ||
+        strcmp (pre_extracted_name, "operator new[]") == 0 ||
+        strcmp (pre_extracted_name, "allocate") == 0 ||
+        strstr (pre_extracted_name, "alloc") != nullptr ||
+        strstr (pre_extracted_name, "Alloc") != nullptr ||
+        strstr (pre_extracted_name, "ALLOC") != nullptr) {
+      func_name = pre_extracted_name;
+    }
+  }
+
+  // 如果预先提取的函数名不是分配函数，则回退到 isMallocLikeCall
+  if (!func_name && !isMallocLikeCall (call_stmt, &func_name)) {
     AD_RETURNE (OK);
   }
 
