@@ -8,6 +8,7 @@
 #include "owned-conclusion.hh"
 #include "array-detector.hh"
 #include "string-utils.hh"
+#include "gcc-ext-util.hh"
 
 namespace array_detect_ns {
 
@@ -697,7 +698,18 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
 
   // === 模板参数 (如果类型是模板实例) ===
   summary->template_args = nullptr;
-  // TODO: 从 conclusion->type 提取模板参数 (如果需要)
+  if (conclusion->type) {
+    char const* base_name = nullptr;
+    vec<char const*, va_gc>* tmpl_args = nullptr;
+    gcc_ext_util::extractTemplateArgsFromType (AD_ARGS, conclusion->type, &base_name, &tmpl_args);
+    if (tmpl_args && tmpl_args->length () > 0) {
+      // 复制模板参数到 summary
+      vec_alloc (summary->template_args, tmpl_args->length ());
+      for (unsigned i = 0; i < tmpl_args->length (); i++) {
+        vec_safe_push (summary->template_args, dup_cstr ((*tmpl_args)[i]));
+      }
+    }
+  }
 
   // === 从 tfad 提取 capacity 证据 ===
   if (tfad) {

@@ -11,6 +11,7 @@
 #include "owned-conclusion.hh"
 #include "array-detector.hh"
 #include "string-utils.hh"
+#include "gcc-ext-util.hh"
 
 // For flag_generate_lto
 #include "options.h"
@@ -53,15 +54,30 @@ void writeOwnedFieldDatum (
   FieldOwnedConclusion* conclusion,
   Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
 ) {
-  (void) ctx;
-  (void) gcc_ctx;
-
   if (!out || !conclusion) return;
   if (conclusion->verdict != OWNED_YES) return;
 
-  // (owned "TypeName" "field_name" (malloc-size ...) (reads ...) (writes ...))
+  // 提取模板参数
+  vec<char const*, va_gc>* template_args = nullptr;
+  if (conclusion->type) {
+    char const* base_name = nullptr;
+    gcc_ext_util::extractTemplateArgsFromType (AD_ARGS, conclusion->type, &base_name, &template_args);
+  }
+
+  // (owned "TypeName" (template-args "T1" ...) "field_name" (malloc-size ...) (reads ...) (writes ...))
   fprintf (out, "(owned ");
   writeEscapedString (out, conclusion->type_name);
+
+  // (template-args "T1" "T2" ...)
+  fprintf (out, " (template-args");
+  if (template_args) {
+    for (unsigned i = 0; i < template_args->length (); i++) {
+      fprintf (out, " ");
+      writeEscapedString (out, (*template_args)[i]);
+    }
+  }
+  fprintf (out, ")");
+
   fprintf (out, " ");
   writeEscapedString (out, conclusion->field_name);
 
@@ -125,9 +141,20 @@ void writeOwnedFieldDatumFromSummary (
   if (!out || !summary) return;
   if (summary->owned_verdict != OWNED_YES) return;
 
-  // (owned "TypeName" "field_name" (malloc-size ...) (reads ...) (writes ...))
+  // (owned "TypeName" (template-args "T1" ...) "field_name" (malloc-size ...) (reads ...) (writes ...))
   fprintf (out, "(owned ");
   writeEscapedString (out, summary->type_name);
+
+  // (template-args "T1" "T2" ...)
+  fprintf (out, " (template-args");
+  if (summary->template_args) {
+    for (unsigned i = 0; i < summary->template_args->length (); i++) {
+      fprintf (out, " ");
+      writeEscapedString (out, (*summary->template_args)[i]);
+    }
+  }
+  fprintf (out, ")");
+
   fprintf (out, " ");
   writeEscapedString (out, summary->ptr_field_name);
 
