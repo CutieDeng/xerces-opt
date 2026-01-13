@@ -462,6 +462,7 @@ ArrayDetectErrorCode traceSizeToIntegerFields (
   AD_FUNC_ARGS,
   tree size_expr,
   tree containing_type,
+  tree function_decl,
   vec<tree, va_gc>** out_integer_fields
 ) AD_FUNCTION_BEGIN {
   if (!out_integer_fields) {
@@ -490,14 +491,15 @@ ArrayDetectErrorCode traceSizeToIntegerFields (
                   after_direct - before_direct);
 
   // 方式2：查找 size 值被写入的整数字段
-  // 需要在当前函数中搜索
-  if (cfun) {
-    AD_TRY (findFieldsWrittenWithValue (AD_ARGS, size_expr, containing_type, cfun, out_integer_fields));
+  // 从 function_decl 获取函数体进行搜索
+  function* search_fn = function_decl ? DECL_STRUCT_FUNCTION (function_decl) : nullptr;
+  if (search_fn) {
+    AD_TRY (findFieldsWrittenWithValue (AD_ARGS, size_expr, containing_type, search_fn, out_integer_fields));
     unsigned after_written = *out_integer_fields ? (*out_integer_fields)->length () : 0;
     AD_DEBUG_PRINT ("[traceSizeToIntegerFields] findFieldsWrittenWithValue found %u additional field(s)",
                     after_written - after_direct);
   } else {
-    AD_DEBUG_PRINT ("[traceSizeToIntegerFields] cfun is NULL, skipping findFieldsWrittenWithValue");
+    AD_DEBUG_PRINT ("[traceSizeToIntegerFields] function_decl is NULL or has no body, skipping findFieldsWrittenWithValue");
   }
 
   AD_RETURNE (OK);
@@ -603,7 +605,7 @@ ArrayDetectErrorCode analyzeMallocCapacity (
 
   // 查找 size 表达式关联的所有整数字段
   vec<tree, va_gc>* integer_fields = NULL;
-  AD_TRY (traceSizeToIntegerFields (AD_ARGS, size_expr, containing_type, &integer_fields));
+  AD_TRY (traceSizeToIntegerFields (AD_ARGS, size_expr, containing_type, write_info->function_decl, &integer_fields));
 
   if (!integer_fields || integer_fields->length () == 0) {
     AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: no integer fields found in size expression");

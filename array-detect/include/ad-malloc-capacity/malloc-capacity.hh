@@ -90,6 +90,7 @@ ArrayDetectErrorCode traceSizeToIntegerFields (
   AD_FUNC_ARGS,
   tree size_expr,
   tree containing_type,
+  tree function_decl,
   vec<tree, va_gc>** out_integer_fields
 );
 
