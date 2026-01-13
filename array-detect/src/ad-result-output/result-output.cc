@@ -252,26 +252,26 @@ ArrayDetectErrorCode writeResultsToFile (
 ) AD_FUNCTION_BEGIN {
   // LTO 模式下跳过 (LTRANS 阶段会输出)
   if (flag_generate_lto) {
-    AD_DEBUG_PRINT ("[writeResultsToFile] skip in LTO LGEN mode");
+    AD_DEBUG_PRINT ("skip in LTO LGEN mode");
     AD_RETURNE (OK);
   }
 
   if (!conclusions || conclusions->is_empty ()) {
-    AD_DEBUG_PRINT ("[writeResultsToFile] no conclusions to write");
+    AD_DEBUG_PRINT ("no conclusions to write");
     AD_RETURNE (OK);
   }
 
   // 获取输出文件路径
   char const* result_file = ctx.result_file_path;
   if (!result_file || !*result_file) {
-    AD_DEBUG_PRINT ("[writeResultsToFile] AD_RESULT_FILE not set, skip output");
+    AD_DEBUG_PRINT ("AD_RESULT_FILE not set, skip output");
     AD_RETURNE (OK);
   }
 
   // Append 模式打开文件
   FILE* out = fopen (result_file, "a");
   if (!out) {
-    AD_DEBUG_PRINT ("[writeResultsToFile] failed to open %s", result_file);
+    AD_DEBUG_PRINT ("failed to open %s", result_file);
     AD_RETURNE (OK);  // 不是致命错误
   }
 
@@ -301,7 +301,7 @@ ArrayDetectErrorCode writeResultsToFile (
 
   fclose (out);
 
-  AD_DEBUG_PRINT ("[writeResultsToFile] wrote %u owned fields to %s", written, result_file);
+  AD_DEBUG_PRINT ("wrote %u owned fields to %s", written, result_file);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -314,21 +314,21 @@ ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   // 获取输出文件路径
   char const* result_file = ctx.result_file_path;
   if (!result_file || !*result_file) {
-    AD_DEBUG_PRINT ("[writeLtransResultsToFile] AD_RESULT_FILE not set, skip output");
+    AD_DEBUG_PRINT ("AD_RESULT_FILE not set, skip output");
     AD_RETURNE (OK);
   }
 
   // 从 LTO summaries 获取数据
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = getLtransLtoSummaries ();
   if (!summaries || summaries->is_empty ()) {
-    AD_DEBUG_PRINT ("[writeLtransResultsToFile] no LTO summaries available");
+    AD_DEBUG_PRINT ("no LTO summaries available");
     AD_RETURNE (OK);
   }
 
   // Append 模式打开文件
   FILE* out = fopen (result_file, "a");
   if (!out) {
-    AD_DEBUG_PRINT ("[writeLtransResultsToFile] failed to open %s", result_file);
+    AD_DEBUG_PRINT ("failed to open %s", result_file);
     AD_RETURNE (OK);  // 不是致命错误
   }
 
@@ -344,7 +344,7 @@ ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
   fclose (out);
 
-  AD_DEBUG_PRINT ("[writeLtransResultsToFile] wrote %u owned fields to %s", written, result_file);
+  AD_DEBUG_PRINT ("wrote %u owned fields to %s", written, result_file);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -354,31 +354,30 @@ ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 // ============================================================================
 
 ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
-  AD_DEBUG_PRINT ("[writeWpaResultsToFile] ENTRY");
+  AD_DEBUG_PRINT ("ENTRY");
 
   // 获取输出文件路径
   char const* result_file = ctx.result_file_path;
-  AD_DEBUG_PRINT ("[writeWpaResultsToFile] result_file_path=%s",
-                  result_file ? result_file : "<null>");
+  AD_DEBUG_PRINT ("result_file_path=%s", result_file ? result_file : "<null>");
 
   if (!result_file || !*result_file) {
-    AD_DEBUG_PRINT ("[writeWpaResultsToFile] AD_RESULT_FILE not set, skip output");
+    AD_DEBUG_PRINT ("AD_RESULT_FILE not set, skip output");
     AD_RETURNE (OK);
   }
 
   // 从 WPA summaries 获取数据
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = getWpaLtoSummaries ();
-  AD_DEBUG_PRINT ("[writeWpaResultsToFile] summaries count=%u", vec_safe_length (summaries));
+  AD_DEBUG_PRINT ("summaries count=%u", vec_safe_length (summaries));
 
   if (!summaries || summaries->is_empty ()) {
-    AD_DEBUG_PRINT ("[writeWpaResultsToFile] no WPA summaries available");
+    AD_DEBUG_PRINT ("no WPA summaries available");
     AD_RETURNE (OK);
   }
 
   // Append 模式打开文件
   FILE* out = fopen (result_file, "a");
   if (!out) {
-    AD_DEBUG_PRINT ("[writeWpaResultsToFile] failed to open %s", result_file);
+    AD_DEBUG_PRINT ("failed to open %s", result_file);
     AD_RETURNE (OK);  // 不是致命错误
   }
 
@@ -394,7 +393,7 @@ ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
   fclose (out);
 
-  AD_DEBUG_PRINT ("[writeWpaResultsToFile] wrote %u owned fields to %s", written, result_file);
+  AD_DEBUG_PRINT ("wrote %u owned fields to %s", written, result_file);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END

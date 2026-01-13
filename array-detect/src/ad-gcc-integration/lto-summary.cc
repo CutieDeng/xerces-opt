@@ -242,12 +242,12 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
   (void) gcc_ctx;
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = g_wpa_summaries;
   if (!summaries || summaries->is_empty ()) {
-    AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] skip (no summaries)");
+    AD_DEBUG_PRINT ("skip (no summaries)");
     AD_RETURNE (OK);
   }
 
   unsigned int count = summaries->length ();
-  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] writing %u summaries", count);
+  AD_DEBUG_PRINT ("writing %u summaries", count);
 
   // Encode all data to a buffer
   vec<unsigned char, va_gc>* buf = nullptr;
@@ -272,7 +272,7 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
   }
   lto_end_section ();
 
-  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes to section '%s'",
+  AD_DEBUG_PRINT ("done writing %u summaries, %u bytes to section '%s'",
                   count, vec_safe_length (buf), kArrayDetectSectionName);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -285,31 +285,30 @@ ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const
   (void) gcc_ctx;
 
   if (!data || len == 0) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] ERROR: no data");
+    AD_DEBUG_PRINT ("ERROR: no data");
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] ENTRY, len=%zu", len);
+  AD_DEBUG_PRINT ("ENTRY, len=%zu", len);
 
   BufReader r = { data, len, 0 };
 
   unsigned HOST_WIDE_INT magic = buf_read_uhwi (r);
   if (magic != kSummaryMagic) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] bad magic 0x%llx (expected 0x%llx)",
+    AD_DEBUG_PRINT ("bad magic 0x%llx (expected 0x%llx)",
                     (unsigned long long) magic, (unsigned long long) kSummaryMagic);
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   unsigned HOST_WIDE_INT version = buf_read_uhwi (r);
   if (version != kSummaryVersion) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] unknown version %llu (expected %llu)",
+    AD_DEBUG_PRINT ("unknown version %llu (expected %llu)",
                     (unsigned long long) version, (unsigned long long) kSummaryVersion);
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   unsigned HOST_WIDE_INT count = buf_read_uhwi (r);
-  AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] %llu entries",
-                  (unsigned long long) count);
+  AD_DEBUG_PRINT ("%llu entries", (unsigned long long) count);
 
   unsigned int total_summaries = 0;
   for (unsigned HOST_WIDE_INT i = 0; i < count && r.pos < r.len; i++) {
@@ -320,7 +319,7 @@ ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const
     }
   }
 
-  AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] EXIT summaries=%u", total_summaries);
+  AD_DEBUG_PRINT ("EXIT summaries=%u", total_summaries);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -485,7 +484,7 @@ vec<LtoUnifiedResultSummary*, va_gc>* convertAllFieldOwnedConclusionsToLtoSummar
     }
   }
 
-  AD_DEBUG_PRINT ("[convertAllFieldOwnedConclusionsToLtoSummaries] converted %u conclusions",
+  AD_DEBUG_PRINT ("converted %u conclusions",
                   vec_safe_length (summaries));
   return summaries;
 }
