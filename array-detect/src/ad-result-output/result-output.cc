@@ -87,8 +87,18 @@ void writeOwnedFieldDatum (
   // (malloc-size (total . N) ("field1" . count) ("field2" . count) ...)
   fprintf (out, " (malloc-size");
   if (tfad) {
-    // total = 字段写入操作总数（malloc 证据的来源）
-    unsigned total = tfad->writes ? tfad->writes->length () : 0;
+    // total = 所有 SOURCE_FUNCTION_CALL 类型的写入数量
+    unsigned total = 0;
+    if (tfad->writes) {
+      for (unsigned i = 0; i < tfad->writes->length (); i++) {
+        auto* wrapper = (*tfad->writes)[i];
+        if (!wrapper || !wrapper->write_source) continue;
+        // 检查是否是函数调用来源
+        if (wrapper->write_source->source_type == SOURCE_FUNCTION_CALL) {
+          total++;
+        }
+      }
+    }
     fprintf (out, " (total . %u)", total);
     // 各字段计数
     if (tfad->malloc_evidences_map) {

@@ -29,7 +29,8 @@ static bool isIntegerType (tree type) {
 static bool exprReferencesField (
   AD_FUNC_ARGS,
   tree expr,
-  tree field_decl
+  tree field_decl,
+  int depth = 0
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -38,14 +39,20 @@ static bool exprReferencesField (
     return false;
   }
 
+  // 防止无限递归
+  if (depth > 20) {
+    return false;
+  }
+
   // 直接检查 COMPONENT_REF
   if (TREE_CODE (expr) == COMPONENT_REF) {
     tree accessed_field = TREE_OPERAND (expr, 1);
     if (accessed_field == field_decl) {
+      AD_DEBUG_PRINT ("[exprReferencesField] FOUND: COMPONENT_REF directly references field (depth=%d)", depth);
       return true;
     }
     tree base = TREE_OPERAND (expr, 0);
-    if (exprReferencesField (AD_ARGS, base, field_decl)) {
+    if (exprReferencesField (AD_ARGS, base, field_decl, depth + 1)) {
       return true;
     }
   }
@@ -53,7 +60,7 @@ static bool exprReferencesField (
   // 检查 MEM_REF
   if (TREE_CODE (expr) == MEM_REF) {
     tree base = TREE_OPERAND (expr, 0);
-    if (exprReferencesField (AD_ARGS, base, field_decl)) {
+    if (exprReferencesField (AD_ARGS, base, field_decl, depth + 1)) {
       return true;
     }
   }
@@ -61,39 +68,71 @@ static bool exprReferencesField (
   // 检查 SSA_NAME（追溯定义）
   if (TREE_CODE (expr) == SSA_NAME) {
     gimple* def_stmt = SSA_NAME_DEF_STMT (expr);
+    if (depth == 0) {
+      AD_DEBUG_PRINT ("[exprReferencesField] SSA_NAME: def_stmt=%p, is_assign=%d",
+                      (void*)def_stmt, def_stmt ? is_gimple_assign (def_stmt) : 0);
+    }
     if (def_stmt && is_gimple_assign (def_stmt)) {
       tree rhs = gimple_assign_rhs1 (def_stmt);
-      if (exprReferencesField (AD_ARGS, rhs, field_decl)) {
+      if (depth == 0) {
+        AD_DEBUG_PRINT ("[exprReferencesField] SSA_NAME: rhs code=%d", rhs ? TREE_CODE (rhs) : -1);
+      }
+      if (exprReferencesField (AD_ARGS, rhs, field_decl, depth + 1)) {
         return true;
       }
-      if (gimple_assign_rhs2 (def_stmt)) {
-        if (exprReferencesField (AD_ARGS, gimple_assign_rhs2 (def_stmt), field_decl)) {
+      tree rhs2 = gimple_assign_rhs2 (def_stmt);
+      if (rhs2) {
+        if (depth == 0) {
+          AD_DEBUG_PRINT ("[exprReferencesField] SSA_NAME: rhs2 code=%d", TREE_CODE (rhs2));
+        }
+        if (exprReferencesField (AD_ARGS, rhs2, field_decl, depth + 1)) {
           return true;
         }
       }
+    } else if (def_stmt && is_gimple_call (def_stmt)) {
+      // SSA_NAME 来自函数调用，检查调用参数
+      if (depth == 0) {
+        AD_DEBUG_PRINT ("[exprReferencesField] SSA_NAME: from GIMPLE_CALL");
+      }
+      unsigned nargs = gimple_call_num_args (def_stmt);
+      for (unsigned i = 0; i < nargs; i++) {
+        tree arg = gimple_call_arg (def_stmt, i);
+        if (exprReferencesField (AD_ARGS, arg, field_decl, depth + 1)) {
+          return true;
+        }
+      }
+    } else if (def_stmt && gimple_code (def_stmt) == GIMPLE_PHI) {
+      // PHI 节点：跳过，不追踪
+      // PHI 节点表示控制流合并点，其中的字段引用是间接的
+      // 例如 newMax = fCurCount + extraNeeded 被合并后用于 malloc
+      // 这不应被视为 malloc-size 的直接关联
+      if (depth == 0) {
+        AD_DEBUG_PRINT ("[exprReferencesField] SSA_NAME: from GIMPLE_PHI, skipping");
+      }
+      // 不再追踪 PHI 节点的输入
     }
   }
 
   // 检查二元操作
   if (BINARY_CLASS_P (expr)) {
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl)) {
+    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl, depth + 1)) {
       return true;
     }
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 1), field_decl)) {
+    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 1), field_decl, depth + 1)) {
       return true;
     }
   }
 
   // 检查一元操作
   if (UNARY_CLASS_P (expr)) {
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl)) {
+    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl, depth + 1)) {
       return true;
     }
   }
 
   // 检查类型转换
   if (CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl)) {
+    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl, depth + 1)) {
       return true;
     }
   }
@@ -263,20 +302,33 @@ static ArrayDetectErrorCode collectDirectFieldReferences (
   }
 
   if (TREE_CODE (containing_type) != RECORD_TYPE) {
+    AD_DEBUG_PRINT ("[collectDirectFieldReferences] containing_type is not RECORD_TYPE (code=%d)",
+                    TREE_CODE (containing_type));
     AD_RETURNE (OK);
   }
 
+  AD_DEBUG_PRINT ("[collectDirectFieldReferences] scanning integer fields for references in expr (code=%d)",
+                  TREE_CODE (expr));
+
   // 遍历类型的所有整数字段，检查表达式是否引用
+  unsigned checked = 0;
   for (tree field = TYPE_FIELDS (containing_type); field; field = DECL_CHAIN (field)) {
     if (TREE_CODE (field) != FIELD_DECL) continue;
 
     tree field_type = TREE_TYPE (field);
     if (!isIntegerType (field_type)) continue;
 
-    if (exprReferencesField (AD_ARGS, expr, field)) {
+    checked++;
+    char const* fname = safeGetFieldName (AD_ARGS, field);
+    bool found = exprReferencesField (AD_ARGS, expr, field, 0);
+    AD_DEBUG_PRINT ("[collectDirectFieldReferences]   checking integer field '%s': %s",
+                    fname, found ? "FOUND" : "not found");
+    if (found) {
       vec_safe_push (*out_fields, field);
     }
   }
+
+  AD_DEBUG_PRINT ("[collectDirectFieldReferences] checked %u integer fields", checked);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -421,16 +473,31 @@ ArrayDetectErrorCode traceSizeToIntegerFields (
   }
 
   if (!size_expr || !containing_type) {
+    AD_DEBUG_PRINT ("[traceSizeToIntegerFields] SKIP: size_expr=%p, containing_type=%p",
+                    (void*)size_expr, (void*)containing_type);
     AD_RETURNE (OK);
   }
 
+  AD_DEBUG_PRINT ("[traceSizeToIntegerFields] size_expr tree_code=%d", TREE_CODE (size_expr));
+
+  unsigned before_direct = *out_integer_fields ? (*out_integer_fields)->length () : 0;
+
   // 方式1：表达式直接引用整数字段
   AD_TRY (collectDirectFieldReferences (AD_ARGS, size_expr, containing_type, out_integer_fields));
+
+  unsigned after_direct = *out_integer_fields ? (*out_integer_fields)->length () : 0;
+  AD_DEBUG_PRINT ("[traceSizeToIntegerFields] collectDirectFieldReferences found %u field(s)",
+                  after_direct - before_direct);
 
   // 方式2：查找 size 值被写入的整数字段
   // 需要在当前函数中搜索
   if (cfun) {
     AD_TRY (findFieldsWrittenWithValue (AD_ARGS, size_expr, containing_type, cfun, out_integer_fields));
+    unsigned after_written = *out_integer_fields ? (*out_integer_fields)->length () : 0;
+    AD_DEBUG_PRINT ("[traceSizeToIntegerFields] findFieldsWrittenWithValue found %u additional field(s)",
+                    after_written - after_direct);
+  } else {
+    AD_DEBUG_PRINT ("[traceSizeToIntegerFields] cfun is NULL, skipping findFieldsWrittenWithValue");
   }
 
   AD_RETURNE (OK);
@@ -451,20 +518,44 @@ ArrayDetectErrorCode analyzeMallocCapacity (
     AD_RETURNE (OK);
   }
 
+  // 获取类型名用于调试
+  char const* type_name_dbg = NULL;
+  gcc_ext_util::formatTypeNameWithTemplateArgs (AD_ARGS, containing_type, type_name_dbg);
+  char const* field_name_dbg = safeGetFieldName (AD_ARGS, write_info->field_decl);
+
+  // 获取源码位置用于调试
+  char loc_buf[256];
+  gcc_ext_util::get_source_location_string (AD_ARGS, write_info->location, loc_buf, sizeof(loc_buf));
+
+  AD_DEBUG_PRINT ("[malloc-capacity] === Analyzing write to %s.%s ===",
+                  type_name_dbg ? type_name_dbg : "?", field_name_dbg);
+  AD_DEBUG_PRINT ("[malloc-capacity]   location: %s", loc_buf);
+  AD_DEBUG_PRINT ("[malloc-capacity]   source_type=%d (FUNCTION_CALL=%d)",
+                  (int)write_source->source_type, (int)SOURCE_FUNCTION_CALL);
+
   // 只处理函数调用来源
   if (write_source->source_type != SOURCE_FUNCTION_CALL) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: not a function call source");
     AD_RETURNE (OK);
   }
 
   gimple* call_stmt = write_source->data.function_call.call_stmt;
   if (!call_stmt) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: call_stmt is NULL");
     AD_RETURNE (OK);
   }
+
+  // 获取函数调用的源码位置
+  char call_loc_buf[256];
+  gcc_ext_util::get_source_location_string (AD_ARGS, gimple_location(call_stmt), call_loc_buf, sizeof(call_loc_buf));
+  AD_DEBUG_PRINT ("[malloc-capacity]   call_stmt at: %s", call_loc_buf);
 
   // 检查是否为 malloc-like 调用
   // 首先尝试使用已经提取的函数名（对于虚函数调用尤其重要）
   char const* func_name = NULL;
   char const* pre_extracted_name = write_source->data.function_call.function_name;
+  AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name='%s'",
+                  pre_extracted_name ? pre_extracted_name : "(null)");
 
   if (pre_extracted_name && pre_extracted_name[0] != '<') {
     // 使用预先提取的函数名（跳过 "<virtual>", "<indirect>" 等占位符）
@@ -485,27 +576,42 @@ ArrayDetectErrorCode analyzeMallocCapacity (
         strstr (pre_extracted_name, "Alloc") != nullptr ||
         strstr (pre_extracted_name, "ALLOC") != nullptr) {
       func_name = pre_extracted_name;
+      AD_DEBUG_PRINT ("[malloc-capacity]   MATCHED: pre_extracted_name '%s' is alloc-like", func_name);
+    } else {
+      AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name '%s' is NOT alloc-like", pre_extracted_name);
     }
+  } else if (pre_extracted_name && pre_extracted_name[0] == '<') {
+    AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name starts with '<', trying isMallocLikeCall fallback");
   }
 
   // 如果预先提取的函数名不是分配函数，则回退到 isMallocLikeCall
   if (!func_name && !isMallocLikeCall (call_stmt, &func_name)) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: not a malloc-like call");
     AD_RETURNE (OK);
   }
+
+  AD_DEBUG_PRINT ("[malloc-capacity]   func_name='%s' (malloc-like detected)", func_name);
 
   // 提取 size 表达式
   tree size_expr = extractMallocSizeExpr (call_stmt, func_name);
   if (!size_expr) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: size_expr is NULL");
     AD_RETURNE (OK);
   }
+
+  AD_DEBUG_PRINT ("[malloc-capacity]   size_expr found, tree_code=%d", TREE_CODE (size_expr));
 
   // 查找 size 表达式关联的所有整数字段
   vec<tree, va_gc>* integer_fields = NULL;
   AD_TRY (traceSizeToIntegerFields (AD_ARGS, size_expr, containing_type, &integer_fields));
 
   if (!integer_fields || integer_fields->length () == 0) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: no integer fields found in size expression");
     AD_RETURNE (OK);
   }
+
+  AD_DEBUG_PRINT ("[malloc-capacity]   FOUND %u integer field(s) in size expression",
+                  integer_fields->length ());
 
   // 确认有证据需要添加，此时才初始化 results
   if (!*results) {
