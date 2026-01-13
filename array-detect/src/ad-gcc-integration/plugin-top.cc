@@ -449,7 +449,7 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
   AD_DEBUG_PRINT ("[plugin_finish_callback] non-WPA finish, closing debug file");
   ::array_detect_ns::closeGlobalDebugFile ();
   ecode = ::array_detect_ns::OK;
-plugin_finish_cleanup:
+plugin_finish_cleanup:;
 } AD_FUNCTION_END3
 
 // 使用 AD_FUNCTION_BEGIN2 因为 init 阶段栈帧追踪可能未初始化
