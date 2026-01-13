@@ -76,7 +76,7 @@ static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
 }
 
 // Called after execute() to generate summary data
-static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
+::array_detect_ns::ArrayDetectErrorCode ipa_generate_summary_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void) gcc_ctx;
   AD_DEBUG_PRINT ("[ipa_generate_summary] called");
 
@@ -98,12 +98,13 @@ static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
   // NOTE: LTO summary blob emission is disabled by default during LGEN
   // to avoid varpool manipulation issues. Set AD_ENABLE_LTO_SECTIONS=1 to enable.
   // The analysis results are still computed and output to file if AD_RESULT_FILE is set.
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
-static void ipa_generate_summary (void) {
+void ipa_generate_summary (void) {
   ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
   ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-  ipa_generate_summary_impl (AD_ARGS);
+  (void) ipa_generate_summary_impl (AD_ARGS);
 }
 
 // Called to write summary blob into LTO sections
@@ -123,7 +124,7 @@ static void ipa_write_summary (void) {
     AD_DEBUG_PRINT ("[ipa_write_summary] WPA: %u summaries to emit", count);
     if (count > 0) {
       AD_DEBUG_PRINT ("[ipa_write_summary] WPA: writing aggregated summaries for LTRANS");
-      ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+      (void) ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
     }
     return;
   }
@@ -131,7 +132,7 @@ static void ipa_write_summary (void) {
   // LGEN phase: write per-TU summaries
   if (!in_lto_p && flag_generate_lto) {
     AD_DEBUG_PRINT ("[ipa_write_summary] LGEN: writing per-TU summary section");
-    ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+    (void) ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
     return;
   }
 
@@ -151,7 +152,7 @@ static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
 
   if (!file_data) {
     AD_DEBUG_PRINT ("[find_array_detect_section] ERROR: null file_data");
-    AD_RETURNE (ERR_INVALID_ARGUMENT);
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   *data_out = nullptr;
@@ -176,7 +177,7 @@ static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
   // Section not found - this is expected if no summaries were written
   AD_DEBUG_PRINT ("[find_array_detect_section] section '%s' not found in file",
                   kArrayDetectSectionName);
-  AD_RETURNE (ERR_NOT_FOUND);
+  AD_RETURNE (RECOVERABLE_ERROR);
 } AD_FUNCTION_END
 
 // Called in WPA/LTRANS to read summaries from all input files
@@ -208,7 +209,7 @@ static void ipa_read_summary (void) {
         find_array_detect_section (AD_ARGS, file_data, &data, &len);
       if (err == ::array_detect_ns::OK && data && len > 0) {
         AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading from file %u, len=%zu", i, len);
-        ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+        (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
       }
     }
 
@@ -240,7 +241,7 @@ static void ipa_read_summary (void) {
         find_array_detect_section (AD_ARGS, file_data, &data, &len);
       if (err == ::array_detect_ns::OK && data && len > 0) {
         AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading from file %u, len=%zu", i, len);
-        ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+        (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
       }
     }
 
@@ -396,29 +397,31 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 // PLUGIN_FINISH callback for LTO aggregation output (WPA)
 // ============================================================================
 
-static void plugin_finish_callback_impl (AD_FUNC_ARGS) {
+::array_detect_ns::ArrayDetectErrorCode plugin_finish_callback_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void) gcc_ctx;
   AD_DEBUG_PRINT ("[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d",
                   in_lto_p, flag_ltrans);
 
   if (in_lto_p && !flag_ltrans) {
     ::array_detect_ns::closeGlobalDebugFile ();
-    return;
+    AD_RETURNE (OK);
   }
 
   ::array_detect_ns::closeGlobalDebugFile ();
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
-static void plugin_init_debug (AD_FUNC_ARGS) {
+::array_detect_ns::ArrayDetectErrorCode plugin_init_debug_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void) gcc_ctx;
   AD_DEBUG_PRINT ("[plugin_init] in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s",
                   in_lto_p, flag_ltrans, flag_generate_lto, flag_wpa ? flag_wpa : "<null>");
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
-static void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
+void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
   ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
   ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-  plugin_finish_callback_impl (AD_ARGS);
+  (void) plugin_finish_callback_impl (AD_ARGS);
 }
 
 }  // anonymous namespace
@@ -442,7 +445,7 @@ int plugin_init (struct plugin_name_args * plugin_info,
     // 初始化全局 context buffers，确保所有 LTO 阶段可用
     ::array_detect_ns::initContextBuffers (ctx, gcc_ctx, 512);
 
-    plugin_init_debug (AD_ARGS);
+    (void) plugin_init_debug_impl (AD_ARGS);
   }
 
   struct register_pass_info pass_info;

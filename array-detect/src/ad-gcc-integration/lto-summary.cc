@@ -435,12 +435,12 @@ static LtoUnifiedResultSummary* buf_read_summary_entry (BufReader& r) {
 // Public API: Write summary using raw LTO section API
 // ============================================================================
 
-void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) {
+ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   (void) gcc_ctx;
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = g_wpa_summaries;
   if (!summaries || summaries->is_empty ()) {
     AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] skip (no summaries)");
-    return;
+    AD_RETURNE (OK);
   }
 
   unsigned int count = summaries->length ();
@@ -470,18 +470,19 @@ void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) {
 
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes",
                   count, vec_safe_length (buf));
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 // ============================================================================
 // Public API: Read summary from raw data
 // ============================================================================
 
-void readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t len) {
+ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t len) AD_FUNCTION_BEGIN {
   (void) gcc_ctx;
 
   if (!data || len == 0) {
     AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] ERROR: no data");
-    return;
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] ENTRY, len=%zu", len);
@@ -492,14 +493,14 @@ void readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t l
   if (magic != kSummaryMagic) {
     AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] bad magic 0x%llx",
                     (unsigned long long) magic);
-    return;
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   unsigned HOST_WIDE_INT version = buf_read_uhwi (r);
   if (version != kSummaryVersion) {
     AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] unknown version %llu",
                     (unsigned long long) version);
-    return;
+    AD_RETURNE (INVALID_ARGUMENT);
   }
 
   unsigned HOST_WIDE_INT count = buf_read_uhwi (r);
@@ -516,7 +517,8 @@ void readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t l
   }
 
   AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] EXIT summaries=%u", total_summaries);
-}
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
 
 // ============================================================================
 // Conversion from FieldOwnedConclusion to LtoUnifiedResultSummary
