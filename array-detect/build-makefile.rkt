@@ -331,7 +331,7 @@
 (define (write-lto-test-impl cc output-so name script-file)
   (define plugin-arg (format "-fplugin=~a" output-so))
   (printf "~a: ~a~n" name output-so)
-  (define input `((cxx . ,(~a (force cc))) (cflags . ,(list plugin-arg "-flto"))))
+  (define input `((cxx . ,(~a (force cc))) (cflags . ,(list plugin-arg "-flto" "-flto-compression-level=0"))))
   (printf "\t@echo ~s | racket ~a~n" (~s input) (build-path "test-script" script-file))
   (printf "~n"))
 
