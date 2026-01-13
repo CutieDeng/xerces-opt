@@ -27,8 +27,8 @@ static unsigned HOST_WIDE_INT const kSummaryMagic = 0x41444C544F33ULL; // "ADLTO
 static unsigned HOST_WIDE_INT const kSummaryVersion = 3;
 
 // Custom LTO section name for array-detect plugin
+// Note: lto_begin_section takes the base name only, not the full section name
 static char const* const kArrayDetectSectionName = "array_detect";
-static char const* const kArrayDetectFullSectionName = "decls.array_detect.0";
 
 // ============================================================================
 // Module state
@@ -265,14 +265,15 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
   }
 
   // Write to LTO section using raw API
-  lto_begin_section (kArrayDetectFullSectionName, false);
+  // Note: lto_begin_section takes just the base name, not the full "decls.name.order" format
+  lto_begin_section (kArrayDetectSectionName, false);
   if (buf && buf->length () > 0) {
     lto_write_data (buf->address (), buf->length ());
   }
   lto_end_section ();
 
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes to section '%s'",
-                  count, vec_safe_length (buf), kArrayDetectFullSectionName);
+                  count, vec_safe_length (buf), kArrayDetectSectionName);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
