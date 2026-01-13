@@ -69,8 +69,8 @@ bool hasLtransLtoSummaries ();
 // ============================================================================
 
 // Called by ipa pass hooks (write_summary/read_summary).
-// Write uses lto_begin_section/lto_write_data/lto_end_section with custom section name.
-// Read uses lto_input_block from lto_get_section_data.
+// Write uses lto_begin_section/lto_write_data with section name "decls.array_detect.0".
+// Read uses lto_get_raw_section_data with LTO_section_decls type.
 ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS);
 ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t len);
 

@@ -140,7 +140,7 @@ static void ipa_write_summary (void) {
 }
 
 // Helper: try to read our custom section from file_data
-// lto_begin_section creates sections that can be read via lto_get_raw_section_data
+// Uses lto_get_raw_section_data which reads sections created by lto_begin_section
 // Returns data via out parameters, error code indicates success/failure
 static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
   AD_FUNC_ARGS,
@@ -158,11 +158,13 @@ static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
   *data_out = nullptr;
   *len_out = 0;
 
-  // Try to get section data using our custom section name
   // lto_get_raw_section_data looks up sections in the section_hash_table
+  // Section name format: {type_prefix}.{name}.{order}
+  // For LTO_section_decls with name "array_detect" and order 0:
+  // -> looks for section "decls.array_detect.0"
   char const* data = lto_get_raw_section_data (
     file_data,
-    LTO_section_decls,  // Section type (used for name construction)
+    LTO_section_decls,
     kArrayDetectSectionName,
     0,  // order
     len_out
@@ -195,9 +197,18 @@ static void ipa_read_summary (void) {
     return;
   }
 
+  // Count input files for logging
+  unsigned int file_count = 0;
+  for (unsigned i = 0; file_data_vec[i]; i++) {
+    file_count++;
+  }
+  AD_DEBUG_PRINT ("[ipa_read_summary] found %u input files", file_count);
+
   // WPA phase: read all LGEN summaries from input .o files
   if (isWpaPhase ()) {
-    AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading LGEN summaries");
+    AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading LGEN summaries from %u files", file_count);
+
+    unsigned int files_with_data = 0;
 
     // Iterate over all input files
     for (unsigned i = 0; file_data_vec[i]; i++) {
@@ -210,8 +221,11 @@ static void ipa_read_summary (void) {
       if (err == ::array_detect_ns::OK && data && len > 0) {
         AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading from file %u, len=%zu", i, len);
         (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+        files_with_data++;
       }
     }
+
+    AD_DEBUG_PRINT ("[ipa_read_summary] WPA: read from %u/%u files", files_with_data, file_count);
 
     // Report what we found
     vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
@@ -222,14 +236,18 @@ static void ipa_read_summary (void) {
     // WPA aggregation: store for potential re-emission to LTRANS
     if (count > 0) {
       ::array_detect_ns::setWpaLtoSummaries (summaries);
-      AD_DEBUG_PRINT ("[ipa_read_summary] WPA: stored summaries for re-emission");
+      AD_DEBUG_PRINT ("[ipa_read_summary] WPA: stored %u summaries for re-emission to LTRANS", count);
+    } else {
+      AD_DEBUG_PRINT ("[ipa_read_summary] WPA: WARNING - no summaries loaded, LTRANS will have no data");
     }
     return;
   }
 
   // LTRANS phase: read WPA-aggregated summaries
   if (flag_ltrans) {
-    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading WPA summaries");
+    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading WPA summaries from %u files", file_count);
+
+    unsigned int files_with_data = 0;
 
     // Iterate over all input files
     for (unsigned i = 0; file_data_vec[i]; i++) {
@@ -242,13 +260,20 @@ static void ipa_read_summary (void) {
       if (err == ::array_detect_ns::OK && data && len > 0) {
         AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading from file %u, len=%zu", i, len);
         (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+        files_with_data++;
       }
     }
+
+    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: read from %u/%u files", files_with_data, file_count);
 
     vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
       ::array_detect_ns::getLtransLtoSummaries ();
     unsigned int count = vec_safe_length (summaries);
     AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: loaded %u summaries", count);
+
+    if (count == 0) {
+      AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: WARNING - no summaries loaded from WPA output");
+    }
     return;
   }
 

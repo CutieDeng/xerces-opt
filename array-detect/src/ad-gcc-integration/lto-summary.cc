@@ -17,6 +17,7 @@
 // LTO streaming API
 #include "lto-streamer.h"
 #include "data-streamer.h"
+#include "lto-section-names.h"
 
 namespace array_detect_ns {
 
@@ -29,7 +30,9 @@ static unsigned HOST_WIDE_INT const kSummaryMagic = 0x41444C544F32ULL; // "ADLTO
 static unsigned HOST_WIDE_INT const kSummaryVersion = 2;
 
 // Custom LTO section name for array-detect plugin
+// Format: {type_prefix}.{name}.{order} to match lto_get_raw_section_data
 static char const* const kArrayDetectSectionName = "array_detect";
+static char const* const kArrayDetectFullSectionName = "decls.array_detect.0";
 
 // ============================================================================
 // Module state
@@ -49,174 +52,6 @@ static inline char const* dup_cstr (char const* s) {
   char* out = (char*) ggc_alloc_atomic (n + 1);
   memcpy (out, s, n + 1);
   return out;
-}
-
-// ============================================================================
-// Binary streaming helpers (using lto_output_stream directly)
-// ============================================================================
-
-// Write a length-prefixed string to output stream
-static void stream_write_string (struct lto_output_stream* obs, char const* s) {
-  if (!s) s = "";
-  size_t len = strlen (s);
-  streamer_write_uhwi_stream (obs, (unsigned HOST_WIDE_INT) len);
-  if (len > 0) {
-    streamer_write_data_stream (obs, s, len);
-  }
-}
-
-// Read a length-prefixed string from input block
-static char const* stream_read_string (class lto_input_block* ib) {
-  unsigned HOST_WIDE_INT len = streamer_read_uhwi (ib);
-  if (len == 0) {
-    return dup_cstr ("");
-  }
-  char* buf = (char*) ggc_alloc_atomic ((size_t) len + 1);
-  for (unsigned HOST_WIDE_INT i = 0; i < len; i++) {
-    buf[i] = (char) streamer_read_uchar (ib);
-  }
-  buf[len] = '\0';
-  return buf;
-}
-
-// ============================================================================
-// Write a single LtoUnifiedResultSummary to output stream
-// ============================================================================
-
-static void write_summary_entry (struct lto_output_stream* obs,
-                                  LtoUnifiedResultSummary* e) {
-  if (!e) return;
-
-  // Basic identity
-  stream_write_string (obs, e->tu_source_file);
-  streamer_write_uhwi_stream (obs, e->type_uid);
-  streamer_write_uhwi_stream (obs, e->ptr_field_uid);
-  stream_write_string (obs, e->type_name);
-  stream_write_string (obs, e->ptr_field_name);
-  streamer_write_uhwi_stream (obs, (unsigned HOST_WIDE_INT) e->owned_verdict);
-
-  // Template args
-  unsigned int tmpl_count = vec_safe_length (e->template_args);
-  streamer_write_uhwi_stream (obs, tmpl_count);
-  for (unsigned int i = 0; i < tmpl_count; i++) {
-    stream_write_string (obs, (*e->template_args)[i]);
-  }
-
-  // Malloc size fields
-  unsigned int malloc_count = vec_safe_length (e->malloc_size_field_names);
-  streamer_write_uhwi_stream (obs, malloc_count);
-  for (unsigned int i = 0; i < malloc_count; i++) {
-    streamer_write_uhwi_stream (obs, (*e->malloc_size_field_uids)[i]);
-    stream_write_string (obs, (*e->malloc_size_field_names)[i]);
-  }
-
-  // Reads
-  unsigned int reads_count = vec_safe_length (e->reads);
-  streamer_write_uhwi_stream (obs, reads_count);
-  for (unsigned int i = 0; i < reads_count; i++) {
-    LtoRelatedFieldsSummary* rf = (*e->reads)[i];
-    unsigned int field_count = rf ? vec_safe_length (rf->field_names) : 0;
-    streamer_write_uhwi_stream (obs, field_count);
-    for (unsigned int j = 0; j < field_count; j++) {
-      streamer_write_uhwi_stream (obs, (*rf->field_uids)[j]);
-      stream_write_string (obs, (*rf->field_names)[j]);
-    }
-  }
-
-  // Writes
-  unsigned int writes_count = vec_safe_length (e->writes);
-  streamer_write_uhwi_stream (obs, writes_count);
-  for (unsigned int i = 0; i < writes_count; i++) {
-    LtoRelatedFieldsSummary* wf = (*e->writes)[i];
-    unsigned int field_count = wf ? vec_safe_length (wf->field_names) : 0;
-    streamer_write_uhwi_stream (obs, field_count);
-    for (unsigned int j = 0; j < field_count; j++) {
-      streamer_write_uhwi_stream (obs, (*wf->field_uids)[j]);
-      stream_write_string (obs, (*wf->field_names)[j]);
-    }
-  }
-}
-
-// ============================================================================
-// Read a single LtoUnifiedResultSummary from input block
-// ============================================================================
-
-static LtoUnifiedResultSummary* read_summary_entry (class lto_input_block* ib) {
-  LtoUnifiedResultSummary* e =
-    (LtoUnifiedResultSummary*) ggc_alloc_atomic (sizeof (LtoUnifiedResultSummary));
-  memset (e, 0, sizeof (*e));
-
-  // Basic identity
-  e->tu_source_file = stream_read_string (ib);
-  e->type_uid = (unsigned int) streamer_read_uhwi (ib);
-  e->ptr_field_uid = (unsigned int) streamer_read_uhwi (ib);
-  e->type_name = stream_read_string (ib);
-  e->ptr_field_name = stream_read_string (ib);
-  e->owned_verdict = (OwnedConclusionVerdict) streamer_read_uhwi (ib);
-
-  // Template args
-  unsigned int tmpl_count = (unsigned int) streamer_read_uhwi (ib);
-  if (tmpl_count > 0) {
-    vec_alloc (e->template_args, tmpl_count);
-    for (unsigned int i = 0; i < tmpl_count; i++) {
-      vec_safe_push (e->template_args, stream_read_string (ib));
-    }
-  }
-
-  // Malloc size fields
-  unsigned int malloc_count = (unsigned int) streamer_read_uhwi (ib);
-  if (malloc_count > 0) {
-    vec_alloc (e->malloc_size_field_uids, malloc_count);
-    vec_alloc (e->malloc_size_field_names, malloc_count);
-    for (unsigned int i = 0; i < malloc_count; i++) {
-      vec_safe_push (e->malloc_size_field_uids, (unsigned int) streamer_read_uhwi (ib));
-      vec_safe_push (e->malloc_size_field_names, stream_read_string (ib));
-    }
-  }
-
-  // Reads
-  unsigned int reads_count = (unsigned int) streamer_read_uhwi (ib);
-  if (reads_count > 0) {
-    vec_alloc (e->reads, reads_count);
-    for (unsigned int i = 0; i < reads_count; i++) {
-      LtoRelatedFieldsSummary* rf =
-        (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-      memset (rf, 0, sizeof (*rf));
-      unsigned int field_count = (unsigned int) streamer_read_uhwi (ib);
-      if (field_count > 0) {
-        vec_alloc (rf->field_uids, field_count);
-        vec_alloc (rf->field_names, field_count);
-        for (unsigned int j = 0; j < field_count; j++) {
-          vec_safe_push (rf->field_uids, (unsigned int) streamer_read_uhwi (ib));
-          vec_safe_push (rf->field_names, stream_read_string (ib));
-        }
-      }
-      vec_safe_push (e->reads, rf);
-    }
-  }
-
-  // Writes
-  unsigned int writes_count = (unsigned int) streamer_read_uhwi (ib);
-  if (writes_count > 0) {
-    vec_alloc (e->writes, writes_count);
-    for (unsigned int i = 0; i < writes_count; i++) {
-      LtoRelatedFieldsSummary* wf =
-        (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-      memset (wf, 0, sizeof (*wf));
-      unsigned int field_count = (unsigned int) streamer_read_uhwi (ib);
-      if (field_count > 0) {
-        vec_alloc (wf->field_uids, field_count);
-        vec_alloc (wf->field_names, field_count);
-        for (unsigned int j = 0; j < field_count; j++) {
-          vec_safe_push (wf->field_uids, (unsigned int) streamer_read_uhwi (ib));
-          vec_safe_push (wf->field_names, stream_read_string (ib));
-        }
-      }
-      vec_safe_push (e->writes, wf);
-    }
-  }
-
-  return e;
 }
 
 // ============================================================================
@@ -462,14 +297,16 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
   }
 
   // Write to LTO section using raw API
-  lto_begin_section (kArrayDetectSectionName, false);
+  // Use the full section name that matches lto_get_raw_section_data format
+  lto_begin_section (kArrayDetectFullSectionName, false);
   if (buf && buf->length () > 0) {
     lto_write_data (buf->address (), buf->length ());
   }
   lto_end_section ();
 
-  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes",
-                  count, vec_safe_length (buf));
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes to section '%s'",
+                  count, vec_safe_length (buf), kArrayDetectFullSectionName);
+  AD_RETURNE (OK);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
