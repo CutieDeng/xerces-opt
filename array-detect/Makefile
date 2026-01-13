@@ -894,35 +894,35 @@ test-trivial-assignment: out/plugin-array-detect.dylib
 	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\"))" | racket test-script/test-trivial-assignment.rkt
 
 test-simple-ptr-field-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-ptr-field.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-simple-ptr-field.rkt
 
 test-simple-virtual-call-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-virtual-call.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-simple-virtual-call.rkt
 
 test-simple-ptr-copy-escape-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-simple-ptr-copy-escape.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-simple-ptr-copy-escape.rkt
 
 test-bound-check-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-bound-check.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-bound-check.rkt
 
 test-bound-read-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-bound-read.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-bound-read.rkt
 
 test-malloc-size-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-malloc-size.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-malloc-size.rkt
 
 test-ownership-transfer-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-ownership-transfer.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-ownership-transfer.rkt
 
 test-phi-ice-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-phi-ice.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-phi-ice.rkt
 
 test-trivial-assignment-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-trivial-assignment.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-trivial-assignment.rkt
 
 test-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-lto.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-lto.rkt
 
 test-xercese-lto: out/plugin-array-detect.dylib
-	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\"))" | racket test-script/test-xercese.rkt
+	@echo "((cxx . \"/opt/homebrew/bin/g++-15\") (cflags \"-fplugin=out/plugin-array-detect.dylib\" \"-flto\" \"-flto-compression-level=0\"))" | racket test-script/test-xercese.rkt
 
