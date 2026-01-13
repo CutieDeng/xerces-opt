@@ -31,6 +31,8 @@ static unsigned HOST_WIDE_INT const kSummaryVersion = 2;
 
 // Custom LTO section name for array-detect plugin
 // Format: {type_prefix}.{name}.{order} to match lto_get_raw_section_data
+// Note: On macOS, section names with dots may cause assembly issues.
+// This is expected to work on Linux.
 static char const* const kArrayDetectSectionName = "array_detect";
 static char const* const kArrayDetectFullSectionName = "decls.array_detect.0";
 

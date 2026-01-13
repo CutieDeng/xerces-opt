@@ -349,4 +349,47 @@ ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
+// ============================================================================
+// writeWpaResultsToFile: WPA 阶段输出
+// ============================================================================
+
+ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  // 获取输出文件路径
+  char const* result_file = ctx.result_file_path;
+  if (!result_file || !*result_file) {
+    AD_DEBUG_PRINT ("[writeWpaResultsToFile] AD_RESULT_FILE not set, skip output");
+    AD_RETURNE (OK);
+  }
+
+  // 从 WPA summaries 获取数据
+  vec<LtoUnifiedResultSummary*, va_gc>* summaries = getWpaLtoSummaries ();
+  if (!summaries || summaries->is_empty ()) {
+    AD_DEBUG_PRINT ("[writeWpaResultsToFile] no WPA summaries available");
+    AD_RETURNE (OK);
+  }
+
+  // Append 模式打开文件
+  FILE* out = fopen (result_file, "a");
+  if (!out) {
+    AD_DEBUG_PRINT ("[writeWpaResultsToFile] failed to open %s", result_file);
+    AD_RETURNE (OK);  // 不是致命错误
+  }
+
+  unsigned int written = 0;
+
+  for (unsigned i = 0; i < summaries->length (); i++) {
+    LtoUnifiedResultSummary* summary = (*summaries)[i];
+    if (!summary || summary->owned_verdict != OWNED_YES) continue;
+
+    writeOwnedFieldDatumFromSummary (AD_ARGS, out, summary);
+    written++;
+  }
+
+  fclose (out);
+
+  AD_DEBUG_PRINT ("[writeWpaResultsToFile] wrote %u owned fields to %s", written, result_file);
+
+  AD_RETURNE (OK);
+} AD_FUNCTION_END
+
 } // namespace array_detect_ns

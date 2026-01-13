@@ -12,7 +12,7 @@
 #include "array-detect-context-gcc.hh"
 #include "pipeline.hh"
 #include "lto-summary.hh"
-#include "lto-transform.hh"
+#include "result-output.hh"
 
 #include "gcc-ext-util.hh"
 #include "info.hh"
@@ -237,62 +237,15 @@ static void ipa_read_summary (void) {
     if (count > 0) {
       ::array_detect_ns::setWpaLtoSummaries (summaries);
       AD_DEBUG_PRINT ("[ipa_read_summary] WPA: stored %u summaries for re-emission to LTRANS", count);
+      // 输出结果到 AD_RESULT_FILE
+      ::array_detect_ns::writeWpaResultsToFile (AD_ARGS);
     } else {
       AD_DEBUG_PRINT ("[ipa_read_summary] WPA: WARNING - no summaries loaded, LTRANS will have no data");
     }
     return;
   }
 
-  // LTRANS phase: read WPA-aggregated summaries
-  if (flag_ltrans) {
-    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading WPA summaries from %u files", file_count);
-
-    unsigned int files_with_data = 0;
-
-    // Iterate over all input files
-    for (unsigned i = 0; file_data_vec[i]; i++) {
-      struct lto_file_decl_data* file_data = file_data_vec[i];
-      char const* data = nullptr;
-      size_t len = 0;
-
-      ::array_detect_ns::ArrayDetectErrorCode err =
-        find_array_detect_section (AD_ARGS, file_data, &data, &len);
-      if (err == ::array_detect_ns::OK && data && len > 0) {
-        AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading from file %u, len=%zu", i, len);
-        (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
-        files_with_data++;
-      }
-    }
-
-    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: read from %u/%u files", files_with_data, file_count);
-
-    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
-      ::array_detect_ns::getLtransLtoSummaries ();
-    unsigned int count = vec_safe_length (summaries);
-    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: loaded %u summaries", count);
-
-    if (count == 0) {
-      AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: WARNING - no summaries loaded from WPA output");
-    }
-    return;
-  }
-
-  AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in WPA or LTRANS)");
-}
-
-// ============================================================================
-// LTRANS function_transform entry (IPA pass uses cgraph_node*).
-// ============================================================================
-
-static unsigned int runLtoTransformEntry (cgraph_node* node) {
-  if (!flag_ltrans) return 0;
-  if (!node) return 0;
-  if (!node->get_body ()) return 0;
-  function* fn = node->get_fun ();
-  if (!fn) return 0;
-  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-  return ::array_detect_ns::runLtoTransform (AD_ARGS, fn);
+  AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in WPA)");
 }
 
 // ============================================================================
@@ -302,18 +255,6 @@ static unsigned int runLtoTransformEntry (cgraph_node* node) {
 const pass_data array_detect_pass_data = {
   .type = IPA_PASS,
   .name = "array-detect-wpa-pass",
-  .optinfo_flags = OPTGROUP_NONE,
-  .tv_id = TV_NONE,
-  .properties_required = 0,
-  .properties_provided = 0,
-  .properties_destroyed = 0,
-  .todo_flags_start = 0,
-  .todo_flags_finish = 0,
-};
-
-const pass_data array_detect_ltrans_pass_data = {
-  .type = GIMPLE_PASS,
-  .name = "array-detect-ltrans-pass",
   .optinfo_flags = OPTGROUP_NONE,
   .tv_id = TV_NONE,
   .properties_required = 0,
@@ -334,7 +275,7 @@ class pass_array_detect : public ipa_opt_pass_d {
                        NULL,                     // read_optimization_summary
                        NULL,                     // stmt_fixup
                        0,                        // function_transform_todo_flags_start
-                       runLtoTransformEntry,      // function_transform
+                       NULL,                     // function_transform (disabled - no LTRANS)
                        NULL)                     // variable_transform
   {}
 
@@ -386,46 +327,6 @@ class pass_array_detect : public ipa_opt_pass_d {
     ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
     ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
     return execute_impl (AD_ARGS);
-  }
-};
-
-class pass_array_detect_ltrans : public gimple_opt_pass {
- public:
-  pass_array_detect_ltrans (gcc::context * ctxt)
-      : gimple_opt_pass (array_detect_ltrans_pass_data, ctxt) {}
-
-  opt_pass * clone () override { return new pass_array_detect_ltrans (g); }
-
-  bool gate (function* fn) override {
-    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-    char const* fn_name = nullptr;
-    if (fn && fn->decl && DECL_NAME (fn->decl)) {
-      fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
-    }
-    AD_DEBUG_PRINT ("[ltrans-pass] gate fn=%s flag_ltrans=%d",
-                    fn_name ? fn_name : "<null>", flag_ltrans);
-    return flag_ltrans;
-  }
-
-  static unsigned int execute_impl (AD_FUNC_ARGS, function* fn) {
-    char const* fn_name = nullptr;
-    if (fn && fn->decl && DECL_NAME (fn->decl)) {
-      fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
-    }
-    AD_DEBUG_PRINT ("[ltrans-pass] execute_impl fn=%s flag_ltrans=%d",
-                    fn_name ? fn_name : "<null>", flag_ltrans);
-    if (!flag_ltrans || !fn) return 0;
-    if (!gimple_has_body_p (fn->decl)) return 0;
-    return ::array_detect_ns::runLtoTransform (AD_ARGS, fn);
-  }
-
-  unsigned int execute (function* fn) override {
-    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-    ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-    AD_DEBUG_PRINT ("[ltrans-pass] execute ENTRY");
-    unsigned int result = execute_impl (AD_ARGS, fn);
-    AD_DEBUG_PRINT ("[ltrans-pass] execute EXIT result=%u", result);
-    return result;
   }
 };
 
@@ -502,26 +403,23 @@ int plugin_init (struct plugin_name_args * plugin_info,
 
     (void) plugin_init_debug_impl (AD_ARGS);
 
-    struct register_pass_info pass_info;
+    // LTRANS 阶段不注册任何 pass（已移除 LTRANS 功能）
     if (flag_ltrans) {
-      AD_DEBUG_PRINT ("[plugin_init] Registering LTRANS pass (pass_array_detect_ltrans)");
-      pass_info.pass = new pass_array_detect_ltrans (g);
-      pass_info.reference_pass_name = "optimized";
-      pass_info.ref_pass_instance_number = 1;
-      pass_info.pos_op = PASS_POS_INSERT_AFTER;
+      AD_DEBUG_PRINT ("[plugin_init] LTRANS: no pass registered (LTRANS disabled)");
     } else {
       AD_DEBUG_PRINT ("[plugin_init] Registering IPA pass (pass_array_detect)");
+      struct register_pass_info pass_info;
       pass_info.pass = new pass_array_detect (g);
       pass_info.reference_pass_name = "inline";       // 在内联优化之后插入，以便分析内联后的代码
       pass_info.ref_pass_instance_number = 1;         // 符合规则
       pass_info.pos_op = PASS_POS_INSERT_AFTER;
-    }
 
-    register_callback (plugin_info->base_name,
-                      PLUGIN_PASS_MANAGER_SETUP,
-                      NULL,
-                      &pass_info);
-    AD_DEBUG_PRINT ("[plugin_init] Pass registered successfully");
+      register_callback (plugin_info->base_name,
+                        PLUGIN_PASS_MANAGER_SETUP,
+                        NULL,
+                        &pass_info);
+      AD_DEBUG_PRINT ("[plugin_init] Pass registered successfully");
+    }
 
     // Register finish callback for LTO aggregation output
     register_callback (plugin_info->base_name,

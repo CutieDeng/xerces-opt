@@ -362,7 +362,6 @@
       "ad-context"
       "ad-gcc-integration"
       "ad-utils"
-      "ad-lto-transform"
       ;; ad- 数据结构模块
       "ad-field-write"
       "ad-write-source"

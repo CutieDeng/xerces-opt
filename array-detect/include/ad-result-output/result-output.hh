@@ -65,4 +65,8 @@ ArrayDetectErrorCode writeResultsToFile (
 // 从 LTO summaries 中读取数据
 ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS);
 
+// WPA 阶段: 输出所有 owned 字段到 AD_RESULT_FILE
+// 从 WPA summaries 中读取数据
+ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS);
+
 } // namespace array_detect_ns
