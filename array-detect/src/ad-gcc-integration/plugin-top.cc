@@ -396,6 +396,11 @@ int plugin_init (struct plugin_name_args * plugin_info,
     ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
     ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
 
+    // 初始化环境变量配置（AD_RESULT_FILE 等）
+    ::array_detect_ns::initContextEnvVars (AD_ARGS);
+    AD_DEBUG_PRINT ("[plugin_init] Environment vars initialized, result_file=%s",
+                    ctx.result_file_path ? ctx.result_file_path : "<null>");
+
     // 初始化全局 context buffers，确保所有 LTO 阶段可用
     AD_DEBUG_PRINT ("[plugin_init] Initializing context buffers...");
     ::array_detect_ns::initContextBuffers (ctx, gcc_ctx, 512);

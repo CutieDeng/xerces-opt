@@ -2,9 +2,6 @@
 
 #include <cstring>
 #include <cstdio>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <climits>
 
 #include "context.hh"
 #include "prelude.hh"
@@ -26,13 +23,10 @@ namespace array_detect_ns {
 // ============================================================================
 
 // Magic number and version for format validation
-static unsigned HOST_WIDE_INT const kSummaryMagic = 0x41444C544F32ULL; // "ADLTO2"
-static unsigned HOST_WIDE_INT const kSummaryVersion = 2;
+static unsigned HOST_WIDE_INT const kSummaryMagic = 0x41444C544F33ULL; // "ADLTO3" (v3)
+static unsigned HOST_WIDE_INT const kSummaryVersion = 3;
 
 // Custom LTO section name for array-detect plugin
-// Format: {type_prefix}.{name}.{order} to match lto_get_raw_section_data
-// Note: On macOS, section names with dots may cause assembly issues.
-// This is expected to work on Linux.
 static char const* const kArrayDetectSectionName = "array_detect";
 static char const* const kArrayDetectFullSectionName = "decls.array_detect.0";
 
@@ -114,52 +108,44 @@ static void buf_write_string (vec<unsigned char, va_gc>*& buf, char const* s) {
   }
 }
 
+static void buf_write_field_counts (vec<unsigned char, va_gc>*& buf, vec<LtoFieldCount, va_gc>* counts) {
+  unsigned int n = vec_safe_length (counts);
+  buf_write_uhwi (buf, n);
+  for (unsigned int i = 0; i < n; i++) {
+    LtoFieldCount& fc = (*counts)[i];
+    buf_write_string (buf, fc.field_name);
+    buf_write_uhwi (buf, fc.count);
+  }
+}
+
 static void buf_write_summary_entry (vec<unsigned char, va_gc>*& buf, LtoUnifiedResultSummary* e) {
   if (!e) return;
 
+  // Basic info
   buf_write_string (buf, e->tu_source_file);
-  buf_write_uhwi (buf, e->type_uid);
-  buf_write_uhwi (buf, e->ptr_field_uid);
   buf_write_string (buf, e->type_name);
-  buf_write_string (buf, e->ptr_field_name);
-  buf_write_uhwi (buf, (unsigned HOST_WIDE_INT) e->owned_verdict);
 
+  // Template args
   unsigned int tmpl_count = vec_safe_length (e->template_args);
   buf_write_uhwi (buf, tmpl_count);
   for (unsigned int i = 0; i < tmpl_count; i++) {
     buf_write_string (buf, (*e->template_args)[i]);
   }
 
-  unsigned int malloc_count = vec_safe_length (e->malloc_size_field_names);
-  buf_write_uhwi (buf, malloc_count);
-  for (unsigned int i = 0; i < malloc_count; i++) {
-    buf_write_uhwi (buf, (*e->malloc_size_field_uids)[i]);
-    buf_write_string (buf, (*e->malloc_size_field_names)[i]);
-  }
+  buf_write_string (buf, e->ptr_field_name);
+  buf_write_uhwi (buf, (unsigned HOST_WIDE_INT) e->owned_verdict);
 
-  unsigned int reads_count = vec_safe_length (e->reads);
-  buf_write_uhwi (buf, reads_count);
-  for (unsigned int i = 0; i < reads_count; i++) {
-    LtoRelatedFieldsSummary* rf = (*e->reads)[i];
-    unsigned int field_count = rf ? vec_safe_length (rf->field_names) : 0;
-    buf_write_uhwi (buf, field_count);
-    for (unsigned int j = 0; j < field_count; j++) {
-      buf_write_uhwi (buf, (*rf->field_uids)[j]);
-      buf_write_string (buf, (*rf->field_names)[j]);
-    }
-  }
+  // malloc-size: total + field counts
+  buf_write_uhwi (buf, e->malloc_total);
+  buf_write_field_counts (buf, e->malloc_field_counts);
 
-  unsigned int writes_count = vec_safe_length (e->writes);
-  buf_write_uhwi (buf, writes_count);
-  for (unsigned int i = 0; i < writes_count; i++) {
-    LtoRelatedFieldsSummary* wf = (*e->writes)[i];
-    unsigned int field_count = wf ? vec_safe_length (wf->field_names) : 0;
-    buf_write_uhwi (buf, field_count);
-    for (unsigned int j = 0; j < field_count; j++) {
-      buf_write_uhwi (buf, (*wf->field_uids)[j]);
-      buf_write_string (buf, (*wf->field_names)[j]);
-    }
-  }
+  // reads: total + field counts
+  buf_write_uhwi (buf, e->reads_total);
+  buf_write_field_counts (buf, e->read_field_counts);
+
+  // writes: total + field counts
+  buf_write_uhwi (buf, e->writes_total);
+  buf_write_field_counts (buf, e->write_field_counts);
 }
 
 // ============================================================================
@@ -195,18 +181,33 @@ static char const* buf_read_string (BufReader& r) {
   return buf;
 }
 
+static vec<LtoFieldCount, va_gc>* buf_read_field_counts (BufReader& r) {
+  unsigned int n = (unsigned int) buf_read_uhwi (r);
+  if (n == 0) return nullptr;
+
+  vec<LtoFieldCount, va_gc>* counts = nullptr;
+  vec_alloc (counts, n);
+
+  for (unsigned int i = 0; i < n; i++) {
+    LtoFieldCount fc;
+    fc.field_name = buf_read_string (r);
+    fc.count = (unsigned int) buf_read_uhwi (r);
+    vec_safe_push (counts, fc);
+  }
+
+  return counts;
+}
+
 static LtoUnifiedResultSummary* buf_read_summary_entry (BufReader& r) {
   LtoUnifiedResultSummary* e =
     (LtoUnifiedResultSummary*) ggc_alloc_atomic (sizeof (LtoUnifiedResultSummary));
   memset (e, 0, sizeof (*e));
 
+  // Basic info
   e->tu_source_file = buf_read_string (r);
-  e->type_uid = (unsigned int) buf_read_uhwi (r);
-  e->ptr_field_uid = (unsigned int) buf_read_uhwi (r);
   e->type_name = buf_read_string (r);
-  e->ptr_field_name = buf_read_string (r);
-  e->owned_verdict = (OwnedConclusionVerdict) buf_read_uhwi (r);
 
+  // Template args
   unsigned int tmpl_count = (unsigned int) buf_read_uhwi (r);
   if (tmpl_count > 0) {
     vec_alloc (e->template_args, tmpl_count);
@@ -215,55 +216,20 @@ static LtoUnifiedResultSummary* buf_read_summary_entry (BufReader& r) {
     }
   }
 
-  unsigned int malloc_count = (unsigned int) buf_read_uhwi (r);
-  if (malloc_count > 0) {
-    vec_alloc (e->malloc_size_field_uids, malloc_count);
-    vec_alloc (e->malloc_size_field_names, malloc_count);
-    for (unsigned int i = 0; i < malloc_count; i++) {
-      vec_safe_push (e->malloc_size_field_uids, (unsigned int) buf_read_uhwi (r));
-      vec_safe_push (e->malloc_size_field_names, buf_read_string (r));
-    }
-  }
+  e->ptr_field_name = buf_read_string (r);
+  e->owned_verdict = (OwnedConclusionVerdict) buf_read_uhwi (r);
 
-  unsigned int reads_count = (unsigned int) buf_read_uhwi (r);
-  if (reads_count > 0) {
-    vec_alloc (e->reads, reads_count);
-    for (unsigned int i = 0; i < reads_count; i++) {
-      LtoRelatedFieldsSummary* rf =
-        (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-      memset (rf, 0, sizeof (*rf));
-      unsigned int field_count = (unsigned int) buf_read_uhwi (r);
-      if (field_count > 0) {
-        vec_alloc (rf->field_uids, field_count);
-        vec_alloc (rf->field_names, field_count);
-        for (unsigned int j = 0; j < field_count; j++) {
-          vec_safe_push (rf->field_uids, (unsigned int) buf_read_uhwi (r));
-          vec_safe_push (rf->field_names, buf_read_string (r));
-        }
-      }
-      vec_safe_push (e->reads, rf);
-    }
-  }
+  // malloc-size: total + field counts
+  e->malloc_total = (unsigned int) buf_read_uhwi (r);
+  e->malloc_field_counts = buf_read_field_counts (r);
 
-  unsigned int writes_count = (unsigned int) buf_read_uhwi (r);
-  if (writes_count > 0) {
-    vec_alloc (e->writes, writes_count);
-    for (unsigned int i = 0; i < writes_count; i++) {
-      LtoRelatedFieldsSummary* wf =
-        (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-      memset (wf, 0, sizeof (*wf));
-      unsigned int field_count = (unsigned int) buf_read_uhwi (r);
-      if (field_count > 0) {
-        vec_alloc (wf->field_uids, field_count);
-        vec_alloc (wf->field_names, field_count);
-        for (unsigned int j = 0; j < field_count; j++) {
-          vec_safe_push (wf->field_uids, (unsigned int) buf_read_uhwi (r));
-          vec_safe_push (wf->field_names, buf_read_string (r));
-        }
-      }
-      vec_safe_push (e->writes, wf);
-    }
-  }
+  // reads: total + field counts
+  e->reads_total = (unsigned int) buf_read_uhwi (r);
+  e->read_field_counts = buf_read_field_counts (r);
+
+  // writes: total + field counts
+  e->writes_total = (unsigned int) buf_read_uhwi (r);
+  e->write_field_counts = buf_read_field_counts (r);
 
   return e;
 }
@@ -299,7 +265,6 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
   }
 
   // Write to LTO section using raw API
-  // Use the full section name that matches lto_get_raw_section_data format
   lto_begin_section (kArrayDetectFullSectionName, false);
   if (buf && buf->length () > 0) {
     lto_write_data (buf->address (), buf->length ());
@@ -308,7 +273,6 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
 
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done writing %u summaries, %u bytes to section '%s'",
                   count, vec_safe_length (buf), kArrayDetectFullSectionName);
-  AD_RETURNE (OK);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
@@ -330,15 +294,15 @@ ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const
 
   unsigned HOST_WIDE_INT magic = buf_read_uhwi (r);
   if (magic != kSummaryMagic) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] bad magic 0x%llx",
-                    (unsigned long long) magic);
+    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] bad magic 0x%llx (expected 0x%llx)",
+                    (unsigned long long) magic, (unsigned long long) kSummaryMagic);
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   unsigned HOST_WIDE_INT version = buf_read_uhwi (r);
   if (version != kSummaryVersion) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] unknown version %llu",
-                    (unsigned long long) version);
+    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] unknown version %llu (expected %llu)",
+                    (unsigned long long) version, (unsigned long long) kSummaryVersion);
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
@@ -376,8 +340,6 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
 
   // Basic identity
   summary->tu_source_file = dup_cstr (main_input_filename);
-  summary->type_uid = conclusion->type ? TYPE_UID (conclusion->type) : 0;
-  summary->ptr_field_uid = conclusion->field_decl ? DECL_UID (conclusion->field_decl) : 0;
   summary->type_name = dup_cstr (conclusion->type_name ? conclusion->type_name : "<anon>");
   summary->ptr_field_name = dup_cstr (conclusion->field_name ? conclusion->field_name : "<anon>");
   summary->owned_verdict = conclusion->verdict;
@@ -398,7 +360,19 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
 
   // Extract capacity evidence from tfad
   if (tfad) {
-    // Malloc capacity fields
+    // malloc-size: count SOURCE_FUNCTION_CALL writes as total
+    summary->malloc_total = 0;
+    if (tfad->writes) {
+      for (unsigned i = 0; i < tfad->writes->length (); i++) {
+        auto* wrapper = (*tfad->writes)[i];
+        if (!wrapper || !wrapper->write_source) continue;
+        if (wrapper->write_source->source_type == ::array_detector::SOURCE_FUNCTION_CALL) {
+          summary->malloc_total++;
+        }
+      }
+    }
+
+    // malloc field counts
     if (tfad->malloc_evidences_map) {
       unsigned int count = 0;
       for (auto iter = tfad->malloc_evidences_map->begin ();
@@ -407,21 +381,22 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
         count++;
       }
       if (count) {
-        vec_alloc (summary->malloc_size_field_uids, count);
-        vec_alloc (summary->malloc_size_field_names, count);
+        vec_alloc (summary->malloc_field_counts, count);
         for (auto iter = tfad->malloc_evidences_map->begin ();
              iter != tfad->malloc_evidences_map->end ();
              ++iter) {
           tree integer_field = (*iter).first;
-          vec_safe_push (summary->malloc_size_field_uids,
-                         integer_field ? DECL_UID (integer_field) : 0u);
-          char const* name = safeGetFieldName (AD_ARGS, integer_field);
-          vec_safe_push (summary->malloc_size_field_names, dup_cstr (name));
+          vec<::array_detector::MallocCapacityEvidence*, va_gc>* evidences = (*iter).second;
+          LtoFieldCount fc;
+          fc.field_name = dup_cstr (safeGetFieldName (AD_ARGS, integer_field));
+          fc.count = evidences ? evidences->length () : 0;
+          vec_safe_push (summary->malloc_field_counts, fc);
         }
       }
     }
 
-    // Read evidence (grouped by integer_field)
+    // reads: total + field counts
+    summary->reads_total = tfad->array_reads ? tfad->array_reads->length () : 0;
     if (tfad->read_evidences_map) {
       unsigned int count = 0;
       for (auto iter = tfad->read_evidences_map->begin ();
@@ -430,25 +405,22 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
         count++;
       }
       if (count) {
-        vec_alloc (summary->reads, count);
+        vec_alloc (summary->read_field_counts, count);
         for (auto iter = tfad->read_evidences_map->begin ();
              iter != tfad->read_evidences_map->end ();
              ++iter) {
           tree integer_field = (*iter).first;
-          LtoRelatedFieldsSummary* rf =
-            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-          memset (rf, 0, sizeof (*rf));
-          vec_alloc (rf->field_uids, 1);
-          vec_alloc (rf->field_names, 1);
-          vec_safe_push (rf->field_uids, integer_field ? DECL_UID (integer_field) : 0u);
-          char const* name = safeGetFieldName (AD_ARGS, integer_field);
-          vec_safe_push (rf->field_names, dup_cstr (name));
-          vec_safe_push (summary->reads, rf);
+          vec<::array_detector::ReadCapacityEvidence*, va_gc>* evidences = (*iter).second;
+          LtoFieldCount fc;
+          fc.field_name = dup_cstr (safeGetFieldName (AD_ARGS, integer_field));
+          fc.count = evidences ? evidences->length () : 0;
+          vec_safe_push (summary->read_field_counts, fc);
         }
       }
     }
 
-    // Write evidence (grouped by integer_field)
+    // writes: total + field counts
+    summary->writes_total = tfad->array_writes ? tfad->array_writes->length () : 0;
     if (tfad->write_evidences_map) {
       unsigned int count = 0;
       for (auto iter = tfad->write_evidences_map->begin ();
@@ -457,20 +429,16 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
         count++;
       }
       if (count) {
-        vec_alloc (summary->writes, count);
+        vec_alloc (summary->write_field_counts, count);
         for (auto iter = tfad->write_evidences_map->begin ();
              iter != tfad->write_evidences_map->end ();
              ++iter) {
           tree integer_field = (*iter).first;
-          LtoRelatedFieldsSummary* wf =
-            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
-          memset (wf, 0, sizeof (*wf));
-          vec_alloc (wf->field_uids, 1);
-          vec_alloc (wf->field_names, 1);
-          vec_safe_push (wf->field_uids, integer_field ? DECL_UID (integer_field) : 0u);
-          char const* name = safeGetFieldName (AD_ARGS, integer_field);
-          vec_safe_push (wf->field_names, dup_cstr (name));
-          vec_safe_push (summary->writes, wf);
+          vec<::array_detector::WriteCapacityEvidence*, va_gc>* evidences = (*iter).second;
+          LtoFieldCount fc;
+          fc.field_name = dup_cstr (safeGetFieldName (AD_ARGS, integer_field));
+          fc.count = evidences ? evidences->length () : 0;
+          vec_safe_push (summary->write_field_counts, fc);
         }
       }
     }

@@ -5,47 +5,47 @@
 #include "gcc-common.hh"
 #include "own-conclude.hh"
 
-// Forward declarations for GCC LTO types (global namespace)
-class lto_input_block;
-
 namespace array_detect_ns {
 
 // ============================================================================
 // LTO summary payload (serializable)
 // ============================================================================
 
-// A single (read/write) access instance in the output format.
-// We intentionally store only stable primitives (uids + strings), so we can
-// replay the existing Racket datum output in LTRANS without needing gimple/tree.
-struct LtoRelatedFieldsSummary {
-  vec<unsigned int, va_gc>* field_uids;   // DECL_UID(field)
-  vec<char const*, va_gc>* field_names;   // DECL_NAME(field) or "<anon>"
+// 字段计数条目
+struct LtoFieldCount {
+  char const* field_name;
+  unsigned int count;
 };
 
+// 统一的 LTO 结果摘要
+// 与普通阶段的输出格式保持一致：
+//   (owned "Type" (template-args ...) "field"
+//     (malloc-size (total . N) ("f1" . c1) ...)
+//     (reads (total . N) ("f1" . c1) ...)
+//     (writes (total . N) ("f1" . c1) ...))
 struct LtoUnifiedResultSummary {
-  // Origin (TU) identity; used to populate (file "...") in the datum output.
+  // 来源文件（诊断用）
   char const* tu_source_file;
 
-  // Primary identity.
-  unsigned int type_uid;              // TYPE_UID(type)
-  unsigned int ptr_field_uid;         // DECL_UID(pointer_field_decl)
-
-  // Cached names (used for output; avoids needing tree reconstruction).
+  // 类型和字段标识
   char const* type_name;
-  vec<char const*, va_gc>* template_args; // 模板参数列表
+  vec<char const*, va_gc>* template_args;
   char const* ptr_field_name;
 
-  // Owned verdict (matches existing datum semantics).
+  // 所有权判定结果
   OwnedConclusionVerdict owned_verdict;
 
-  // (malloc-size (...)) list: capacity field candidates with malloc evidence.
-  vec<unsigned int, va_gc>* malloc_size_field_uids;
-  vec<char const*, va_gc>* malloc_size_field_names;
+  // malloc-size: total + per-field counts
+  unsigned int malloc_total;
+  vec<LtoFieldCount, va_gc>* malloc_field_counts;
 
-  // (reads (...)) / (writes (...)) lists: one entry per access instance,
-  // each entry is a list of related bound fields.
-  vec<LtoRelatedFieldsSummary*, va_gc>* reads;
-  vec<LtoRelatedFieldsSummary*, va_gc>* writes;
+  // reads: total + per-field counts
+  unsigned int reads_total;
+  vec<LtoFieldCount, va_gc>* read_field_counts;
+
+  // writes: total + per-field counts
+  unsigned int writes_total;
+  vec<LtoFieldCount, va_gc>* write_field_counts;
 };
 
 // ============================================================================

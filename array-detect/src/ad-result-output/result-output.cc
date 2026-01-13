@@ -168,6 +168,7 @@ void writeOwnedFieldDatum (
 
 // ============================================================================
 // writeOwnedFieldDatumFromSummary: 从 LTO summary 输出
+// 格式与 writeOwnedFieldDatum 保持一致
 // ============================================================================
 
 void writeOwnedFieldDatumFromSummary (
@@ -198,42 +199,41 @@ void writeOwnedFieldDatumFromSummary (
   fprintf (out, " ");
   writeEscapedString (out, summary->ptr_field_name);
 
-  // (malloc-size "field1" "field2" ...)
+  // (malloc-size (total . N) ("field1" . count1) ...)
   fprintf (out, " (malloc-size");
-  if (summary->malloc_size_field_names) {
-    for (unsigned i = 0; i < summary->malloc_size_field_names->length (); i++) {
-      fprintf (out, " ");
-      writeEscapedString (out, (*summary->malloc_size_field_names)[i]);
+  fprintf (out, " (total . %u)", summary->malloc_total);
+  if (summary->malloc_field_counts) {
+    for (unsigned i = 0; i < summary->malloc_field_counts->length (); i++) {
+      LtoFieldCount& fc = (*summary->malloc_field_counts)[i];
+      fprintf (out, " (");
+      writeEscapedString (out, fc.field_name);
+      fprintf (out, " . %u)", fc.count);
     }
   }
   fprintf (out, ")");
 
-  // (reads "field1" "field2" ...)
+  // (reads (total . N) ("field1" . count1) ...)
   fprintf (out, " (reads");
-  if (summary->reads) {
-    for (unsigned i = 0; i < summary->reads->length (); i++) {
-      LtoRelatedFieldsSummary* rf = (*summary->reads)[i];
-      if (rf && rf->field_names) {
-        for (unsigned j = 0; j < rf->field_names->length (); j++) {
-          fprintf (out, " ");
-          writeEscapedString (out, (*rf->field_names)[j]);
-        }
-      }
+  fprintf (out, " (total . %u)", summary->reads_total);
+  if (summary->read_field_counts) {
+    for (unsigned i = 0; i < summary->read_field_counts->length (); i++) {
+      LtoFieldCount& fc = (*summary->read_field_counts)[i];
+      fprintf (out, " (");
+      writeEscapedString (out, fc.field_name);
+      fprintf (out, " . %u)", fc.count);
     }
   }
   fprintf (out, ")");
 
-  // (writes "field1" "field2" ...)
+  // (writes (total . N) ("field1" . count1) ...)
   fprintf (out, " (writes");
-  if (summary->writes) {
-    for (unsigned i = 0; i < summary->writes->length (); i++) {
-      LtoRelatedFieldsSummary* wf = (*summary->writes)[i];
-      if (wf && wf->field_names) {
-        for (unsigned j = 0; j < wf->field_names->length (); j++) {
-          fprintf (out, " ");
-          writeEscapedString (out, (*wf->field_names)[j]);
-        }
-      }
+  fprintf (out, " (total . %u)", summary->writes_total);
+  if (summary->write_field_counts) {
+    for (unsigned i = 0; i < summary->write_field_counts->length (); i++) {
+      LtoFieldCount& fc = (*summary->write_field_counts)[i];
+      fprintf (out, " (");
+      writeEscapedString (out, fc.field_name);
+      fprintf (out, " . %u)", fc.count);
     }
   }
   fprintf (out, ")");
@@ -354,8 +354,13 @@ ArrayDetectErrorCode writeLtransResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 // ============================================================================
 
 ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
+  AD_DEBUG_PRINT ("[writeWpaResultsToFile] ENTRY");
+
   // 获取输出文件路径
   char const* result_file = ctx.result_file_path;
+  AD_DEBUG_PRINT ("[writeWpaResultsToFile] result_file_path=%s",
+                  result_file ? result_file : "<null>");
+
   if (!result_file || !*result_file) {
     AD_DEBUG_PRINT ("[writeWpaResultsToFile] AD_RESULT_FILE not set, skip output");
     AD_RETURNE (OK);
@@ -363,6 +368,8 @@ ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
   // 从 WPA summaries 获取数据
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = getWpaLtoSummaries ();
+  AD_DEBUG_PRINT ("[writeWpaResultsToFile] summaries count=%u", vec_safe_length (summaries));
+
   if (!summaries || summaries->is_empty ()) {
     AD_DEBUG_PRINT ("[writeWpaResultsToFile] no WPA summaries available");
     AD_RETURNE (OK);
