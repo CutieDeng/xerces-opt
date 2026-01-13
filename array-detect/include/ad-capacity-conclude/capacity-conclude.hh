@@ -110,7 +110,7 @@ ArrayDetectErrorCode summarizeCapacityConclude (
 // 输出：tfad->capacity_conclude
 ArrayDetectErrorCode generateCapacityConclude (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  Wrapper_FieldEscapeConclude_TransferStats* tfad
 );
 
 // 打印容量结论

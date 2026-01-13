@@ -20,7 +20,7 @@ using namespace ::field_analysis;
 ArrayDetectErrorCode collectAndGroupMallocEvidences (
   AD_FUNC_ARGS,
   tree field_decl,
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes,
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>* writes,
   tree containing_type,
   MallocEvidencesByIntegerFieldMap** out_map
 ) AD_FUNCTION_BEGIN {
@@ -51,7 +51,7 @@ ArrayDetectErrorCode collectAndGroupMallocEvidences (
 
   // 遍历所有写入
   for (unsigned i = 0; i < writes->length (); i++) {
-    Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* write_wrapper = (*writes)[i];
+    Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo* write_wrapper = (*writes)[i];
     if (!write_wrapper) {
       AD_DEBUG_PRINT ("[malloc-group]   write[%u]: write_wrapper is NULL", i);
       continue;
@@ -104,7 +104,7 @@ ArrayDetectErrorCode collectAndGroupMallocEvidences (
 
 ArrayDetectErrorCode groupMallocEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
+  Wrapper_FieldEscapeConclude_TransferStats* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
     AD_RETURNE (OK);

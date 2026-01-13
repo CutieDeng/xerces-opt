@@ -21,7 +21,7 @@ namespace array_detect_ns {
 struct FieldOwnedConclusion;
 
 namespace field_analysis {
-  struct Wrapper_FieldEscapeConclude_OwnershipConclude;
+  struct Wrapper_FieldEscapeConclude_TransferStats;
 }
 
 namespace array_detector {
@@ -39,7 +39,7 @@ void writeOwnedFieldDatum (
   AD_FUNC_ARGS,
   FILE* out,
   FieldOwnedConclusion* conclusion,
-  field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  field_analysis::Wrapper_FieldEscapeConclude_TransferStats* tfad
 );
 
 // 从 LtoUnifiedResultSummary 输出 (用于 LTRANS 阶段)

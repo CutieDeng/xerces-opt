@@ -2,7 +2,7 @@
 // ad-field-write 模块实现
 // ============================================================================
 // 收集所有字段写入操作
-// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove))
+// 数据流：whole-program -> (mapof (type, field) (listof Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo))
 // ============================================================================
 
 #include "field-write.hh"
@@ -71,7 +71,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* map,
   tree type,
   tree field_decl,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo* wrapper
 ) AD_FUNCTION_BEGIN {
   if (!map || !type || !field_decl || !wrapper) {
     AD_RETURNE (INVALID_ARGUMENT);
@@ -97,7 +97,7 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
     tfad->field_decl = field_decl;
     vec_alloc (tfad->writes, 4);
     tfad->escape_conclude = NULL;
-    tfad->ownership_conclude = NULL;
+    tfad->transfer_stats = NULL;
 
     map->put (key, tfad);
   }
@@ -120,11 +120,11 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove>();
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo>();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove));
+  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo));
 
   // 存储 FieldWriteInfo 指针
   wrapper->write_info = write_info;

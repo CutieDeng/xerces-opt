@@ -67,7 +67,7 @@ ArrayDetectErrorCode summarizeFieldEscapeConclude (
   AD_FUNC_ARGS,
   tree type,
   tree field_decl,
-  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes,
+  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>* writes,
   FieldEscapeConclude** result
 );
 

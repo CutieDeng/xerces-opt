@@ -18,7 +18,7 @@ namespace array_detector {
 }
 
 namespace field_analysis {
-  struct Wrapper_FieldEscapeConclude_OwnershipConclude;
+  struct Wrapper_FieldEscapeConclude_TransferStats;
 }
 
 // 注意：这个文件在 array-detector.hh 末尾被包含
@@ -30,9 +30,9 @@ namespace array_detector {
 // ============================================================================
 // TypeFieldKey -> Wrapper* 的 hashmap traits
 // ============================================================================
-typedef simple_hashmap_traits<default_hash_traits<TypeFieldKey>, ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude*> TypeFieldHashMapTraits;
+typedef simple_hashmap_traits<default_hash_traits<TypeFieldKey>, ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats*> TypeFieldHashMapTraits;
 
 // 向后兼容别名
-using TypeFieldAnalysisData = ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude;
+using TypeFieldAnalysisData = ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats;
 
 } // namespace array_detector

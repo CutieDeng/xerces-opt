@@ -9,7 +9,7 @@
 #include "context.hh"
 #include "prelude.hh"
 #include "stor-layout.h"
-#include "owned-conclusion.hh"
+#include "own-conclude.hh"
 #include "array-detector.hh"
 #include "string-utils.hh"
 #include "gcc-ext-util.hh"
@@ -527,7 +527,7 @@ ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const
 LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
   AD_FUNC_ARGS,
   FieldOwnedConclusion* conclusion,
-  ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats* tfad
 ) {
   if (!conclusion) return nullptr;
 
@@ -657,13 +657,13 @@ vec<LtoUnifiedResultSummary*, va_gc>* convertAllFieldOwnedConclusionsToLtoSummar
     if (!conclusion) continue;
 
     // Find corresponding TypeFieldAnalysisData
-    ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad = nullptr;
+    ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats* tfad = nullptr;
     if (detector.m_type_field_writes && conclusion->type && conclusion->field_decl) {
       ::array_detector::TypeFieldKey key = {
         TYPE_MAIN_VARIANT (conclusion->type),
         conclusion->field_decl
       };
-      ::field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude** slot =
+      ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats** slot =
         detector.m_type_field_writes->get (key);
       if (slot) {
         tfad = *slot;

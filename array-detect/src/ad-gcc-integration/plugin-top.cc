@@ -410,7 +410,7 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 // ============================================================================
 
 // 使用 AD_FUNCTION_BEGIN2 因为 finish 阶段 context 可能已部分清理
-::array_detect_ns::ArrayDetectErrorCode plugin_finish_callback_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2
+::array_detect_ns::ArrayDetectErrorCode plugin_finish_callback_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   AD_DEBUG_PRINT ("[plugin_finish_callback] ENTRY in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
                   in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
 
@@ -425,10 +425,10 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
   ::array_detect_ns::closeGlobalDebugFile ();
   ecode = ::array_detect_ns::OK;
 plugin_finish_cleanup:
-AD_FUNCTION_END3
+} AD_FUNCTION_END3
 
 // 使用 AD_FUNCTION_BEGIN2 因为 init 阶段栈帧追踪可能未初始化
-::array_detect_ns::ArrayDetectErrorCode plugin_init_debug_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2
+::array_detect_ns::ArrayDetectErrorCode plugin_init_debug_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2 {
   AD_DEBUG_PRINT ("[plugin_init] ENTRY in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s",
                   in_lto_p, flag_ltrans, flag_generate_lto, flag_wpa ? flag_wpa : "<null>");
 
@@ -444,7 +444,7 @@ AD_FUNCTION_END3
   }
 
   ecode = ::array_detect_ns::OK;
-AD_FUNCTION_END3
+} AD_FUNCTION_END3
 
 void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
   ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;

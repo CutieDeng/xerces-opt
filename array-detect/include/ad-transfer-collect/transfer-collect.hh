@@ -11,16 +11,16 @@
 namespace array_detect_ns {
 
 // ============================================================================
-// 所有权转移分析模块 (Ownership Move Analysis)
+// 所有权转移收集模块 (Transfer Collect)
 // ============================================================================
-// 数据流位置：field-write-info, write-original-source -> ownership-move
+// 数据流位置：field-write-info, write-original-source -> transfer-info
 // 分析字段复制（如 a.ptr = b.ptr）中源字段是否被销毁
 //
-// (ownership-move
+// (transfer-info
 //   source-field      : tree           ; 源字段 (b.ptr)
 //   source-object     : tree           ; 源对象 (b)
 //   transfer-stmt     : gimple*        ; 转移语句
-//   verdict           : ownership-verdict ; CERTAIN/IMPOSSIBLE/CONDITIONAL
+//   verdict           : transfer-verdict ; CERTAIN/IMPOSSIBLE/CONDITIONAL
 //   invalidation-points : (listof invalidation-point*))
 // ============================================================================
 
@@ -46,21 +46,21 @@ struct InvalidationPoint {
 };
 
 // ============================================================================
-// 所有权转移结论枚举
+// 转移结论枚举
 // ============================================================================
 
-enum OwnershipMoveVerdict {
-  MOVE_CERTAIN,                    // 必然转移（所有路径都有销毁点）
-  MOVE_IMPOSSIBLE,                 // 不可能转移（无销毁点）
-  MOVE_CONDITIONAL,                // 条件转移（部分路径有销毁点）
-  MOVE_NOT_APPLICABLE              // 不适用（非字段访问源）
+enum TransferVerdict {
+  TRANSFER_CERTAIN,                // 必然转移（所有路径都有销毁点）
+  TRANSFER_IMPOSSIBLE,             // 不可能转移（无销毁点）
+  TRANSFER_CONDITIONAL,            // 条件转移（部分路径有销毁点）
+  TRANSFER_NOT_APPLICABLE          // 不适用（非字段访问源）
 };
 
 // ============================================================================
-// 所有权转移结果 (OwnershipMove)
+// 转移信息 (TransferInfo)
 // ============================================================================
 
-struct OwnershipMove {
+struct TransferInfo {
   // === 基本信息 ===
   tree source_field;                              // 源字段（b.ptr）
   tree source_object;                             // 源对象（b）
@@ -73,7 +73,7 @@ struct OwnershipMove {
   vec<InvalidationPoint*, va_gc>* invalidation_points;
 
   // === 分析结论 ===
-  OwnershipMoveVerdict verdict;
+  TransferVerdict verdict;
 
   // === 路径统计 ===
   unsigned int paths_with_invalidation;
@@ -89,25 +89,25 @@ struct OwnershipMove {
 // 核心分析函数
 // ============================================================================
 
-// 主入口：分析单个字段写入的所有权转移
+// 主入口：收集单个字段写入的转移信息
 // 输入：write_info, write_source (当 write_source->source_type == SOURCE_FIELD_ACCESS)
-// 输出：OwnershipMove 指针
-ArrayDetectErrorCode analyzeOwnershipMove (
+// 输出：TransferInfo 指针
+ArrayDetectErrorCode collectTransfer (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
   ::array_detector::WriteOriginalSource* write_source,
-  OwnershipMove** out_move
+  TransferInfo** out_transfer
 );
 
 // ============================================================================
 // 调试输出
 // ============================================================================
 
-// 打印所有权转移结果
-void printOwnershipMove (
+// 打印转移信息
+void printTransferInfo (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipMove* result
+  TransferInfo* result
 );
 
 } // namespace array_detect_ns

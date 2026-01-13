@@ -288,7 +288,7 @@ ArrayDetectErrorCode collectAllFieldUses (
     if (!tfad || !tfad->writes) continue;
 
     for (unsigned i = 0; i < tfad->writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*tfad->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo * wrapper = (*tfad->writes)[i];
       if (!wrapper || !wrapper->write_info) continue;
 
       // 从 write_info 提取数据进行分析

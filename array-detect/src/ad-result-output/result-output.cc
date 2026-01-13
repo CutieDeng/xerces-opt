@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "owned-conclusion.hh"
+#include "own-conclude.hh"
 #include "array-detector.hh"
 #include "string-utils.hh"
 #include "gcc-ext-util.hh"
@@ -55,7 +55,7 @@ void writeOwnedFieldDatum (
   AD_FUNC_ARGS,
   FILE* out,
   FieldOwnedConclusion* conclusion,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  Wrapper_FieldEscapeConclude_TransferStats* tfad
 ) {
   if (!out || !conclusion) return;
   if (conclusion->verdict != OWNED_YES) return;
@@ -282,13 +282,13 @@ ArrayDetectErrorCode writeResultsToFile (
     if (!conclusion || conclusion->verdict != OWNED_YES) continue;
 
     // 查找对应的 TypeFieldAnalysisData
-    Wrapper_FieldEscapeConclude_OwnershipConclude* tfad = nullptr;
+    Wrapper_FieldEscapeConclude_TransferStats* tfad = nullptr;
     if (detector.m_type_field_writes && conclusion->type && conclusion->field_decl) {
       TypeFieldKey key = {
         TYPE_MAIN_VARIANT (conclusion->type),
         conclusion->field_decl
       };
-      Wrapper_FieldEscapeConclude_OwnershipConclude** slot =
+      Wrapper_FieldEscapeConclude_TransferStats** slot =
         detector.m_type_field_writes->get (key);
       if (slot) {
         tfad = *slot;

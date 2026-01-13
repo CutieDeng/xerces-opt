@@ -181,7 +181,7 @@ ArrayDetectErrorCode summarizeCapacityConclude (
 
 ArrayDetectErrorCode generateCapacityConclude (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  Wrapper_FieldEscapeConclude_TransferStats* tfad
 ) AD_FUNCTION_BEGIN {
   if (!tfad) {
     AD_RETURNE (OK);

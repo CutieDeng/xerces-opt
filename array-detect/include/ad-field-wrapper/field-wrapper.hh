@@ -12,20 +12,20 @@
 //     escape-use-info     : source-escape-use-info or #f)
 //
 // 层级1：写入级 Wrapper (per write operation)
-//   (wrapper-write-info-write-source-source-escape-conclude-ownership-move
+//   (wrapper-write-info-write-source-source-escape-conclude-transfer-info
 //     write-info      : field-write-info
 //     write-source    : write-original-source
 //     escape-conclude : source-escape-conclude
-//     ownership-move  : ownership-move or #f
+//     transfer-info   : transfer-info or #f
 //     uses            : (listof wrapper-source-use-info-source-escape-use-info*))
 //
 // 层级3：字段级 Wrapper (per field)
-//   (wrapper-field-escape-conclude-ownership-conclude
+//   (wrapper-field-escape-conclude-transfer-stats
 //     type              : tree
 //     field-decl        : tree
 //     writes            : (listof wrapper-write-info-write-source*)
 //     escape-conclude   : field-escape-conclude
-//     ownership-conclude: ownership-conclude)
+//     transfer-stats    : transfer-stats)
 //
 // ============================================================================
 
@@ -45,8 +45,8 @@ namespace array_detect_ns {
   struct SourceEscapeUseInfo;
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
-  struct OwnershipConclude;
-  struct OwnershipMove;
+  struct TransferStats;
+  struct TransferInfo;
   // 容量分析相关
   struct MallocCapacityEvidence;
   struct ReadCapacityEvidence;
@@ -145,19 +145,19 @@ typedef hash_map<tree, vec<::array_detect_ns::WriteCapacityEvidence*, va_gc>*, T
 // ----------------------------------------------------------------------------
 // 层级1：写入级 Wrapper
 // ----------------------------------------------------------------------------
-// (wrapper-write-info-write-source-source-escape-conclude-ownership-move
+// (wrapper-write-info-write-source-source-escape-conclude-transfer-info
 //   write-info       : field-write-info
 //   write-source     : write-original-source
 //   escape-conclude  : source-escape-conclude
-//   ownership-move   : ownership-move or #f
+//   transfer-info    : transfer-info or #f
 //   uses             : (listof wrapper-source-use-info-source-escape-use-info*)
 //   malloc-evidences : (listof malloc-capacity-evidence))
 
-struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
+struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo {
   ::array_detect_ns::FieldWriteInfo* write_info;
   ::array_detector::WriteOriginalSource* write_source;
   ::array_detect_ns::SourceEscapeConclude* escape_conclude;
-  ::array_detect_ns::OwnershipMove* ownership_move;
+  ::array_detect_ns::TransferInfo* transfer_info;
   vec<Wrapper_SourceUseInfo_SourceEscapeUseInfo*, va_gc>* uses;
 
   // === malloc 容量证据（per write）===
@@ -173,16 +173,16 @@ struct Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove {
 //   write_evidences      : (listof write-capacity-evidence)
 //   capacity_conclude    : capacity-conclude
 
-struct Wrapper_FieldEscapeConclude_OwnershipConclude {
+struct Wrapper_FieldEscapeConclude_TransferStats {
   tree type;
   tree field_decl;
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes;
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>* writes;
 
   // === 逃逸分析结论 ===
   ::array_detect_ns::FieldEscapeConclude* escape_conclude;
 
   // === 所有权分析结论 ===
-  ::array_detect_ns::OwnershipConclude* ownership_conclude;
+  ::array_detect_ns::TransferStats* transfer_stats;
 
   // === 数组读取分析 (per-read wrappers, 一对多) ===
   vec<Wrapper_ArrayReadAccess_ReadBoundConditions*, va_gc>* array_reads;

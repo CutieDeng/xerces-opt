@@ -14,8 +14,8 @@
 // 4. extractSourceEscapeUseInfo     -> ad-source-escape-use-info (per write)
 // 5. synthesizeSourceEscapeConclude -> ad-source-escape-conclude (per write)
 // 6. summarizeFieldEscapeConclude   -> ad-field-escape-conclude (per field)
-// 7. analyzeOwnershipMove           -> ad-ownership-move (per write)
-// 8. summarizeOwnershipConclude     -> ad-ownership-conclude (per field)
+// 7. analyzeTransferInfo           -> ad-ownership-move (per write)
+// 8. summarizeTransferStats         -> ad-transfer-stats (per field)
 // 9. groupMallocEvidences           -> ad-malloc-group (per field)
 // 10. groupReadEvidences            -> ad-read-group (per field)
 // 11. groupWriteEvidences           -> ad-write-group (per field)
@@ -29,8 +29,8 @@
 #include "source-escape-use-info.hh"
 #include "source-escape-conclude.hh"
 #include "field-escape-conclude.hh"
-#include "ownership-move.hh"
-#include "ownership-conclude.hh"
+#include "transfer-collect.hh"
+#include "transfer-stats.hh"
 #include "array-detector.hh"
 #include "info-print.hh"
 #include "malloc-capacity.hh"
@@ -42,7 +42,7 @@
 #include "array-write-bound.hh"
 #include "write-group.hh"
 #include "capacity-conclude.hh"
-#include "owned-conclusion.hh"
+#include "own-conclude.hh"
 #include "lto-summary.hh"
 #include "result-output.hh"
 
@@ -118,7 +118,7 @@ ArrayDetectErrorCode runPipeline (
 
       // 遍历该字段的所有写入
       for (unsigned i = 0; i < tfad->writes->length (); i++) {
-        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*tfad->writes)[i];
+        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo * wrapper = (*tfad->writes)[i];
         if (!wrapper) continue;
 
         // Step 4a: 提取逃逸使用信息 (per write)
@@ -161,38 +161,38 @@ ArrayDetectErrorCode runPipeline (
 
       // Step 5a: 分析每个写入的所有权转移 (per write)
       for (unsigned i = 0; i < tfad->writes->length (); i++) {
-        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove * wrapper = (*tfad->writes)[i];
+        Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo * wrapper = (*tfad->writes)[i];
         if (!wrapper || !wrapper->write_info) continue;
 
         // 只处理源为字段访问的写入
         if (wrapper->write_source &&
             wrapper->write_source->source_type == SOURCE_FIELD_ACCESS) {
-          AD_TRY (analyzeOwnershipMove (
+          AD_TRY (collectTransfer (
             AD_ARGS,
             wrapper->write_info,
             wrapper->write_source,
-            &wrapper->ownership_move
+            &wrapper->transfer_info
           ));
 
-          if (wrapper->ownership_move) {
+          if (wrapper->transfer_info) {
             transfer_analyzed++;
             // 打印调试信息
-            printOwnershipMove (AD_ARGS, ctx.debug_file, wrapper->ownership_move);
+            printTransferInfo (AD_ARGS, ctx.debug_file, wrapper->transfer_info);
 
-            if (wrapper->ownership_move->verdict == MOVE_CERTAIN) {
+            if (wrapper->transfer_info->verdict == TRANSFER_CERTAIN) {
               certain_transfers++;
             }
           }
         }
       }
 
-      // Step 5b: 汇总字段级所有权结论 (per field)
-      AD_TRY (summarizeOwnershipConclude (
+      // Step 5b: 汇总字段级所有权转移统计 (per field)
+      AD_TRY (summarizeTransferStats (
         AD_ARGS,
         tfad->type,
         tfad->field_decl,
         tfad->writes,
-        &tfad->ownership_conclude
+        &tfad->transfer_stats
       ));
     }
   }

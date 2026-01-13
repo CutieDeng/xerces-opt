@@ -64,18 +64,18 @@ void printDriverContext (
 ArrayDetectErrorCode driveWriteAnalysis (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*& result
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*& result
 ) AD_FUNCTION_BEGIN {
   if (!write_info) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // Step 1: 创建 Wrapper
-  auto* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove> ();
+  auto* wrapper = ggc_alloc<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo> ();
   if (!wrapper) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove));
+  memset (wrapper, 0, sizeof (Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo));
   wrapper->write_info = write_info;
 
   // Step 2: 追踪来源
@@ -124,7 +124,7 @@ ArrayDetectErrorCode driveAllWriteAnalysis (
     if (!tfwo || !tfwo->writes) continue;
 
     for (unsigned int i = 0; i < tfwo->writes->length (); i++) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* wrapper = (*tfwo->writes)[i];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo* wrapper = (*tfwo->writes)[i];
       if (!wrapper) continue;
 
       total_driven++;
@@ -172,7 +172,7 @@ ArrayDetectErrorCode driveFieldAnalysis (
   ArrayDetector& detector,
   tree type,
   tree field_decl,
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>*& records
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>*& records
 ) AD_FUNCTION_BEGIN {
   (void)ctx; (void)gcc_ctx;
 
@@ -205,7 +205,7 @@ ArrayDetectErrorCode driveFieldAnalysis (
 
 ArrayDetectErrorCode unwrapAnalysis (
   AD_FUNC_ARGS,
-  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove* record,
+  Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo* record,
   WriteAnalysisDriverContext& driver_ctx
 ) AD_FUNCTION_BEGIN {
   (void)ctx; (void)gcc_ctx;

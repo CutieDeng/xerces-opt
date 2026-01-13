@@ -34,7 +34,7 @@ using namespace ::field_analysis;
 ArrayDetectErrorCode collectAndGroupMallocEvidences (
   AD_FUNC_ARGS,
   tree field_decl,
-  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes,
+  vec<Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>* writes,
   tree containing_type,
   MallocEvidencesByIntegerFieldMap** out_map
 );
@@ -42,7 +42,7 @@ ArrayDetectErrorCode collectAndGroupMallocEvidences (
 // 在字段级 Wrapper 上执行分组（直接填充 wrapper 的 malloc_evidences_map）
 ArrayDetectErrorCode groupMallocEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
+  Wrapper_FieldEscapeConclude_TransferStats* field_wrapper
 );
 
 // 从分组结果中提取扁平列表（用于需要遍历所有证据的场景）

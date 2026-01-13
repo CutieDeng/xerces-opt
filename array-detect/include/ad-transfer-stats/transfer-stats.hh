@@ -6,17 +6,17 @@
 #include "state.hh"
 #include "prelude.hh"
 #include "field-wrapper.hh"
-#include "ownership-move.hh"
+#include "transfer-collect.hh"
 
 namespace array_detect_ns {
 
 // ============================================================================
-// 字段所有权结论模块 (Ownership Conclude)
+// 字段所有权转移统计模块 (Transfer Stats)
 // ============================================================================
-// 数据流位置：field, (listof write-original-source) -> ownership-conclude
+// 数据流位置：field, (listof write-original-source) -> transfer-stats
 // 汇总单个 (type, field) 的所有写入操作的所有权转移信息
 //
-// (ownership-conclude
+// (transfer-stats
 //   type                    : tree
 //   field-decl              : tree
 //   total-field-writes      : nat
@@ -26,7 +26,7 @@ namespace array_detect_ns {
 //   conditional-transfers   : nat)      ; 条件转移数
 // ============================================================================
 
-struct OwnershipConclude {
+struct TransferStats {
   // === 标识 ===
   tree type;
   tree field_decl;
@@ -50,15 +50,15 @@ struct OwnershipConclude {
 // 核心分析函数
 // ============================================================================
 
-// 汇总字段级所有权结论
+// 汇总字段级所有权转移统计
 // 输入：type, field_decl, writes (wrapper 列表，ownership_move 已填充)
-// 输出：OwnershipConclude*
-ArrayDetectErrorCode summarizeOwnershipConclude (
+// 输出：TransferStats*
+ArrayDetectErrorCode summarizeTransferStats (
   AD_FUNC_ARGS,
   tree type,
   tree field_decl,
-  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove*, va_gc>* writes,
-  OwnershipConclude** result
+  vec<field_analysis::Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo*, va_gc>* writes,
+  TransferStats** result
 );
 
 } // namespace array_detect_ns

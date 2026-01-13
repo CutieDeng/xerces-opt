@@ -3,7 +3,7 @@
 #include "prelude.hh"
 #include "context.hh"
 #include "gcc-common.hh"
-#include "owned-conclusion.hh"
+#include "own-conclude.hh"
 
 // Forward declarations for GCC LTO types (global namespace)
 class lto_input_block;
@@ -82,7 +82,7 @@ ArrayDetectErrorCode readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const
 struct FieldOwnedConclusion;
 
 namespace field_analysis {
-  struct Wrapper_FieldEscapeConclude_OwnershipConclude;
+  struct Wrapper_FieldEscapeConclude_TransferStats;
 }
 
 namespace array_detector {
@@ -95,7 +95,7 @@ namespace array_detector {
 LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
   AD_FUNC_ARGS,
   FieldOwnedConclusion* conclusion,
-  field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude* tfad
+  field_analysis::Wrapper_FieldEscapeConclude_TransferStats* tfad
 );
 
 // 批量转换所有 FieldOwnedConclusion 为 LtoUnifiedResultSummary

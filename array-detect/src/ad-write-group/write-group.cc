@@ -73,7 +73,7 @@ ArrayDetectErrorCode groupWriteEvidencesForField (
 
 ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
+  Wrapper_FieldEscapeConclude_TransferStats* field_wrapper
 ) AD_FUNCTION_BEGIN {
   if (!field_wrapper) {
     AD_RETURNE (OK);

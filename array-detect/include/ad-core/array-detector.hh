@@ -14,8 +14,8 @@
 // ============================================================================
 // 数据流关系（三层 Wrapper 结构）：
 // - 层级2: Wrapper_SourceUse_EscapedUse
-// - 层级1: Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove
-// - 层级3: Wrapper_FieldEscapeConclude_OwnershipConclude (per field)
+// - 层级1: Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo
+// - 层级3: Wrapper_FieldEscapeConclude_TransferStats (per field)
 // ============================================================================
 
 namespace array_detect_ns {
@@ -25,8 +25,8 @@ namespace array_detect_ns {
   struct EscapedUseResult;
   struct SourceEscapeConclude;
   struct FieldEscapeConclude;
-  struct OwnershipMove;
-  struct OwnershipConclude;
+  struct TransferInfo;
+  struct TransferStats;
 }
 
 namespace array_detector {
@@ -84,7 +84,7 @@ struct ArrayDetector {
   vec<FieldInfo*>* m_fields;
 
   // 新的数据结构：使用 hash_map 按 (type, field) 存储
-  // TypeFieldAnalysisData = field_analysis::Wrapper_FieldEscapeConclude_OwnershipConclude
+  // TypeFieldAnalysisData = field_analysis::Wrapper_FieldEscapeConclude_TransferStats
   hash_map<TypeFieldKey, TypeFieldAnalysisData*, TypeFieldHashMapTraits>* m_type_field_writes;
 
 };

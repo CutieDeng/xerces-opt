@@ -39,7 +39,7 @@ ArrayDetectErrorCode groupWriteEvidencesForField (
 // 在字段级 Wrapper 上执行分组（从 Wrapper 的 array_writes 读取）
 ArrayDetectErrorCode groupWriteEvidencesForFieldWrapper (
   AD_FUNC_ARGS,
-  Wrapper_FieldEscapeConclude_OwnershipConclude* field_wrapper
+  Wrapper_FieldEscapeConclude_TransferStats* field_wrapper
 );
 
 // 从分组结果中提取扁平列表（用于需要遍历所有证据的场景）

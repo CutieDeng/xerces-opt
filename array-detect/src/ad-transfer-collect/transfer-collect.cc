@@ -1,11 +1,11 @@
 // ============================================================================
-// ad-ownership-move 模块实现
+// ad-transfer-collect 模块实现
 // ============================================================================
-// 分析字段复制中源字段是否被销毁
-// 数据流：field-write-info, write-original-source -> ownership-move-result
+// 收集字段复制中的转移信息
+// 数据流：field-write-info, write-original-source -> transfer-info
 // ============================================================================
 
-#include "ownership-move.hh"
+#include "transfer-collect.hh"
 #include "gcc-ext-util.hh"
 #include "info-print.hh"
 
@@ -20,11 +20,11 @@ using namespace ::array_detector;
 namespace {
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement
+// collectTransfer_findInvalidationPoints_searchBlock_isInvalidationStatement
 // ----------------------------------------------------------------------------
 // 判断语句是否为销毁语句
 
-ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement (
+ArrayDetectErrorCode collectTransfer_findInvalidationPoints_searchBlock_isInvalidationStatement (
   AD_FUNC_ARGS,
   gimple* stmt,
   tree source_field,
@@ -112,11 +112,11 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock_isI
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove_findInvalidationPoints_searchBlock
+// collectTransfer_findInvalidationPoints_searchBlock
 // ----------------------------------------------------------------------------
 // 递归搜索基本块中的销毁点
 
-ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
+ArrayDetectErrorCode collectTransfer_findInvalidationPoints_searchBlock (
   AD_FUNC_ARGS,
   basic_block bb,
   tree source_field,
@@ -136,7 +136,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
     gimple* stmt = gsi_stmt (gsi);
 
     InvalidationKind kind;
-    AD_TRY (analyzeOwnershipMove_findInvalidationPoints_searchBlock_isInvalidationStatement (AD_ARGS, stmt, source_field, source_object, kind));
+    AD_TRY (collectTransfer_findInvalidationPoints_searchBlock_isInvalidationStatement (AD_ARGS, stmt, source_field, source_object, kind));
 
     if (kind != INVALIDATION_NONE) {
       // 找到销毁点，记录
@@ -180,7 +180,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
   edge e;
   edge_iterator ei;
   FOR_EACH_EDGE (e, ei, bb->succs) {
-    AD_TRY (analyzeOwnershipMove_findInvalidationPoints_searchBlock (
+    AD_TRY (collectTransfer_findInvalidationPoints_searchBlock (
       AD_ARGS, e->dest, source_field, source_object, visited, invalidation_points
     ));
   }
@@ -189,11 +189,11 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints_searchBlock (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove_findInvalidationPoints
+// collectTransfer_findInvalidationPoints
 // ----------------------------------------------------------------------------
 // 查找从当前语句到函数出口的所有销毁点
 
-ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
+ArrayDetectErrorCode collectTransfer_findInvalidationPoints (
   AD_FUNC_ARGS,
   gimple* start_stmt,
   basic_block start_bb,
@@ -214,7 +214,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
   hash_set<basic_block> visited;
 
   // 从起始基本块开始搜索
-  AD_TRY (analyzeOwnershipMove_findInvalidationPoints_searchBlock (
+  AD_TRY (collectTransfer_findInvalidationPoints_searchBlock (
     AD_ARGS, start_bb, source_field, source_object, visited, invalidation_points
   ));
 
@@ -222,11 +222,11 @@ ArrayDetectErrorCode analyzeOwnershipMove_findInvalidationPoints (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove_analyzePaths_checkPathsImpl
+// collectTransfer_analyzePaths_checkPathsImpl
 // ----------------------------------------------------------------------------
 // 检查从当前基本块到出口是否必然经过销毁点
 
-ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths_checkPathsImpl (
+ArrayDetectErrorCode collectTransfer_analyzePaths_checkPathsImpl (
   AD_FUNC_ARGS,
   basic_block bb,
   vec<InvalidationPoint*, va_gc>* invalidation_points,
@@ -266,7 +266,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths_checkPathsImpl (
   edge e;
   edge_iterator ei;
   FOR_EACH_EDGE (e, ei, bb->succs) {
-    AD_TRY (analyzeOwnershipMove_analyzePaths_checkPathsImpl (
+    AD_TRY (collectTransfer_analyzePaths_checkPathsImpl (
       AD_ARGS, e->dest, invalidation_points, visited, invalidation_bbs, has_path_without_invalidation
     ));
   }
@@ -275,11 +275,11 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths_checkPathsImpl (
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove_analyzePaths
+// collectTransfer_analyzePaths
 // ----------------------------------------------------------------------------
 // 分析从当前基本块到函数出口的路径
 
-ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
+ArrayDetectErrorCode collectTransfer_analyzePaths (
   AD_FUNC_ARGS,
   basic_block start_bb,
   vec<InvalidationPoint*, va_gc>* invalidation_points,
@@ -307,7 +307,7 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
   // 检查是否存在不经过销毁点的路径
   hash_set<basic_block> visited;
   bool has_path_without_invalidation = false;
-  AD_TRY (analyzeOwnershipMove_analyzePaths_checkPathsImpl (
+  AD_TRY (collectTransfer_analyzePaths_checkPathsImpl (
     AD_ARGS, start_bb, invalidation_points, visited, invalidation_bbs, has_path_without_invalidation
   ));
 
@@ -338,39 +338,39 @@ ArrayDetectErrorCode analyzeOwnershipMove_analyzePaths (
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// analyzeOwnershipMove
+// collectTransfer
 // ----------------------------------------------------------------------------
-// 主入口：分析单个字段写入的所有权转移
+// 主入口：收集单个字段写入的转移信息
 // 输入：write_info, write_source
-// 输出：OwnershipMove 指针
+// 输出：TransferInfo 指针
 
-ArrayDetectErrorCode analyzeOwnershipMove (
+ArrayDetectErrorCode collectTransfer (
   AD_FUNC_ARGS,
   FieldWriteInfo* write_info,
   WriteOriginalSource* write_source,
-  OwnershipMove** out_move
+  TransferInfo** out_transfer
 ) AD_FUNCTION_BEGIN {
-  if (!write_info || !out_move) {
+  if (!write_info || !out_transfer) {
     AD_RETURNE (INVALID_ARGUMENT);
   }
 
   // 初始化输出
-  *out_move = NULL;
+  *out_transfer = NULL;
 
   // 检查源操作数是否为字段访问
   if (!write_source || write_source->source_type != SOURCE_FIELD_ACCESS) {
-    // 不是字段访问，不适用（不分配 OwnershipMove）
+    // 不是字段访问，不适用（不分配 TransferInfo）
     AD_RETURNE (OK);
   }
 
   FieldAccessSource const* field_access = &write_source->data.field_access;
 
-  // 分配 OwnershipMove
-  OwnershipMove* result = ggc_alloc<OwnershipMove> ();
+  // 分配 TransferInfo
+  TransferInfo* result = ggc_alloc<TransferInfo> ();
   if (!result) {
     AD_RETURNE (MEMORY_ERROR);
   }
-  memset (result, 0, sizeof (OwnershipMove));
+  memset (result, 0, sizeof (TransferInfo));
 
   // 填充基本信息
   result->source_field = field_access->access_expr;
@@ -382,7 +382,7 @@ ArrayDetectErrorCode analyzeOwnershipMove (
 
   // 查找销毁点
   vec<InvalidationPoint*, va_gc>* invalidation_points = NULL;
-  AD_TRY (analyzeOwnershipMove_findInvalidationPoints (
+  AD_TRY (collectTransfer_findInvalidationPoints (
     AD_ARGS,
     write_info->stmt,
     write_info->bb,
@@ -397,7 +397,7 @@ ArrayDetectErrorCode analyzeOwnershipMove (
   unsigned int paths_with = 0;
   unsigned int paths_without = 0;
   unsigned int total_paths = 0;
-  AD_TRY (analyzeOwnershipMove_analyzePaths (
+  AD_TRY (collectTransfer_analyzePaths (
     AD_ARGS,
     write_info->bb,
     invalidation_points,
@@ -414,30 +414,30 @@ ArrayDetectErrorCode analyzeOwnershipMove (
   // 确定结论
   if (invalidation_points && invalidation_points->length () > 0) {
     if (paths_without == 0) {
-      result->verdict = MOVE_CERTAIN;
+      result->verdict = TRANSFER_CERTAIN;
       result->verdict_description = ggc_strdup ("Certain transfer (all paths have invalidation)");
     } else {
-      result->verdict = MOVE_CONDITIONAL;
+      result->verdict = TRANSFER_CONDITIONAL;
       result->verdict_description = ggc_strdup ("Conditional transfer (some paths have invalidation)");
     }
   } else {
-    result->verdict = MOVE_IMPOSSIBLE;
+    result->verdict = TRANSFER_IMPOSSIBLE;
     result->verdict_description = ggc_strdup ("No transfer (no invalidation points found)");
   }
 
-  *out_move = result;
+  *out_transfer = result;
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // ----------------------------------------------------------------------------
-// printOwnershipMove
+// printTransferInfo
 // ----------------------------------------------------------------------------
-// 打印所有权转移结果
+// 打印转移信息
 
-void printOwnershipMove (
+void printTransferInfo (
   AD_FUNC_ARGS,
   FILE* out,
-  OwnershipMove* result
+  TransferInfo* result
 ) {
   (void)ctx;
   (void)gcc_ctx;
@@ -446,7 +446,7 @@ void printOwnershipMove (
     return;
   }
 
-  fprintf (out, "\n=== Ownership Transfer Analysis Result ===\n");
+  fprintf (out, "\n=== Transfer Info ===\n");
 
   // 转移位置
   if (result->transfer_location != UNKNOWN_LOCATION) {
@@ -486,16 +486,16 @@ void printOwnershipMove (
   // 结论
   char const* verdict_str = "UNKNOWN";
   switch (result->verdict) {
-    case MOVE_CERTAIN:
+    case TRANSFER_CERTAIN:
       verdict_str = "CERTAIN (ownership transferred)";
       break;
-    case MOVE_IMPOSSIBLE:
+    case TRANSFER_IMPOSSIBLE:
       verdict_str = "IMPOSSIBLE (ownership shared)";
       break;
-    case MOVE_CONDITIONAL:
+    case TRANSFER_CONDITIONAL:
       verdict_str = "CONDITIONAL (depends on control flow)";
       break;
-    case MOVE_NOT_APPLICABLE:
+    case TRANSFER_NOT_APPLICABLE:
       verdict_str = "NOT_APPLICABLE";
       break;
   }

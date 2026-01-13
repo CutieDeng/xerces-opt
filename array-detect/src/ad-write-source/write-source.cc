@@ -493,7 +493,7 @@ ArrayDetectErrorCode traceFieldAssignments (
     }
 
     for (unsigned int j = 0; j < tfad->writes->length (); ++j) {
-      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_OwnershipMove *wrapper = (*tfad->writes)[j];
+      Wrapper_WriteInfo_WriteSource_SourceEscapeConclude_TransferInfo *wrapper = (*tfad->writes)[j];
       if (!wrapper || !wrapper->write_info) {
         continue;
       }
