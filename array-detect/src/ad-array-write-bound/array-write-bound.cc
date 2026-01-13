@@ -474,6 +474,60 @@ ArrayDetectErrorCode analyzeWriteAccessToEvidences (
     AD_DEBUG_PRINT ("[write-bound] Step 3: checking index_to_check (code=%d) for field refs",
                     TREE_CODE (index_to_check));
 
+    // 提取实际的索引表达式
+    // index_to_check 可能被包装在多层中:
+    //   - SSA_NAME 定义为 MULT_EXPR (index * sizeof)
+    //   - SSA_NAME 定义为 NOP_EXPR/CONVERT_EXPR (类型转换)
+    //   - 直接的 MULT_EXPR
+    tree actual_index = index_to_check;
+    int unwrap_depth = 0;
+
+    while (unwrap_depth < 5) {
+      // 处理 SSA_NAME：追溯定义
+      if (TREE_CODE (actual_index) == SSA_NAME) {
+        gimple* def = SSA_NAME_DEF_STMT (actual_index);
+        if (!def || !is_gimple_assign (def)) break;
+
+        enum tree_code rhs_code = gimple_assign_rhs_code (def);
+
+        if (rhs_code == MULT_EXPR) {
+          // 乘法表达式：取第一个操作数（索引）
+          actual_index = gimple_assign_rhs1 (def);
+          AD_DEBUG_PRINT ("[write-bound] Step 3: unwrap SSA->MULT_EXPR depth=%d, next code=%d",
+                          unwrap_depth, TREE_CODE (actual_index));
+          unwrap_depth++;
+          continue;
+        } else if (rhs_code == NOP_EXPR || CONVERT_EXPR_CODE_P (rhs_code)) {
+          // 类型转换：取内部操作数
+          actual_index = gimple_assign_rhs1 (def);
+          AD_DEBUG_PRINT ("[write-bound] Step 3: unwrap SSA->CONVERT depth=%d, next code=%d",
+                          unwrap_depth, TREE_CODE (actual_index));
+          unwrap_depth++;
+          continue;
+        } else {
+          // 其他类型的定义，不再追溯
+          break;
+        }
+      }
+      // 处理直接的 MULT_EXPR
+      else if (TREE_CODE (actual_index) == MULT_EXPR) {
+        actual_index = TREE_OPERAND (actual_index, 0);
+        AD_DEBUG_PRINT ("[write-bound] Step 3: unwrap direct MULT_EXPR depth=%d, next code=%d",
+                        unwrap_depth, TREE_CODE (actual_index));
+        unwrap_depth++;
+        continue;
+      }
+      // 处理直接的类型转换
+      else if (CONVERT_EXPR_P (actual_index) || TREE_CODE (actual_index) == NOP_EXPR) {
+        actual_index = TREE_OPERAND (actual_index, 0);
+        AD_DEBUG_PRINT ("[write-bound] Step 3: unwrap direct CONVERT depth=%d, next code=%d",
+                        unwrap_depth, TREE_CODE (actual_index));
+        unwrap_depth++;
+        continue;
+      }
+      break;
+    }
+
     for (tree field = TYPE_FIELDS (access->containing_type); field; field = DECL_CHAIN (field)) {
       if (TREE_CODE (field) != FIELD_DECL) continue;
       if (!isIntegerType (TREE_TYPE (field))) continue;
@@ -491,7 +545,7 @@ ArrayDetectErrorCode analyzeWriteAccessToEvidences (
       if (already_found) continue;
 
       // 检查 index 表达式是否引用了这个字段
-      if (exprReferencesField (AD_ARGS, index_to_check, field)) {
+      if (exprReferencesField (AD_ARGS, actual_index, field)) {
         AD_DEBUG_PRINT ("[write-bound]   Step 3: FOUND index references field '%s'",
                         safeGetFieldName (AD_ARGS, field));
 
