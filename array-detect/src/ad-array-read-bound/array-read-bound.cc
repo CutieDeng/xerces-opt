@@ -97,18 +97,28 @@ ArrayDetectErrorCode findDominatingConditions (
     AD_RETURNE (OK);
   }
 
+  // 获取源码位置用于调试
+  char loc_buf[256];
+  gcc_ext_util::get_source_location_string (AD_ARGS, access->location, loc_buf, sizeof(loc_buf));
+  AD_DEBUG_PRINT ("[read-bound] findDominatingConditions: access at %s, bb=%d",
+                  loc_buf, access->bb->index);
+
   // 简化实现：检查当前基本块和前驱块的条件
   basic_block bb = access->bb;
 
   // 检查前驱块
   edge e;
   edge_iterator ei;
+  unsigned pred_count = 0;
+  unsigned cond_count = 0;
   FOR_EACH_EDGE (e, ei, bb->preds) {
+    pred_count++;
     basic_block pred_bb = e->src;
     gimple_stmt_iterator gsi = gsi_last_bb (pred_bb);
     if (!gsi_end_p (gsi)) {
       gimple* last_stmt = gsi_stmt (gsi);
       if (last_stmt && gimple_code (last_stmt) == GIMPLE_COND) {
+        cond_count++;
         // 延迟初始化
         if (!*result) {
           vec_alloc (*result, 4);
@@ -117,6 +127,9 @@ ArrayDetectErrorCode findDominatingConditions (
       }
     }
   }
+
+  AD_DEBUG_PRINT ("[read-bound] findDominatingConditions: %u predecessors, %u conditions found",
+                  pred_count, cond_count);
 
   AD_RETURNE (OK);
 } AD_FUNCTION_END
@@ -333,29 +346,123 @@ ArrayDetectErrorCode analyzeReadAccessToEvidences (
   vec<ReadBoundCondition*, va_gc>* bound_conds = NULL;
   AD_TRY (analyzeReadBoundConditions (AD_ARGS, access, &bound_conds));
 
-  if (!bound_conds || bound_conds->length () == 0) {
-    AD_RETURNE (OK);
+  // Step 2: 为每个边界条件提取证据
+  if (bound_conds) {
+    for (unsigned i = 0; i < bound_conds->length (); i++) {
+      ReadBoundCondition* bound_cond = (*bound_conds)[i];
+      if (!bound_cond || !bound_cond->has_field_bound) continue;
+
+      // 使用 access 中的 pointer_field_decl 作为 pointer_field
+      ReadCapacityEvidence* evidence = NULL;
+      AD_TRY (extractReadCapacityEvidence (
+        AD_ARGS,
+        access->pointer_field_decl,
+        bound_cond,
+        &evidence
+      ));
+
+      if (evidence) {
+        if (!*results) {
+          vec_alloc (*results, 4);
+        }
+        vec_safe_push (*results, evidence);
+      }
+    }
   }
 
-  // Step 2: 为每个边界条件提取证据
-  for (unsigned i = 0; i < bound_conds->length (); i++) {
-    ReadBoundCondition* bound_cond = (*bound_conds)[i];
-    if (!bound_cond || !bound_cond->has_field_bound) continue;
+  // Step 3: 检查 index 表达式是否直接引用整数字段
+  // 例如: x = fElemList[fCurCount]; 其中 index 就是 fCurCount
+  // 同时也检查 base_pointer，因为 GIMPLE 可能把 ptr[i] 转换为 *(ptr + i*size)
+  tree index_to_check = access->index_expr;
 
-    // 使用 access 中的 pointer_field_decl 作为 pointer_field
-    ReadCapacityEvidence* evidence = NULL;
-    AD_TRY (extractReadCapacityEvidence (
-      AD_ARGS,
-      access->pointer_field_decl,
-      bound_cond,
-      &evidence
-    ));
+  // 如果 index_expr 是常量，尝试从 base_pointer 的 POINTER_PLUS_EXPR 中提取真正的索引
+  if (index_to_check && TREE_CODE (index_to_check) == INTEGER_CST) {
+    // index_expr 是常量偏移，真正的索引在 base_pointer 的 SSA 链中
+    tree base = access->base_pointer;
+    int depth = 0;
+    while (base && TREE_CODE (base) == SSA_NAME && depth < 10) {
+      gimple* def = SSA_NAME_DEF_STMT (base);
+      if (!def || !is_gimple_assign (def)) break;
 
-    if (evidence) {
-      if (!*results) {
-        vec_alloc (*results, 4);
+      // 检查 gimple assign 的操作码
+      enum tree_code rhs_code = gimple_assign_rhs_code (def);
+
+      // 找到 POINTER_PLUS_EXPR
+      if (rhs_code == POINTER_PLUS_EXPR) {
+        index_to_check = gimple_assign_rhs2 (def);  // 获取偏移部分（第二个操作数）
+        AD_DEBUG_PRINT ("[read-bound] found POINTER_PLUS_EXPR at depth=%d, index code=%d",
+                        depth, TREE_CODE (index_to_check));
+        break;
       }
-      vec_safe_push (*results, evidence);
+
+      // 获取 rhs1 继续追溯
+      tree rhs = gimple_assign_rhs1 (def);
+      if (!rhs) break;
+
+      // 继续追溯 SSA 链
+      if (TREE_CODE (rhs) == SSA_NAME) {
+        base = rhs;
+        depth++;
+        continue;
+      }
+
+      // 处理类型转换
+      if (CONVERT_EXPR_P (rhs) || TREE_CODE (rhs) == NOP_EXPR) {
+        tree inner = TREE_OPERAND (rhs, 0);
+        if (inner && TREE_CODE (inner) == SSA_NAME) {
+          base = inner;
+          depth++;
+          continue;
+        }
+      }
+
+      break;
+    }
+  }
+
+  if (index_to_check && access->containing_type) {
+    AD_DEBUG_PRINT ("[read-bound] Step 3: checking index_to_check (code=%d) for field refs",
+                    TREE_CODE (index_to_check));
+
+    for (tree field = TYPE_FIELDS (access->containing_type); field; field = DECL_CHAIN (field)) {
+      if (TREE_CODE (field) != FIELD_DECL) continue;
+      if (!isIntegerType (TREE_TYPE (field))) continue;
+
+      // 检查是否已经从边界条件中找到了这个字段
+      bool already_found = false;
+      if (*results) {
+        for (unsigned i = 0; i < (*results)->length (); i++) {
+          if ((**results)[i]->integer_field == field) {
+            already_found = true;
+            break;
+          }
+        }
+      }
+      if (already_found) continue;
+
+      // 检查 index 表达式是否引用了这个字段
+      if (exprReferencesField (AD_ARGS, index_to_check, field)) {
+        AD_DEBUG_PRINT ("[read-capacity] ptr '%s' -> index field '%s' (direct index reference)",
+                        safeGetFieldName (AD_ARGS, access->pointer_field_decl),
+                        safeGetFieldName (AD_ARGS, field));
+
+        ReadCapacityEvidence* evidence = ggc_alloc<ReadCapacityEvidence>();
+        memset (evidence, 0, sizeof (ReadCapacityEvidence));
+
+        evidence->pointer_field = access->pointer_field_decl;
+        evidence->integer_field = field;
+        evidence->containing_type = access->containing_type;
+        evidence->read_access = access;
+        evidence->bound_condition = NULL;  // 无边界条件，仅通过 index 引用
+        evidence->confidence = READ_CONF_PROBABLE;  // 置信度稍低
+        evidence->location = access->location;
+        evidence->description = "Array index directly references integer field";
+
+        if (!*results) {
+          vec_alloc (*results, 4);
+        }
+        vec_safe_push (*results, evidence);
+      }
     }
   }
 
