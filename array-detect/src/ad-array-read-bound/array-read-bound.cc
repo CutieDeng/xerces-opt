@@ -23,16 +23,22 @@ static bool isIntegerType (tree type) {
 }
 
 // ============================================================================
-// 辅助函数：检查表达式是否引用了指定字段
+// 辅助函数：检查表达式是否引用了指定字段（带深度限制）
 // ============================================================================
 
-static bool exprReferencesField (
+static bool exprReferencesFieldImpl (
   AD_FUNC_ARGS,
   tree expr,
-  tree field_decl
+  tree field_decl,
+  int depth
 ) {
   (void)ctx;
   (void)gcc_ctx;
+
+  // 深度限制：防止无限递归（PHI 节点循环）
+  if (depth > 10) {
+    return false;
+  }
 
   if (!expr || !field_decl) {
     return false;
@@ -44,7 +50,7 @@ static bool exprReferencesField (
       return true;
     }
     tree base = TREE_OPERAND (expr, 0);
-    if (exprReferencesField (AD_ARGS, base, field_decl)) {
+    if (exprReferencesFieldImpl (AD_ARGS, base, field_decl, depth + 1)) {
       return true;
     }
   }
@@ -53,11 +59,23 @@ static bool exprReferencesField (
     gimple* def_stmt = SSA_NAME_DEF_STMT (expr);
     if (def_stmt && is_gimple_assign (def_stmt)) {
       tree rhs = gimple_assign_rhs1 (def_stmt);
-      if (exprReferencesField (AD_ARGS, rhs, field_decl)) {
+      if (exprReferencesFieldImpl (AD_ARGS, rhs, field_decl, depth + 1)) {
         return true;
       }
       if (gimple_assign_rhs2 (def_stmt)) {
-        if (exprReferencesField (AD_ARGS, gimple_assign_rhs2 (def_stmt), field_decl)) {
+        if (exprReferencesFieldImpl (AD_ARGS, gimple_assign_rhs2 (def_stmt), field_decl, depth + 1)) {
+          return true;
+        }
+      }
+    }
+    // 处理 PHI 节点：检查所有输入边的值
+    // 用于循环变量追溯，如 for (int i = fCurCount; ...)
+    else if (def_stmt && gimple_code (def_stmt) == GIMPLE_PHI) {
+      gphi* phi = as_a<gphi*> (def_stmt);
+      unsigned num_args = gimple_phi_num_args (phi);
+      for (unsigned i = 0; i < num_args; i++) {
+        tree phi_arg = gimple_phi_arg_def (phi, i);
+        if (exprReferencesFieldImpl (AD_ARGS, phi_arg, field_decl, depth + 1)) {
           return true;
         }
       }
@@ -65,21 +83,30 @@ static bool exprReferencesField (
   }
 
   if (BINARY_CLASS_P (expr)) {
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl)) {
+    if (exprReferencesFieldImpl (AD_ARGS, TREE_OPERAND (expr, 0), field_decl, depth + 1)) {
       return true;
     }
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 1), field_decl)) {
+    if (exprReferencesFieldImpl (AD_ARGS, TREE_OPERAND (expr, 1), field_decl, depth + 1)) {
       return true;
     }
   }
 
   if (CONVERT_EXPR_P (expr) || TREE_CODE (expr) == NOP_EXPR) {
-    if (exprReferencesField (AD_ARGS, TREE_OPERAND (expr, 0), field_decl)) {
+    if (exprReferencesFieldImpl (AD_ARGS, TREE_OPERAND (expr, 0), field_decl, depth + 1)) {
       return true;
     }
   }
 
   return false;
+}
+
+// 公开接口：使用默认深度限制
+static bool exprReferencesField (
+  AD_FUNC_ARGS,
+  tree expr,
+  tree field_decl
+) {
+  return exprReferencesFieldImpl (AD_ARGS, expr, field_decl, 0);
 }
 
 // ============================================================================
@@ -166,30 +193,38 @@ ArrayDetectErrorCode analyzeReadBoundConditions (
     tree lhs = gimple_cond_lhs (cond_stmt);
     tree rhs = gimple_cond_rhs (cond_stmt);
 
-    // 检查是否为边界比较 (index < bound)
+    // 检查是否为边界比较 (index < bound or index >= bound 等)
     if (code != LT_EXPR && code != LE_EXPR && code != GT_EXPR && code != GE_EXPR) {
       continue;
     }
 
-    // 查找边界操作数中的整数字段
-    tree index_op = NULL_TREE;
-    tree bound_op = NULL_TREE;
-
-    // 尝试匹配 index < bound
-    if (code == LT_EXPR || code == LE_EXPR) {
-      index_op = lhs;
-      bound_op = rhs;
-    } else {
-      index_op = rhs;
-      bound_op = lhs;
-    }
-
-    // 在 bound_op 中查找所有引用的整数字段
+    // 检查 LHS 和 RHS 中是否有整数字段引用
+    // 对于 setAt >= fCurCount，我们需要找到 fCurCount 在 RHS 中
+    // 对于 index < count，我们需要找到 count 在 RHS 中
+    // 所以检查两边都有字段引用的情况
     for (tree field = TYPE_FIELDS (access->containing_type); field; field = DECL_CHAIN (field)) {
       if (TREE_CODE (field) != FIELD_DECL) continue;
       if (!isIntegerType (TREE_TYPE (field))) continue;
 
-      if (exprReferencesField (AD_ARGS, bound_op, field)) {
+      bool lhs_refs_field = exprReferencesField (AD_ARGS, lhs, field);
+      bool rhs_refs_field = exprReferencesField (AD_ARGS, rhs, field);
+
+      if (lhs_refs_field || rhs_refs_field) {
+        // 确定 index 和 bound 操作数
+        tree index_op = NULL_TREE;
+        tree bound_op = NULL_TREE;
+
+        // 字段在哪一边，那边就是 bound
+        if (rhs_refs_field) {
+          // 例如 setAt >= fCurCount 或 index < count
+          index_op = lhs;
+          bound_op = rhs;
+        } else {
+          // 例如 fCurCount > setAt 或 count >= index
+          index_op = rhs;
+          bound_op = lhs;
+        }
+
         // 创建 ReadBoundCondition
         ReadBoundCondition* bound_cond = ggc_alloc<ReadBoundCondition>();
         memset (bound_cond, 0, sizeof (ReadBoundCondition));
