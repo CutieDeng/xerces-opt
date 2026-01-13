@@ -5,6 +5,9 @@
 #include "gcc-common.hh"
 #include "owned-conclusion.hh"
 
+// Forward declarations for GCC LTO types (global namespace)
+class lto_input_block;
+
 namespace array_detect_ns {
 
 // ============================================================================
@@ -66,8 +69,10 @@ bool hasLtransLtoSummaries ();
 // ============================================================================
 
 // Called by ipa pass hooks (write_summary/read_summary).
+// Write uses lto_begin_section/lto_write_data/lto_end_section with custom section name.
+// Read uses lto_input_block from lto_get_section_data.
 void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS);
-void readArrayDetectLtoSummarySections (AD_FUNC_ARGS);
+void readArrayDetectLtoSummarySections (AD_FUNC_ARGS, char const* data, size_t len);
 
 // ============================================================================
 // Conversion from analysis results

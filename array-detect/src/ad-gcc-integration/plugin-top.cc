@@ -55,6 +55,9 @@ namespace {
 static bool g_wpa_analysis_done = false;
 static ::array_detect_ns::ArrayDetectContextGcc g_plugin_gcc_ctx;
 
+// Custom section name (must match lto-summary.cc)
+static char const* const kArrayDetectSectionName = "array_detect";
+
 static bool isWpaPhase () {
   return flag_wpa != nullptr;
 }
@@ -103,9 +106,12 @@ static void ipa_generate_summary (void) {
   ipa_generate_summary_impl (AD_ARGS);
 }
 
-// Called to write summary blob into LTO decls
-static void ipa_write_summary_impl (AD_FUNC_ARGS) {
-  (void) gcc_ctx;
+// Called to write summary blob into LTO sections
+// Uses lto_begin_section/lto_write_data/lto_end_section with custom section name
+static void ipa_write_summary (void) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+
   AD_DEBUG_PRINT ("[ipa_write_summary] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s, flag_generate_lto=%d",
                   in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>", flag_generate_lto);
 
@@ -132,22 +138,79 @@ static void ipa_write_summary_impl (AD_FUNC_ARGS) {
   AD_DEBUG_PRINT ("[ipa_write_summary] skip (not LGEN or WPA)");
 }
 
-static void ipa_write_summary (void) {
-  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-  ipa_write_summary_impl (AD_ARGS);
-}
+// Helper: try to read our custom section from file_data
+// lto_begin_section creates sections that can be read via lto_get_raw_section_data
+// Returns data via out parameters, error code indicates success/failure
+static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
+  AD_FUNC_ARGS,
+  struct lto_file_decl_data* file_data,
+  char const** data_out,
+  size_t* len_out
+) AD_FUNCTION_BEGIN {
+  (void) gcc_ctx;
+
+  if (!file_data) {
+    AD_DEBUG_PRINT ("[find_array_detect_section] ERROR: null file_data");
+    AD_RETURNE (ERR_INVALID_ARGUMENT);
+  }
+
+  *data_out = nullptr;
+  *len_out = 0;
+
+  // Try to get section data using our custom section name
+  // lto_get_raw_section_data looks up sections in the section_hash_table
+  char const* data = lto_get_raw_section_data (
+    file_data,
+    LTO_section_decls,  // Section type (used for name construction)
+    kArrayDetectSectionName,
+    0,  // order
+    len_out
+  );
+
+  if (data && *len_out > 0) {
+    AD_DEBUG_PRINT ("[find_array_detect_section] found section, len=%zu", *len_out);
+    *data_out = data;
+    AD_RETURNE (OK);
+  }
+
+  // Section not found - this is expected if no summaries were written
+  AD_DEBUG_PRINT ("[find_array_detect_section] section '%s' not found in file",
+                  kArrayDetectSectionName);
+  AD_RETURNE (ERR_NOT_FOUND);
+} AD_FUNCTION_END
 
 // Called in WPA/LTRANS to read summaries from all input files
-static void ipa_read_summary_impl (AD_FUNC_ARGS) {
-  (void) gcc_ctx;
+static void ipa_read_summary (void) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+
   AD_DEBUG_PRINT ("[ipa_read_summary] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
                   in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
+
+  // Get all input files
+  struct lto_file_decl_data** file_data_vec = lto_get_file_decl_data ();
+  if (!file_data_vec) {
+    AD_DEBUG_PRINT ("[ipa_read_summary] ERROR: no file_data_vec");
+    return;
+  }
 
   // WPA phase: read all LGEN summaries from input .o files
   if (isWpaPhase ()) {
     AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading LGEN summaries");
-    ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+
+    // Iterate over all input files
+    for (unsigned i = 0; file_data_vec[i]; i++) {
+      struct lto_file_decl_data* file_data = file_data_vec[i];
+      char const* data = nullptr;
+      size_t len = 0;
+
+      ::array_detect_ns::ArrayDetectErrorCode err =
+        find_array_detect_section (AD_ARGS, file_data, &data, &len);
+      if (err == ::array_detect_ns::OK && data && len > 0) {
+        AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading from file %u, len=%zu", i, len);
+        ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+      }
+    }
 
     // Report what we found
     vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
@@ -166,7 +229,20 @@ static void ipa_read_summary_impl (AD_FUNC_ARGS) {
   // LTRANS phase: read WPA-aggregated summaries
   if (flag_ltrans) {
     AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading WPA summaries");
-    ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+
+    // Iterate over all input files
+    for (unsigned i = 0; file_data_vec[i]; i++) {
+      struct lto_file_decl_data* file_data = file_data_vec[i];
+      char const* data = nullptr;
+      size_t len = 0;
+
+      ::array_detect_ns::ArrayDetectErrorCode err =
+        find_array_detect_section (AD_ARGS, file_data, &data, &len);
+      if (err == ::array_detect_ns::OK && data && len > 0) {
+        AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading from file %u, len=%zu", i, len);
+        ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+      }
+    }
 
     vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
       ::array_detect_ns::getLtransLtoSummaries ();
@@ -176,12 +252,6 @@ static void ipa_read_summary_impl (AD_FUNC_ARGS) {
   }
 
   AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in WPA or LTRANS)");
-}
-
-static void ipa_read_summary (void) {
-  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-  ipa_read_summary_impl (AD_ARGS);
 }
 
 // ============================================================================

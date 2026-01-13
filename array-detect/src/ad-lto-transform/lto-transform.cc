@@ -65,8 +65,8 @@ bool initLtoTransformContext (AD_FUNC_ARGS, LtoTransformContext* transform_ctx) 
 
   unsigned int owned_count = 0;
 
-  // Load summaries from LTO sections (populated by ipa_read_summary).
-  ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+  // Summaries should already be loaded by ipa_read_summary() callback.
+  // Get summaries from the module state (populated by ipa_read_summary).
   bool loaded_from_section = hasLtransLtoSummaries ();
   // NOTE: aggregateLtransSummaries was removed along with result-aggregator module.
   // Using getLtransLtoSummaries instead.
