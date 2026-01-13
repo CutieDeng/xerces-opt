@@ -9,12 +9,12 @@
   `(("MemoryManagerImpl.cc" ,(build-path test-out "MemoryManagerImpl.o"))
     ("PlatFormUtils.cc" ,(build-path test-out "PlatFormUtils.o"))
     ("main_test.cpp" ,(build-path test-out "main_test.o"))
-    ("XMemory.cc" ,(build-path test-out "XMemory.o")))
+    ("XMemory.cc" ,(build-path test-out "XMemory.o"))))
 
 (define total-compile-task-files
   `(
     ,(map cadr (force ut-compile-task-files))
-    ,(build-path test-out "test-xercese"))
+    ,(build-path test-out "test-xercese")))
 
 (define base-args '("-std=c++17" "-Wall" "-Wextra" "-g"))
 
