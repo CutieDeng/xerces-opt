@@ -371,14 +371,23 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 
   opt_pass * clone () override { return new pass_array_detect_ltrans (g); }
 
-  bool gate (function* /*fn*/) override { return true; }
+  bool gate (function* fn) override {
+    ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+    char const* fn_name = nullptr;
+    if (fn && fn->decl && DECL_NAME (fn->decl)) {
+      fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
+    }
+    AD_DEBUG_PRINT ("[ltrans-pass] gate fn=%s flag_ltrans=%d",
+                    fn_name ? fn_name : "<null>", flag_ltrans);
+    return flag_ltrans;
+  }
 
   static unsigned int execute_impl (AD_FUNC_ARGS, function* fn) {
     char const* fn_name = nullptr;
     if (fn && fn->decl && DECL_NAME (fn->decl)) {
       fn_name = IDENTIFIER_POINTER (DECL_NAME (fn->decl));
     }
-    AD_DEBUG_PRINT ("[ltrans-pass] execute fn=%s flag_ltrans=%d",
+    AD_DEBUG_PRINT ("[ltrans-pass] execute_impl fn=%s flag_ltrans=%d",
                     fn_name ? fn_name : "<null>", flag_ltrans);
     if (!flag_ltrans || !fn) return 0;
     if (!gimple_has_body_p (fn->decl)) return 0;
@@ -388,7 +397,10 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
   unsigned int execute (function* fn) override {
     ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
     ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
-    return execute_impl (AD_ARGS, fn);
+    AD_DEBUG_PRINT ("[ltrans-pass] execute ENTRY");
+    unsigned int result = execute_impl (AD_ARGS, fn);
+    AD_DEBUG_PRINT ("[ltrans-pass] execute EXIT result=%u", result);
+    return result;
   }
 };
 
@@ -397,26 +409,42 @@ class pass_array_detect_ltrans : public gimple_opt_pass {
 // PLUGIN_FINISH callback for LTO aggregation output (WPA)
 // ============================================================================
 
-::array_detect_ns::ArrayDetectErrorCode plugin_finish_callback_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
-  (void) gcc_ctx;
-  AD_DEBUG_PRINT ("[plugin_finish_callback] in_lto_p=%d, flag_ltrans=%d",
-                  in_lto_p, flag_ltrans);
+// 使用 AD_FUNCTION_BEGIN2 因为 finish 阶段 context 可能已部分清理
+::array_detect_ns::ArrayDetectErrorCode plugin_finish_callback_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2
+  AD_DEBUG_PRINT ("[plugin_finish_callback] ENTRY in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
+                  in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
 
   if (in_lto_p && !flag_ltrans) {
+    AD_DEBUG_PRINT ("[plugin_finish_callback] WPA phase finish, closing debug file");
     ::array_detect_ns::closeGlobalDebugFile ();
-    AD_RETURNE (OK);
+    ecode = ::array_detect_ns::OK;
+    goto plugin_finish_cleanup;
   }
 
+  AD_DEBUG_PRINT ("[plugin_finish_callback] non-WPA finish, closing debug file");
   ::array_detect_ns::closeGlobalDebugFile ();
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
+  ecode = ::array_detect_ns::OK;
+plugin_finish_cleanup:
+AD_FUNCTION_END3
 
-::array_detect_ns::ArrayDetectErrorCode plugin_init_debug_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
-  (void) gcc_ctx;
-  AD_DEBUG_PRINT ("[plugin_init] in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s",
+// 使用 AD_FUNCTION_BEGIN2 因为 init 阶段栈帧追踪可能未初始化
+::array_detect_ns::ArrayDetectErrorCode plugin_init_debug_impl (AD_FUNC_ARGS) AD_FUNCTION_BEGIN2
+  AD_DEBUG_PRINT ("[plugin_init] ENTRY in_lto_p=%d, flag_ltrans=%d, flag_generate_lto=%d, flag_wpa=%s",
                   in_lto_p, flag_ltrans, flag_generate_lto, flag_wpa ? flag_wpa : "<null>");
-  AD_RETURNE (OK);
-} AD_FUNCTION_END
+
+  // 打印 LTO 阶段详细信息
+  if (flag_ltrans) {
+    AD_DEBUG_PRINT ("[plugin_init] Phase: LTRANS (code generation)");
+  } else if (flag_wpa) {
+    AD_DEBUG_PRINT ("[plugin_init] Phase: WPA (whole program analysis)");
+  } else if (flag_generate_lto) {
+    AD_DEBUG_PRINT ("[plugin_init] Phase: LGEN (LTO generation)");
+  } else {
+    AD_DEBUG_PRINT ("[plugin_init] Phase: Regular compilation (no LTO)");
+  }
+
+  ecode = ::array_detect_ns::OK;
+AD_FUNCTION_END3
 
 void plugin_finish_callback (void* /*gcc_data*/, void* /*user_data*/) {
   ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
@@ -443,35 +471,40 @@ int plugin_init (struct plugin_name_args * plugin_info,
     ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
 
     // 初始化全局 context buffers，确保所有 LTO 阶段可用
+    AD_DEBUG_PRINT ("[plugin_init] Initializing context buffers...");
     ::array_detect_ns::initContextBuffers (ctx, gcc_ctx, 512);
+    AD_DEBUG_PRINT ("[plugin_init] Context buffers initialized");
 
     (void) plugin_init_debug_impl (AD_ARGS);
+
+    struct register_pass_info pass_info;
+    if (flag_ltrans) {
+      AD_DEBUG_PRINT ("[plugin_init] Registering LTRANS pass (pass_array_detect_ltrans)");
+      pass_info.pass = new pass_array_detect_ltrans (g);
+      pass_info.reference_pass_name = "optimized";
+      pass_info.ref_pass_instance_number = 1;
+      pass_info.pos_op = PASS_POS_INSERT_AFTER;
+    } else {
+      AD_DEBUG_PRINT ("[plugin_init] Registering IPA pass (pass_array_detect)");
+      pass_info.pass = new pass_array_detect (g);
+      pass_info.reference_pass_name = "inline";       // 在内联优化之后插入，以便分析内联后的代码
+      pass_info.ref_pass_instance_number = 1;         // 符合规则
+      pass_info.pos_op = PASS_POS_INSERT_AFTER;
+    }
+
+    register_callback (plugin_info->base_name,
+                      PLUGIN_PASS_MANAGER_SETUP,
+                      NULL,
+                      &pass_info);
+    AD_DEBUG_PRINT ("[plugin_init] Pass registered successfully");
+
+    // Register finish callback for LTO aggregation output
+    register_callback (plugin_info->base_name,
+                      PLUGIN_FINISH,
+                      plugin_finish_callback,
+                      NULL);
+    AD_DEBUG_PRINT ("[plugin_init] Finish callback registered, plugin_init complete");
   }
-
-  struct register_pass_info pass_info;
-  if (flag_ltrans) {
-    pass_info.pass = new pass_array_detect_ltrans (g);
-    pass_info.reference_pass_name = "optimized";
-    pass_info.ref_pass_instance_number = 1;
-    pass_info.pos_op = PASS_POS_INSERT_AFTER;
-  } else {
-    pass_info.pass = new pass_array_detect (g);
-    pass_info.reference_pass_name = "inline";       // 在内联优化之后插入，以便分析内联后的代码
-    pass_info.ref_pass_instance_number = 1;         // 符合规则
-    pass_info.pos_op = PASS_POS_INSERT_AFTER;
-  }
-
-  register_callback (plugin_info->base_name,
-                    PLUGIN_PASS_MANAGER_SETUP,
-                    NULL,
-                    &pass_info);
-
-
-  // Register finish callback for LTO aggregation output
-  register_callback (plugin_info->base_name,
-                    PLUGIN_FINISH,
-                    plugin_finish_callback,
-                    NULL);
 
   return 0;
 }
