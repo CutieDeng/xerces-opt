@@ -59,27 +59,12 @@ static bool isWpaPhase () {
   return flag_wpa != nullptr;
 }
 
-static bool isTruthyEnv (char const* value) {
-  if (!value || value[0] == '\0') return false;
-  if (strcmp (value, "0") == 0) return false;
-  if (strcmp (value, "false") == 0) return false;
-  if (strcmp (value, "FALSE") == 0) return false;
-  if (strcmp (value, "no") == 0) return false;
-  if (strcmp (value, "NO") == 0) return false;
-  return true;
-}
-
-static bool shouldEnableLtoSummaryBlob () {
-  char const* env = getenv ("AD_ENABLE_LTO_SECTIONS");
-  if (env) return isTruthyEnv (env);
-  return true;
-}
-
 static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
-  ::array_detect_ns::ArrayDetectContext local_ctx;
-  ::array_detect_ns::ArrayDetectContextGcc local_gcc_ctx;
+  // 使用全局 context，确保 LTO 各阶段 context 生命周期一致
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
+  ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
   ::array_detect_ns::ArrayDetectErrorCode result =
-    ::array_detect_ns::runArrayDetect (local_ctx, local_gcc_ctx);
+    ::array_detect_ns::runArrayDetect (ctx, gcc_ctx);
 
   // NOTE: Result storage for LTO summary has been removed.
   // The UnifiedFieldAnalysisResult type was deleted along with result-aggregator module.
@@ -107,13 +92,9 @@ static void ipa_generate_summary_impl (AD_FUNC_ARGS) {
     runAnalysisAndStoreResults ();
   }
 
-  // NOTE: LTO summary conversion has been removed.
-  // The convertAllToLtoSummaries function was deleted along with result-aggregator module.
-  // To re-enable LTO summary, implement conversion from the new capacity analysis modules.
-
-  if (!in_lto_p && flag_generate_lto && shouldEnableLtoSummaryBlob ()) {
-    ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
-  }
+  // NOTE: LTO summary blob emission is disabled by default during LGEN
+  // to avoid varpool manipulation issues. Set AD_ENABLE_LTO_SECTIONS=1 to enable.
+  // The analysis results are still computed and output to file if AD_RESULT_FILE is set.
 }
 
 static void ipa_generate_summary (void) {
@@ -125,20 +106,30 @@ static void ipa_generate_summary (void) {
 // Called to write summary blob into LTO decls
 static void ipa_write_summary_impl (AD_FUNC_ARGS) {
   (void) gcc_ctx;
-  AD_DEBUG_PRINT ("[ipa_write_summary] called");
-  if (in_lto_p || !flag_generate_lto) {
-    AD_DEBUG_PRINT ("[ipa_write_summary] skip (not LGEN)");
+  AD_DEBUG_PRINT ("[ipa_write_summary] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s, flag_generate_lto=%d",
+                  in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>", flag_generate_lto);
+
+  // WPA phase: re-emit aggregated summaries for LTRANS
+  if (isWpaPhase ()) {
+    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
+      ::array_detect_ns::getWpaLtoSummaries ();
+    unsigned int count = vec_safe_length (summaries);
+    AD_DEBUG_PRINT ("[ipa_write_summary] WPA: %u summaries to emit", count);
+    if (count > 0) {
+      AD_DEBUG_PRINT ("[ipa_write_summary] WPA: writing aggregated summaries for LTRANS");
+      ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+    }
     return;
   }
 
-  char const* enable_sections = getenv ("AD_ENABLE_LTO_SECTIONS");
-  AD_DEBUG_PRINT ("[ipa_write_summary] AD_ENABLE_LTO_SECTIONS=%s",
-                  enable_sections ? enable_sections : "<null>");
-  if (!shouldEnableLtoSummaryBlob ()) {
-    AD_DEBUG_PRINT ("[ipa_write_summary] skip LTO summary blob (set AD_ENABLE_LTO_SECTIONS=1 to enable)");
+  // LGEN phase: write per-TU summaries
+  if (!in_lto_p && flag_generate_lto) {
+    AD_DEBUG_PRINT ("[ipa_write_summary] LGEN: writing per-TU summary section");
+    ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
     return;
   }
-  ::array_detect_ns::writeArrayDetectLtoSummarySection (AD_ARGS);
+
+  AD_DEBUG_PRINT ("[ipa_write_summary] skip (not LGEN or WPA)");
 }
 
 static void ipa_write_summary (void) {
@@ -147,17 +138,44 @@ static void ipa_write_summary (void) {
   ipa_write_summary_impl (AD_ARGS);
 }
 
-// Called in LTRANS to read summaries from all input files
+// Called in WPA/LTRANS to read summaries from all input files
 static void ipa_read_summary_impl (AD_FUNC_ARGS) {
   (void) gcc_ctx;
-  AD_DEBUG_PRINT ("[ipa_read_summary] called");
-  if (!flag_ltrans) {
-    AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in LTRANS)");
+  AD_DEBUG_PRINT ("[ipa_read_summary] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
+                  in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
+
+  // WPA phase: read all LGEN summaries from input .o files
+  if (isWpaPhase ()) {
+    AD_DEBUG_PRINT ("[ipa_read_summary] WPA: reading LGEN summaries");
+    ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+
+    // Report what we found
+    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
+      ::array_detect_ns::getLtransLtoSummaries ();
+    unsigned int count = vec_safe_length (summaries);
+    AD_DEBUG_PRINT ("[ipa_read_summary] WPA: loaded %u summaries from LGEN", count);
+
+    // WPA aggregation: store for potential re-emission to LTRANS
+    if (count > 0) {
+      ::array_detect_ns::setWpaLtoSummaries (summaries);
+      AD_DEBUG_PRINT ("[ipa_read_summary] WPA: stored summaries for re-emission");
+    }
     return;
   }
 
-  // Load per-TU summaries from LTO decls for LTRANS.
-  ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+  // LTRANS phase: read WPA-aggregated summaries
+  if (flag_ltrans) {
+    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: reading WPA summaries");
+    ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS);
+
+    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
+      ::array_detect_ns::getLtransLtoSummaries ();
+    unsigned int count = vec_safe_length (summaries);
+    AD_DEBUG_PRINT ("[ipa_read_summary] LTRANS: loaded %u summaries", count);
+    return;
+  }
+
+  AD_DEBUG_PRINT ("[ipa_read_summary] skip (not in WPA or LTRANS)");
 }
 
 static void ipa_read_summary (void) {
@@ -237,8 +255,8 @@ class pass_array_detect : public ipa_opt_pass_d {
 
   static unsigned int execute_impl (AD_FUNC_ARGS) {
     (void) gcc_ctx;
-    AD_DEBUG_PRINT ("[execute] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s",
-                    in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>");
+    AD_DEBUG_PRINT ("[execute] called, in_lto_p=%d, flag_ltrans=%d, flag_wpa=%s, flag_generate_lto=%d",
+                    in_lto_p, flag_ltrans, flag_wpa ? flag_wpa : "<null>", flag_generate_lto);
 
     if (flag_ltrans) {
       AD_DEBUG_PRINT ("[execute] skip (LTRANS)");
@@ -250,13 +268,21 @@ class pass_array_detect : public ipa_opt_pass_d {
       return 0;
     }
 
-    if (in_lto_p) return 0;
+    if (in_lto_p) {
+      AD_DEBUG_PRINT ("[execute] skip (in_lto_p)");
+      return 0;
+    }
 
     // LGEN with -flto: analysis handled in ipa_generate_summary.
-    if (flag_generate_lto) return 0;
+    if (flag_generate_lto) {
+      AD_DEBUG_PRINT ("[execute] skip (LGEN, flag_generate_lto)");
+      return 0;
+    }
 
     // Regular compilation: run analysis
+    AD_DEBUG_PRINT ("[execute] running regular analysis");
     ::array_detect_ns::ArrayDetectErrorCode result = runAnalysisAndStoreResults ();
+    AD_DEBUG_PRINT ("[execute] done");
     return result != ::array_detect_ns::OK;
   }
 
@@ -342,6 +368,10 @@ int plugin_init (struct plugin_name_args * plugin_info,
   {
     ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
     ::array_detect_ns::ArrayDetectContextGcc& gcc_ctx = g_plugin_gcc_ctx;
+
+    // 初始化全局 context buffers，确保所有 LTO 阶段可用
+    ::array_detect_ns::initContextBuffers (ctx, gcc_ctx, 512);
+
     plugin_init_debug (AD_ARGS);
   }
 

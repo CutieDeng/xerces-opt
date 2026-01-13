@@ -157,7 +157,7 @@ void initGlobalDebugFileFromEnv () {
     return;
   }
 
-  g_array_detect_ctx.debug_file = fopen (debug_file_env, "w");
+  g_array_detect_ctx.debug_file = fopen (debug_file_env, "a");  // append mode for LTO
   g_array_detect_ctx.debug_file_dtor = g_array_detect_ctx.debug_file ? closeWrap : nothingWithFile;
 }
 

@@ -1,6 +1,10 @@
 #include "lto-summary.hh"
 
 #include <cstring>
+#include <cstdio>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <climits>
 
 #include "context.hh"
 #include "prelude.hh"
@@ -9,6 +13,10 @@
 #include "array-detector.hh"
 #include "string-utils.hh"
 #include "gcc-ext-util.hh"
+
+// LTO streaming API
+#include "lto-streamer.h"
+#include "data-streamer.h"
 
 namespace array_detect_ns {
 
@@ -548,29 +556,62 @@ static void emit_summary_var (AD_FUNC_ARGS) {
     return;
   }
 
+  // Create proper char array type first
+  tree char_type = char_type_node;
+  tree array_type = build_array_type_nelts (char_type, (unsigned HOST_WIDE_INT) payload_len);
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] array_type created, len=%zu", payload_len);
+
+  // Build string and set its type to match the array type
   tree str = build_string ((unsigned int) payload_len, payload);
+  TREE_TYPE (str) = array_type;  // Critical: set STRING_CST type to match VAR_DECL type
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] build_string done");
-  tree decl = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier (name_buf), TREE_TYPE (str));
+
+  tree decl = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier (name_buf), array_type);
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] build_decl done");
 
+  // VAR_DECL attributes for LTO compatibility
   TREE_STATIC (decl) = 1;
   TREE_READONLY (decl) = 1;
   TREE_CONSTANT (decl) = 1;
-  TREE_PUBLIC (decl) = 0;
+  TREE_PUBLIC (decl) = 1;        // external linkage - required for LTO visibility
   DECL_EXTERNAL (decl) = 0;
   DECL_ARTIFICIAL (decl) = 1;
-  DECL_IGNORED_P (decl) = 1;
+  DECL_IGNORED_P (decl) = 1;     // 跳过 DWARF 调试信息生成
   DECL_PRESERVE_P (decl) = 1;
   TREE_USED (decl) = 1;
   DECL_INITIAL (decl) = str;
   DECL_CONTEXT (decl) = NULL_TREE;
+  DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN;  // hide from user code but keep in LTO
+
+  // Set TREE_ADDRESSABLE to indicate the variable might have its address taken
+  TREE_ADDRESSABLE (decl) = 1;
+
   layout_decl (decl, 0);
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] layout_decl done");
 
-  varpool_node::add (decl);
-  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] varpool add done");
+  // 诊断 varpool 调用前的状态
+  AD_DEBUG_PRINT ("[emit_summary_var] symtab=%p", (void*)symtab);
+  AD_DEBUG_PRINT ("[emit_summary_var] decl=%p, TREE_CODE=%d", (void*)decl, TREE_CODE(decl));
+  if (!symtab) {
+    AD_DEBUG_PRINT ("[emit_summary_var] ERROR: symtab is NULL!");
+    return;
+  }
+
+  // 使用 varpool 直接注册，不使用 rest_of_decl_compilation 避免 DWARF 错误
+  AD_DEBUG_PRINT ("[emit_summary_var] calling varpool_node::get_create");
+  varpool_node* vnode = varpool_node::get_create (decl);
+  AD_DEBUG_PRINT ("[emit_summary_var] varpool_node::get_create returned vnode=%p", (void*)vnode);
+
+  if (vnode) {
+    // Force LTO to keep this variable
+    vnode->force_output = true;
+    vnode->externally_visible = true;
+    vnode->address_taken = true;
+    AD_DEBUG_PRINT ("[emit_summary_var] marked vnode as force_output, externally_visible, address_taken");
+  }
+
   varpool_node::finalize_decl (decl);
-  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] finalize done");
+  AD_DEBUG_PRINT ("[emit_summary_var] varpool_node::finalize_decl returned");
 
   AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] emitted summary var %s (%u bytes)",
                   name_buf, (unsigned int) payload_len);
@@ -602,6 +643,12 @@ void appendLtransLtoSummaries (vec<LtoUnifiedResultSummary*, va_gc>* summaries) 
   }
 }
 
+static void appendLtransLtoSummaries_single (LtoUnifiedResultSummary* s) {
+  if (!s) return;
+  if (!g_ltrans_summaries) vec_alloc (g_ltrans_summaries, 16);
+  vec_safe_push (g_ltrans_summaries, s);
+}
+
 vec<LtoUnifiedResultSummary*, va_gc>* getWpaLtoSummaries () { return g_wpa_summaries; }
 vec<LtoUnifiedResultSummary*, va_gc>* getLtransLtoSummaries () { return g_ltrans_summaries; }
 
@@ -615,7 +662,43 @@ void writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) {
     return;
   }
 
-  emit_summary_var (AD_ARGS);
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] writing %u summaries via LTO stream",
+                  vec_safe_length (summaries));
+
+  // Build the payload first
+  char* payload = nullptr;
+  size_t payload_len = 0;
+  if (!encode_summary_blob (AD_ARGS, summaries, &payload, &payload_len)) {
+    AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] encode failed");
+    return;
+  }
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] payload size: %zu bytes", payload_len);
+
+  // Use raw LTO section API with a custom section name to avoid conflicts
+  // Section name format: .gnu.lto_.ad_summary (unique to our plugin)
+  // Use context's pre-allocated buffer to store section name
+  unsigned int h = ad_hash_string (main_input_filename);
+
+  // Null check for context buffer
+  if (!ctx.address_format_buffer || ctx.address_format_buffer_size == 0) {
+    AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] ERROR: address_format_buffer is NULL or size is 0");
+    return;
+  }
+
+  char* section_name = ctx.address_format_buffer;
+  snprintf (section_name, ctx.address_format_buffer_size, ".gnu.lto_.ad_summary.%08x", h);
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] section_name=%s", section_name);
+
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] calling lto_begin_section...");
+  lto_begin_section (section_name, false);
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] lto_begin_section done, writing data...");
+  lto_write_data (payload, (unsigned int) payload_len);
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] lto_write_data done, ending section...");
+  lto_end_section ();
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] lto_end_section done");
+
+  AD_DEBUG_PRINT ("[writeArrayDetectLtoSummarySection] done (section: %s)", section_name);
+  g_wpa_summary_emitted = true;
 }
 
 void readArrayDetectLtoSummarySections (AD_FUNC_ARGS) {
@@ -625,51 +708,141 @@ void readArrayDetectLtoSummarySections (AD_FUNC_ARGS) {
     return;
   }
   AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] ENTRY");
-  if (!symtab) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] symtab=NULL, skipping");
+
+  // Get LTO file data table
+  lto_file_decl_data** file_data_table = lto_get_file_decl_data ();
+  if (!file_data_table) {
+    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] no file data table");
     g_ltrans_summaries_loaded = true;
     return;
   }
 
-  unsigned int vars_seen = 0;
-  unsigned int entries_total = 0;
-  for (varpool_node* vnode = symtab->first_variable ();
-       vnode;
-       vnode = symtab->next_variable (vnode)) {
-    tree decl = vnode->decl;
-    if (!is_summary_var_decl (decl)) continue;
-    vars_seen++;
-
-    char const* var_name = "<anon>";
-    tree decl_name = DECL_NAME (decl);
-    if (decl_name) {
-      var_name = IDENTIFIER_POINTER (decl_name);
+  // Helper to read length-prefixed string
+  auto read_str = [](lto_input_block* ib) -> char const* {
+    unsigned HOST_WIDE_INT len = streamer_read_uhwi (ib);
+    if (len == 0) return dup_cstr ("");
+    char* buf = (char*) ggc_alloc_atomic (len + 1);
+    for (unsigned HOST_WIDE_INT i = 0; i < len; i++) {
+      buf[i] = streamer_read_uchar (ib);
     }
+    buf[len] = '\0';
+    return buf;
+  };
 
-    tree init = DECL_INITIAL (decl);
-    if (!init || TREE_CODE (init) != STRING_CST) {
-      AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] skip var %s (no STRING_CST)", var_name);
+  unsigned int file_count = 0;
+  unsigned int total_summaries = 0;
+
+  for (lto_file_decl_data** p = file_data_table; p && *p; ++p) {
+    lto_file_decl_data* file_data = *p;
+    file_count++;
+
+    const char* data = nullptr;
+    size_t len = 0;
+    lto_input_block* ib = lto_create_simple_input_block (file_data, LTO_section_odr_types, &data, &len);
+    if (!ib) {
+      AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] file[%u]: no LTO section", file_count);
       continue;
     }
 
-    char const* blob = TREE_STRING_POINTER (init);
-    size_t blob_len = (size_t) TREE_STRING_LENGTH (init);
-    vec<LtoUnifiedResultSummary*, va_gc>* file_summaries = nullptr;
-    if (!decode_summary_blob (AD_ARGS, blob, blob_len, &file_summaries)) {
-      AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] decode failed: %s", var_name);
+    // Read and verify magic
+    char const* magic = read_str (ib);
+    if (!magic || strcmp (magic, kSummaryMagic) != 0) {
+      AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] file[%u]: magic=%s (expected %s)",
+                      file_count, magic ? magic : "<null>", kSummaryMagic);
+      lto_destroy_simple_input_block (file_data, LTO_section_odr_types, ib, data, len);
       continue;
     }
 
-    appendLtransLtoSummaries (file_summaries);
-    entries_total += (unsigned int) vec_safe_length (file_summaries);
+    // Read count
+    unsigned HOST_WIDE_INT count = streamer_read_uhwi (ib);
+    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] file[%u]: reading %llu summaries",
+                    file_count, (unsigned long long) count);
+
+    for (unsigned HOST_WIDE_INT i = 0; i < count; i++) {
+      LtoUnifiedResultSummary* s =
+        (LtoUnifiedResultSummary*) ggc_alloc_atomic (sizeof (LtoUnifiedResultSummary));
+      memset (s, 0, sizeof (*s));
+
+      // type_name
+      s->type_name = read_str (ib);
+
+      // template_args
+      unsigned HOST_WIDE_INT tmpl_count = streamer_read_uhwi (ib);
+      if (tmpl_count) {
+        vec_alloc (s->template_args, (unsigned) tmpl_count);
+        for (unsigned HOST_WIDE_INT j = 0; j < tmpl_count; j++) {
+          vec_safe_push (s->template_args, read_str (ib));
+        }
+      }
+
+      // ptr_field_name
+      s->ptr_field_name = read_str (ib);
+
+      // owned_verdict
+      s->owned_verdict = (OwnedConclusionVerdict) streamer_read_uhwi (ib);
+
+      // malloc_size_field_names
+      unsigned HOST_WIDE_INT mcount = streamer_read_uhwi (ib);
+      if (mcount) {
+        vec_alloc (s->malloc_size_field_names, (unsigned) mcount);
+        vec_alloc (s->malloc_size_field_uids, (unsigned) mcount);
+        for (unsigned HOST_WIDE_INT j = 0; j < mcount; j++) {
+          vec_safe_push (s->malloc_size_field_names, read_str (ib));
+          vec_safe_push (s->malloc_size_field_uids, 0u);
+        }
+      }
+
+      // reads
+      unsigned HOST_WIDE_INT rcount = streamer_read_uhwi (ib);
+      if (rcount) {
+        vec_alloc (s->reads, (unsigned) rcount);
+        for (unsigned HOST_WIDE_INT j = 0; j < rcount; j++) {
+          LtoRelatedFieldsSummary* rf =
+            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
+          memset (rf, 0, sizeof (*rf));
+          unsigned HOST_WIDE_INT fcount = streamer_read_uhwi (ib);
+          if (fcount) {
+            vec_alloc (rf->field_names, (unsigned) fcount);
+            vec_alloc (rf->field_uids, (unsigned) fcount);
+            for (unsigned HOST_WIDE_INT k = 0; k < fcount; k++) {
+              vec_safe_push (rf->field_names, read_str (ib));
+              vec_safe_push (rf->field_uids, 0u);
+            }
+          }
+          vec_safe_push (s->reads, rf);
+        }
+      }
+
+      // writes
+      unsigned HOST_WIDE_INT wcount = streamer_read_uhwi (ib);
+      if (wcount) {
+        vec_alloc (s->writes, (unsigned) wcount);
+        for (unsigned HOST_WIDE_INT j = 0; j < wcount; j++) {
+          LtoRelatedFieldsSummary* wf =
+            (LtoRelatedFieldsSummary*) ggc_alloc_atomic (sizeof (LtoRelatedFieldsSummary));
+          memset (wf, 0, sizeof (*wf));
+          unsigned HOST_WIDE_INT fcount = streamer_read_uhwi (ib);
+          if (fcount) {
+            vec_alloc (wf->field_names, (unsigned) fcount);
+            vec_alloc (wf->field_uids, (unsigned) fcount);
+            for (unsigned HOST_WIDE_INT k = 0; k < fcount; k++) {
+              vec_safe_push (wf->field_names, read_str (ib));
+              vec_safe_push (wf->field_uids, 0u);
+            }
+          }
+          vec_safe_push (s->writes, wf);
+        }
+      }
+
+      appendLtransLtoSummaries_single (s);
+      total_summaries++;
+    }
+
+    lto_destroy_simple_input_block (file_data, LTO_section_lto, ib, data, len);
   }
 
-  if (!vars_seen) {
-    AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] no summary vars found");
-  }
-
-  AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] EXIT summaries=%u vars=%u",
-                  entries_total, vars_seen);
+  AD_DEBUG_PRINT ("[readArrayDetectLtoSummarySections] EXIT files=%u summaries=%u",
+                  file_count, total_summaries);
   g_ltrans_summaries_loaded = true;
 }
 

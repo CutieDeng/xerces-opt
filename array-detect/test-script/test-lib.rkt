@@ -42,20 +42,27 @@
   (match-define (test-config name pre-fn post-fn ut-compile-tasks total-compile-task run-tasks) config)
   (eprintf "Running test: ~a~n" name)
   ((force pre-fn) (force root-path))
-  (for ([t (force ut-compile-tasks)])
-    (define ut-compile-args (parse-ut-compile-task t cxx other-args root-path))
-    (eprintf "~a~n" ut-compile-args)
-    (apply system* ut-compile-args)
+  (and
+    (for/and ([t (force ut-compile-tasks)])
+      (define ut-compile-args (parse-ut-compile-task t cxx other-args root-path))
+      (eprintf "~a~n" ut-compile-args)
+      (apply system* ut-compile-args)
+    )
+    (cond 
+      [(force total-compile-task)
+        (define total-compile-args (parse-total-compile-task (force total-compile-task) cxx other-args root-path))
+        (cond
+          [total-compile-args
+            (eprintf "~a~n" total-compile-args)
+            (apply system* total-compile-args)]
+          [else #f])
+      ]
+      [else #f])
+    (let ([run-fn (force run-tasks)])
+      (cond
+        [run-fn
+          (run-fn cxx other-args root-path)]
+        [else #f]))
   )
-  (cond 
-    [(force total-compile-task)
-      (define total-compile-args (parse-total-compile-task (force total-compile-task) cxx other-args root-path))
-      (when total-compile-args
-        (eprintf "~a~n" total-compile-args)
-        (apply system* total-compile-args))
-    ])
-  (define run-fn (force run-tasks))
-  (when run-fn
-    (run-fn cxx other-args root-path))
   ((force post-fn) (force root-path))
 )
