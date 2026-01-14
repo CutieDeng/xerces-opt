@@ -367,12 +367,39 @@ ArrayDetectErrorCode writeWpaResultsToFile (AD_FUNC_ARGS) AD_FUNCTION_BEGIN {
 
   // 从 WPA summaries 获取数据
   vec<LtoUnifiedResultSummary*, va_gc>* summaries = getWpaLtoSummaries ();
-  AD_DEBUG_PRINT ("summaries count=%u", vec_safe_length (summaries));
+  unsigned int total = vec_safe_length (summaries);
+  AD_DEBUG_PRINT ("summaries count=%u", total);
 
   if (!summaries || summaries->is_empty ()) {
     AD_DEBUG_PRINT ("no WPA summaries available");
     AD_RETURNE (OK);
   }
+
+  unsigned int owned_yes = 0, owned_partial = 0, owned_no = 0, owned_undetermined = 0;
+  unsigned int malloc_nonempty = 0;
+
+  for (unsigned i = 0; i < summaries->length (); i++) {
+    LtoUnifiedResultSummary* s = (*summaries)[i];
+    if (!s) continue;
+    switch (s->owned_verdict) {
+      case OWNED_YES: owned_yes++; break;
+      case OWNED_PARTIAL_YES: owned_partial++; break;
+      case OWNED_NO: owned_no++; break;
+      case OWNED_UNDETERMINED: default: owned_undetermined++; break;
+    }
+    if (s->malloc_field_counts && s->malloc_field_counts->length () > 0) {
+      malloc_nonempty++;
+      AD_DEBUG_PRINT ("summary[%u]: type=%s field=%s malloc_fields=%u total=%u",
+                      i,
+                      s->type_name ? s->type_name : "?",
+                      s->ptr_field_name ? s->ptr_field_name : "?",
+                      s->malloc_field_counts->length (),
+                      s->malloc_total);
+    }
+  }
+
+  AD_DEBUG_PRINT ("verdicts: yes=%u partial=%u no=%u undetermined=%u, malloc_nonempty=%u",
+                  owned_yes, owned_partial, owned_no, owned_undetermined, malloc_nonempty);
 
   // Append 模式打开文件
   FILE* out = fopen (result_file, "a");

@@ -219,82 +219,6 @@ bool isMallocLikeCall (gimple* stmt, char const** out_func_name) {
 }
 
 // ============================================================================
-// 从 malloc 调用中提取 size 表达式
-// ============================================================================
-
-tree extractMallocSizeExpr (gimple* call_stmt, char const* func_name) {
-  if (!call_stmt || !is_gimple_call (call_stmt)) {
-    return NULL_TREE;
-  }
-
-  unsigned int nargs = gimple_call_num_args (call_stmt);
-  if (nargs == 0) {
-    return NULL_TREE;
-  }
-
-  // 检查是否为虚函数调用（OBJ_TYPE_REF）
-  // 对于虚函数调用，arg[0] 是 this 指针，实际参数从 arg[1] 开始
-  bool is_virtual_call = false;
-  tree fn = gimple_call_fn (call_stmt);
-  if (fn && TREE_CODE (fn) == OBJ_TYPE_REF) {
-    is_virtual_call = true;
-  } else if (fn && TREE_CODE (fn) == SSA_NAME) {
-    gimple* def_stmt = SSA_NAME_DEF_STMT (fn);
-    if (def_stmt && is_gimple_assign (def_stmt)) {
-      tree rhs = gimple_assign_rhs1 (def_stmt);
-      if (rhs && TREE_CODE (rhs) == OBJ_TYPE_REF) {
-        is_virtual_call = true;
-      }
-    }
-  }
-
-  // 对于 allocate 虚函数，arg[1] 是 size（arg[0] 是 this）
-  if (is_virtual_call && strcmp (func_name, "allocate") == 0) {
-    if (nargs >= 2) {
-      return gimple_call_arg (call_stmt, 1);
-    }
-    return NULL_TREE;
-  }
-
-  // malloc(size), xmalloc(size), g_malloc(size), g_malloc0(size): 第一个参数
-  if (strcmp (func_name, "malloc") == 0 ||
-      strcmp (func_name, "xmalloc") == 0 ||
-      strcmp (func_name, "g_malloc") == 0 ||
-      strcmp (func_name, "g_malloc0") == 0 ||
-      strcmp (func_name, "operator new") == 0 ||
-      strcmp (func_name, "operator new[]") == 0) {
-    return gimple_call_arg (call_stmt, 0);
-  }
-
-  // calloc(nmemb, size): 第一个参数是 nmemb
-  if (strcmp (func_name, "calloc") == 0 ||
-      strcmp (func_name, "xcalloc") == 0) {
-    if (nargs >= 1) {
-      return gimple_call_arg (call_stmt, 0);
-    }
-  }
-
-  // realloc(ptr, size): 第二个参数是 size
-  if (strcmp (func_name, "realloc") == 0 ||
-      strcmp (func_name, "xrealloc") == 0 ||
-      strcmp (func_name, "g_realloc") == 0) {
-    if (nargs >= 2) {
-      return gimple_call_arg (call_stmt, 1);
-    }
-  }
-
-  // 对于 allocate 类函数（非虚函数），假设第一个参数是 size
-  if (strstr (func_name, "alloc") != nullptr ||
-      strstr (func_name, "Alloc") != nullptr ||
-      strstr (func_name, "ALLOC") != nullptr) {
-    return gimple_call_arg (call_stmt, 0);
-  }
-
-  // 默认返回第一个参数
-  return gimple_call_arg (call_stmt, 0);
-}
-
-// ============================================================================
 // 检查表达式是否引用了指定类型的某个整数字段（收集所有匹配）
 // ============================================================================
 
@@ -559,57 +483,29 @@ ArrayDetectErrorCode analyzeMallocCapacity (
   gcc_ext_util::get_source_location_string (AD_ARGS, gimple_location(call_stmt), call_loc_buf, sizeof(call_loc_buf));
   AD_DEBUG_PRINT ("[malloc-capacity]   call_stmt at: %s", call_loc_buf);
 
-  // 检查是否为 malloc-like 调用
-  // 首先尝试使用已经提取的函数名（对于虚函数调用尤其重要）
-  char const* func_name = NULL;
+  // 不做函数名判定，仅记录已有函数名用于调试
   char const* pre_extracted_name = write_source->data.function_call.function_name;
-  AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name='%s'",
+  AD_DEBUG_PRINT ("[malloc-capacity]   func_name(observed)='%s'",
                   pre_extracted_name ? pre_extracted_name : "(null)");
-
-  if (pre_extracted_name && pre_extracted_name[0] != '<') {
-    // 使用预先提取的函数名（跳过 "<virtual>", "<indirect>" 等占位符）
-    // 检查是否为分配函数
-    if (strcmp (pre_extracted_name, "malloc") == 0 ||
-        strcmp (pre_extracted_name, "calloc") == 0 ||
-        strcmp (pre_extracted_name, "realloc") == 0 ||
-        strcmp (pre_extracted_name, "xmalloc") == 0 ||
-        strcmp (pre_extracted_name, "xcalloc") == 0 ||
-        strcmp (pre_extracted_name, "xrealloc") == 0 ||
-        strcmp (pre_extracted_name, "g_malloc") == 0 ||
-        strcmp (pre_extracted_name, "g_malloc0") == 0 ||
-        strcmp (pre_extracted_name, "g_realloc") == 0 ||
-        strcmp (pre_extracted_name, "operator new") == 0 ||
-        strcmp (pre_extracted_name, "operator new[]") == 0 ||
-        strcmp (pre_extracted_name, "allocate") == 0 ||
-        strstr (pre_extracted_name, "alloc") != nullptr ||
-        strstr (pre_extracted_name, "Alloc") != nullptr ||
-        strstr (pre_extracted_name, "ALLOC") != nullptr) {
-      func_name = pre_extracted_name;
-      AD_DEBUG_PRINT ("[malloc-capacity]   MATCHED: pre_extracted_name '%s' is alloc-like", func_name);
-    } else {
-      AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name '%s' is NOT alloc-like", pre_extracted_name);
-    }
-  } else if (pre_extracted_name && pre_extracted_name[0] == '<') {
-    AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name starts with '<', trying isMallocLikeCall fallback");
-  }
-
-  bool is_malloc_like = false;
-  if (func_name) {
-    is_malloc_like = true;
-  } else if (isMallocLikeCall (call_stmt, &func_name)) {
-    is_malloc_like = true;
-  }
+  char const* func_name = pre_extracted_name ? pre_extracted_name : "<unknown>";
 
   vec<tree, va_gc>* integer_fields = NULL;
   tree size_expr = NULL_TREE;
 
-  if (is_malloc_like) {
-    AD_DEBUG_PRINT ("[malloc-capacity]   func_name='%s' (malloc-like detected)", func_name);
-    size_expr = extractMallocSizeExpr (call_stmt, func_name);
+  unsigned nargs = gimple_call_num_args (call_stmt);
+  if (nargs > 0) {
+    tree arg0 = gimple_call_arg (call_stmt, 0);
+    if (isIntegralArg (arg0)) {
+      vec<tree, va_gc>* candidate_fields = NULL;
+      AD_TRY (traceSizeToIntegerFields (AD_ARGS, arg0, containing_type, write_info->function_decl, &candidate_fields));
+      if (candidate_fields && candidate_fields->length () > 0) {
+        size_expr = arg0;
+        integer_fields = candidate_fields;
+      }
+    }
   }
 
   if (!size_expr) {
-    unsigned nargs = gimple_call_num_args (call_stmt);
     for (unsigned i = 0; i < nargs; i++) {
       tree arg = gimple_call_arg (call_stmt, i);
       if (!isIntegralArg (arg)) continue;
@@ -619,13 +515,6 @@ ArrayDetectErrorCode analyzeMallocCapacity (
       if (candidate_fields && candidate_fields->length () > 0) {
         size_expr = arg;
         integer_fields = candidate_fields;
-        if (!func_name) {
-          if (pre_extracted_name && pre_extracted_name[0] != '<') {
-            func_name = pre_extracted_name;
-          } else {
-            func_name = "<unknown>";
-          }
-        }
         AD_DEBUG_PRINT ("[malloc-capacity]   fallback: arg[%u] treated as size expr", i);
         break;
       }

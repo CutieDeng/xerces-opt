@@ -97,9 +97,6 @@ ArrayDetectErrorCode traceSizeToIntegerFields (
 // 检查 gimple 语句是否为 malloc/calloc/realloc 调用
 bool isMallocLikeCall (gimple* stmt, char const** out_func_name);
 
-// 从 malloc 调用中提取 size 表达式
-tree extractMallocSizeExpr (gimple* call_stmt, char const* func_name);
-
 // 获取置信度名称
 char const* mallocConfidenceToString (MallocEvidenceConfidence conf);
 
