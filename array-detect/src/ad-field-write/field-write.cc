@@ -96,8 +96,14 @@ ArrayDetectErrorCode collectAllFieldWrites_scanFunction_scanBasicBlock_createWra
     tfad->type = type;
     tfad->field_decl = field_decl;
     vec_alloc (tfad->writes, 4);
+    vec_alloc (tfad->array_reads, 4);
+    vec_alloc (tfad->array_writes, 4);
     tfad->escape_conclude = NULL;
     tfad->transfer_stats = NULL;
+    tfad->malloc_evidences_map = NULL;
+    tfad->read_evidences_map = NULL;
+    tfad->write_evidences_map = NULL;
+    tfad->capacity_conclude = NULL;
 
     map->put (key, tfad);
   }
