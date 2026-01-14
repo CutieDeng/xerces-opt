@@ -10,6 +10,7 @@
 #include "array-detector.hh"
 #include "string-utils.hh"
 #include "gcc-ext-util.hh"
+#include "malloc-group.hh"
 
 // LTO streaming API
 #include "lto-streamer.h"
@@ -44,6 +45,19 @@ static char *build_array_detect_section_name (bool include_id) {
   char *out = (char*) ggc_alloc_atomic (len);
   snprintf (out, len, "%s.%s%s", prefix, kArrayDetectSectionBaseName, suffix);
   return out;
+}
+
+static void ensure_malloc_evidences_map (
+  AD_FUNC_ARGS,
+  ::field_analysis::Wrapper_FieldEscapeConclude_TransferStats* tfad
+) {
+  (void) gcc_ctx;
+  if (!tfad || tfad->malloc_evidences_map || !tfad->writes) return;
+
+  ArrayDetectErrorCode err = groupMallocEvidencesForFieldWrapper (AD_ARGS, tfad);
+  if (err != OK) {
+    AD_DEBUG_PRINT ("[lto-summary] malloc-group failed: %s", getErrorCodeName (err));
+  }
 }
 
 // ============================================================================
@@ -378,7 +392,35 @@ LtoUnifiedResultSummary* convertFieldOwnedConclusionToLtoSummary (
 
   // Extract capacity evidence from tfad
   if (tfad) {
+    unsigned int malloc_group_count = 0;
+    if (tfad->malloc_evidences_map) {
+      for (auto iter = tfad->malloc_evidences_map->begin ();
+           iter != tfad->malloc_evidences_map->end ();
+           ++iter) {
+        malloc_group_count++;
+      }
+    }
+    AD_DEBUG_PRINT ("[lto-summary] pre malloc-group: writes=%u, map=%s, groups=%u",
+                    tfad->writes ? tfad->writes->length () : 0,
+                    tfad->malloc_evidences_map ? "yes" : "no",
+                    malloc_group_count);
+
+    ensure_malloc_evidences_map (AD_ARGS, tfad);
+
+    malloc_group_count = 0;
+    if (tfad->malloc_evidences_map) {
+      for (auto iter = tfad->malloc_evidences_map->begin ();
+           iter != tfad->malloc_evidences_map->end ();
+           ++iter) {
+        malloc_group_count++;
+      }
+    }
+    AD_DEBUG_PRINT ("[lto-summary] post malloc-group: map=%s, groups=%u",
+                    tfad->malloc_evidences_map ? "yes" : "no",
+                    malloc_group_count);
+
     // malloc-size: count SOURCE_FUNCTION_CALL writes as total
+
     summary->malloc_total = 0;
     if (tfad->writes) {
       for (unsigned i = 0; i < tfad->writes->length (); i++) {

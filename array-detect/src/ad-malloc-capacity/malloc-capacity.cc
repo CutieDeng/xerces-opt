@@ -22,6 +22,13 @@ static bool isIntegerType (tree type) {
   return INTEGRAL_TYPE_P (main_type);
 }
 
+static bool isIntegralArg (tree arg) {
+  if (!arg) return false;
+  tree arg_type = TREE_TYPE (arg);
+  if (!arg_type) return false;
+  return INTEGRAL_TYPE_P (TYPE_MAIN_VARIANT (arg_type));
+}
+
 // ============================================================================
 // 辅助函数：检查表达式是否引用了指定字段
 // ============================================================================
@@ -586,26 +593,55 @@ ArrayDetectErrorCode analyzeMallocCapacity (
     AD_DEBUG_PRINT ("[malloc-capacity]   pre_extracted_name starts with '<', trying isMallocLikeCall fallback");
   }
 
-  // 如果预先提取的函数名不是分配函数，则回退到 isMallocLikeCall
-  if (!func_name && !isMallocLikeCall (call_stmt, &func_name)) {
-    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: not a malloc-like call");
-    AD_RETURNE (OK);
+  bool is_malloc_like = false;
+  if (func_name) {
+    is_malloc_like = true;
+  } else if (isMallocLikeCall (call_stmt, &func_name)) {
+    is_malloc_like = true;
   }
 
-  AD_DEBUG_PRINT ("[malloc-capacity]   func_name='%s' (malloc-like detected)", func_name);
+  vec<tree, va_gc>* integer_fields = NULL;
+  tree size_expr = NULL_TREE;
 
-  // 提取 size 表达式
-  tree size_expr = extractMallocSizeExpr (call_stmt, func_name);
+  if (is_malloc_like) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   func_name='%s' (malloc-like detected)", func_name);
+    size_expr = extractMallocSizeExpr (call_stmt, func_name);
+  }
+
   if (!size_expr) {
-    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: size_expr is NULL");
+    unsigned nargs = gimple_call_num_args (call_stmt);
+    for (unsigned i = 0; i < nargs; i++) {
+      tree arg = gimple_call_arg (call_stmt, i);
+      if (!isIntegralArg (arg)) continue;
+
+      vec<tree, va_gc>* candidate_fields = NULL;
+      AD_TRY (traceSizeToIntegerFields (AD_ARGS, arg, containing_type, write_info->function_decl, &candidate_fields));
+      if (candidate_fields && candidate_fields->length () > 0) {
+        size_expr = arg;
+        integer_fields = candidate_fields;
+        if (!func_name) {
+          if (pre_extracted_name && pre_extracted_name[0] != '<') {
+            func_name = pre_extracted_name;
+          } else {
+            func_name = "<unknown>";
+          }
+        }
+        AD_DEBUG_PRINT ("[malloc-capacity]   fallback: arg[%u] treated as size expr", i);
+        break;
+      }
+    }
+  }
+
+  if (!size_expr) {
+    AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: no size expression for allocation");
     AD_RETURNE (OK);
   }
 
   AD_DEBUG_PRINT ("[malloc-capacity]   size_expr found, tree_code=%d", TREE_CODE (size_expr));
 
-  // 查找 size 表达式关联的所有整数字段
-  vec<tree, va_gc>* integer_fields = NULL;
-  AD_TRY (traceSizeToIntegerFields (AD_ARGS, size_expr, containing_type, write_info->function_decl, &integer_fields));
+  if (!integer_fields) {
+    AD_TRY (traceSizeToIntegerFields (AD_ARGS, size_expr, containing_type, write_info->function_decl, &integer_fields));
+  }
 
   if (!integer_fields || integer_fields->length () == 0) {
     AD_DEBUG_PRINT ("[malloc-capacity]   SKIP: no integer fields found in size expression");
