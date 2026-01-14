@@ -1,5 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
 
 #include "gcc-common.hh"
 #include "plugin-version.h"
@@ -20,7 +25,14 @@
 
 // For LTO detection
 #include "lto-streamer.h"
+#include "lto-section-names.h"
+#include "lto.h"
+#include "hashtab.h"
 #include "options.h"
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 // ----------------------------------------------------------------------------
 // Pass 注册结构
@@ -55,11 +67,60 @@ namespace {
 static bool g_wpa_analysis_done = false;
 static ::array_detect_ns::ArrayDetectContextGcc g_plugin_gcc_ctx;
 
-// Custom section name (must match lto-summary.cc)
-static char const* const kArrayDetectSectionName = "array_detect";
+// Custom section base name (must match lto-summary.cc)
+static char const* const kArrayDetectSectionBaseName = "array_detect";
 
 static bool isWpaPhase () {
   return flag_wpa != nullptr;
+}
+
+static char const* build_array_detect_section_name (
+  struct lto_file_decl_data* file_data,
+  bool include_id
+) {
+  char suffix[32];
+  suffix[0] = '\0';
+  if (include_id && file_data) {
+    snprintf (suffix, sizeof (suffix), "." HOST_WIDE_INT_PRINT_HEX_PURE, file_data->id);
+  }
+
+  char const* prefix = section_name_prefix ? section_name_prefix : ".gnu.lto_";
+  size_t len = strlen (prefix) + 1 + strlen (kArrayDetectSectionBaseName) + strlen (suffix) + 1;
+  char* out = (char*) ggc_alloc_atomic (len);
+  snprintf (out, len, "%s.%s%s", prefix, kArrayDetectSectionBaseName, suffix);
+  return out;
+}
+
+static char const* read_section_bytes (char const* file_name, off_t start, size_t len) {
+  if (!file_name || len == 0) return nullptr;
+
+  int fd = open (file_name, O_RDONLY | O_BINARY);
+  if (fd < 0) {
+    AD_DEBUG_PRINT ("ERROR: open '%s' failed: %s", file_name, strerror (errno));
+    return nullptr;
+  }
+
+  if (lseek (fd, start, SEEK_SET) < 0) {
+    AD_DEBUG_PRINT ("ERROR: lseek '%s' failed: %s", file_name, strerror (errno));
+    close (fd);
+    return nullptr;
+  }
+
+  char* buf = (char*) ggc_alloc_atomic (len);
+  size_t total = 0;
+  while (total < len) {
+    ssize_t n = read (fd, buf + total, len - total);
+    if (n <= 0) {
+      AD_DEBUG_PRINT ("ERROR: read '%s' failed at %zu/%zu: %s",
+                      file_name, total, len, strerror (errno));
+      close (fd);
+      return nullptr;
+    }
+    total += (size_t) n;
+  }
+
+  close (fd);
+  return buf;
 }
 
 static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
@@ -140,7 +201,6 @@ static void ipa_write_summary (void) {
 }
 
 // Helper: try to read our custom section from file_data
-// Uses lto_get_raw_section_data which reads sections created by lto_begin_section
 // Returns data via out parameters, error code indicates success/failure
 static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
   AD_FUNC_ARGS,
@@ -158,28 +218,40 @@ static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
   *data_out = nullptr;
   *len_out = 0;
 
-  // lto_get_raw_section_data looks up sections in the section_hash_table
-  // Section name format: {type_prefix}.{name}.{order}
-  // For LTO_section_decls with name "array_detect" and order 0:
-  // -> looks for section "decls.array_detect.0"
-  char const* data = lto_get_raw_section_data (
-    file_data,
-    LTO_section_decls,
-    kArrayDetectSectionName,
-    0,  // order
-    len_out
-  );
-
-  if (data && *len_out > 0) {
-    AD_DEBUG_PRINT ("found section, len=%zu", *len_out);
-    *data_out = data;
-    AD_RETURNE (OK);
+  if (!file_data->section_hash_table) {
+    AD_DEBUG_PRINT ("ERROR: no section_hash_table");
+    AD_RETURNE (RECOVERABLE_ERROR);
   }
 
-  // Section not found - this is expected if no summaries were written
-  AD_DEBUG_PRINT ("section '%s' not found in file",
-                  kArrayDetectSectionName);
-  AD_RETURNE (RECOVERABLE_ERROR);
+  bool include_id = !flag_ltrans;
+  char const* section_name = build_array_detect_section_name (file_data, include_id);
+
+  struct lto_section_slot key;
+  key.name = section_name;
+  key.start = 0;
+  key.len = 0;
+  key.next = nullptr;
+
+  struct lto_section_slot* slot =
+    (struct lto_section_slot*) htab_find (file_data->section_hash_table, &key);
+  if (!slot) {
+    AD_DEBUG_PRINT ("section '%s' not found in file %s",
+                    section_name,
+                    file_data->file_name ? file_data->file_name : "<null>");
+    AD_RETURNE (RECOVERABLE_ERROR);
+  }
+
+  char const* data = read_section_bytes (file_data->file_name, slot->start, slot->len);
+  if (!data || slot->len == 0) {
+    AD_DEBUG_PRINT ("ERROR: failed to read section '%s' (len=%zu)",
+                    section_name, slot->len);
+    AD_RETURNE (RECOVERABLE_ERROR);
+  }
+
+  *data_out = data;
+  *len_out = slot->len;
+  AD_DEBUG_PRINT ("found section '%s', len=%zu", section_name, *len_out);
+  AD_RETURNE (OK);
 } AD_FUNCTION_END
 
 // Called in WPA/LTRANS to read summaries from all input files
@@ -207,6 +279,7 @@ static void ipa_read_summary (void) {
   // WPA phase: read all LGEN summaries from input .o files
   if (isWpaPhase ()) {
     AD_DEBUG_PRINT ("WPA: reading LGEN summaries from %u files", file_count);
+    ::array_detect_ns::clearLtransLtoSummaries ();
 
     unsigned int files_with_data = 0;
 
@@ -245,7 +318,36 @@ static void ipa_read_summary (void) {
     return;
   }
 
-  AD_DEBUG_PRINT ("skip (not in WPA)");
+  if (flag_ltrans) {
+    AD_DEBUG_PRINT ("LTRANS: reading WPA summaries from %u files", file_count);
+    ::array_detect_ns::clearLtransLtoSummaries ();
+
+    unsigned int files_with_data = 0;
+
+    for (unsigned i = 0; file_data_vec[i]; i++) {
+      struct lto_file_decl_data* file_data = file_data_vec[i];
+      char const* data = nullptr;
+      size_t len = 0;
+
+      ::array_detect_ns::ArrayDetectErrorCode err =
+        find_array_detect_section (AD_ARGS, file_data, &data, &len);
+      if (err == ::array_detect_ns::OK && data && len > 0) {
+        AD_DEBUG_PRINT ("LTRANS: reading from file %u, len=%zu", i, len);
+        (void) ::array_detect_ns::readArrayDetectLtoSummarySections (AD_ARGS, data, len);
+        files_with_data++;
+      }
+    }
+
+    AD_DEBUG_PRINT ("LTRANS: read from %u/%u files", files_with_data, file_count);
+
+    vec<::array_detect_ns::LtoUnifiedResultSummary*, va_gc>* summaries =
+      ::array_detect_ns::getLtransLtoSummaries ();
+    unsigned int count = vec_safe_length (summaries);
+    AD_DEBUG_PRINT ("LTRANS: loaded %u summaries from WPA", count);
+    return;
+  }
+
+  AD_DEBUG_PRINT ("skip (not in WPA/LTRANS)");
 }
 
 // ============================================================================

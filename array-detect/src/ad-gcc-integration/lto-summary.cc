@@ -15,6 +15,8 @@
 #include "lto-streamer.h"
 #include "data-streamer.h"
 #include "lto-section-names.h"
+#include "options.h"
+#include "toplev.h"
 
 namespace array_detect_ns {
 
@@ -26,9 +28,23 @@ namespace array_detect_ns {
 static unsigned HOST_WIDE_INT const kSummaryMagic = 0x41444C544F33ULL; // "ADLTO3" (v3)
 static unsigned HOST_WIDE_INT const kSummaryVersion = 3;
 
-// Custom LTO section name for array-detect plugin
-// Note: lto_begin_section takes the base name only, not the full section name
-static char const* const kArrayDetectSectionName = "array_detect";
+// Custom LTO section base name for array-detect plugin.
+// Full name uses .gnu.lto_ prefix and optional suffix.
+static char const* const kArrayDetectSectionBaseName = "array_detect";
+
+static char *build_array_detect_section_name (bool include_id) {
+  char suffix[32];
+  suffix[0] = '\0';
+  if (include_id) {
+    unsigned HOST_WIDE_INT id = (unsigned HOST_WIDE_INT) get_random_seed (false);
+    snprintf (suffix, sizeof (suffix), "." HOST_WIDE_INT_PRINT_HEX_PURE, id);
+  }
+  char const* prefix = section_name_prefix ? section_name_prefix : ".gnu.lto_";
+  size_t len = strlen (prefix) + 1 + strlen (kArrayDetectSectionBaseName) + strlen (suffix) + 1;
+  char *out = (char*) ggc_alloc_atomic (len);
+  snprintf (out, len, "%s.%s%s", prefix, kArrayDetectSectionBaseName, suffix);
+  return out;
+}
 
 // ============================================================================
 // Module state
@@ -264,16 +280,18 @@ ArrayDetectErrorCode writeArrayDetectLtoSummarySection (AD_FUNC_ARGS) AD_FUNCTIO
     }
   }
 
+  bool include_id = (flag_wpa == nullptr) && !flag_ltrans;
+  char *section_name = build_array_detect_section_name (include_id);
+
   // Write to LTO section using raw API
-  // Note: lto_begin_section takes just the base name, not the full "decls.name.order" format
-  lto_begin_section (kArrayDetectSectionName, false);
+  lto_begin_section (section_name, false);
   if (buf && buf->length () > 0) {
     lto_write_data (buf->address (), buf->length ());
   }
   lto_end_section ();
 
   AD_DEBUG_PRINT ("done writing %u summaries, %u bytes to section '%s'",
-                  count, vec_safe_length (buf), kArrayDetectSectionName);
+                  count, vec_safe_length (buf), section_name);
   AD_RETURNE (OK);
 } AD_FUNCTION_END
 
