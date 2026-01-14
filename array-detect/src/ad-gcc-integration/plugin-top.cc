@@ -26,13 +26,21 @@
 // For LTO detection
 #include "lto-streamer.h"
 #include "lto-section-names.h"
-#include "lto.h"
+#include "libiberty.h"
 #include "hashtab.h"
 #include "options.h"
 
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+
+// Minimal struct layout matching GCC lto.h for section lookups.
+struct lto_section_slot {
+  char const* name;
+  off_t start;
+  size_t len;
+  struct lto_section_slot* next;
+};
 
 // ----------------------------------------------------------------------------
 // Pass 注册结构
@@ -92,16 +100,17 @@ static char const* build_array_detect_section_name (
 }
 
 static char const* read_section_bytes (char const* file_name, off_t start, size_t len) {
+  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
   if (!file_name || len == 0) return nullptr;
 
   int fd = open (file_name, O_RDONLY | O_BINARY);
   if (fd < 0) {
-    AD_DEBUG_PRINT ("ERROR: open '%s' failed: %s", file_name, strerror (errno));
+    AD_DEBUG_PRINT ("ERROR: open '%s' failed: %s", file_name, xstrerror (errno));
     return nullptr;
   }
 
   if (lseek (fd, start, SEEK_SET) < 0) {
-    AD_DEBUG_PRINT ("ERROR: lseek '%s' failed: %s", file_name, strerror (errno));
+    AD_DEBUG_PRINT ("ERROR: lseek '%s' failed: %s", file_name, xstrerror (errno));
     close (fd);
     return nullptr;
   }
@@ -112,7 +121,7 @@ static char const* read_section_bytes (char const* file_name, off_t start, size_
     ssize_t n = read (fd, buf + total, len - total);
     if (n <= 0) {
       AD_DEBUG_PRINT ("ERROR: read '%s' failed at %zu/%zu: %s",
-                      file_name, total, len, strerror (errno));
+                      file_name, total, len, xstrerror (errno));
       close (fd);
       return nullptr;
     }
