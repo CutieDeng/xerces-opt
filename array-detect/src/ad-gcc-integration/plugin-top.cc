@@ -99,20 +99,29 @@ static char const* build_array_detect_section_name (
   return out;
 }
 
-static char const* read_section_bytes (char const* file_name, off_t start, size_t len) {
-  ::array_detect_ns::ArrayDetectContext& ctx = ::array_detect_ns::g_array_detect_ctx;
-  if (!file_name || len == 0) return nullptr;
+static ::array_detect_ns::ArrayDetectErrorCode read_section_bytes (
+  AD_FUNC_ARGS,
+  char const* file_name,
+  off_t start,
+  size_t len,
+  char const*& result
+) AD_FUNCTION_BEGIN {
+  (void) gcc_ctx;
+  result = nullptr;
+  if (!file_name || len == 0) {
+    AD_RETURNE (INVALID_ARGUMENT);
+  }
 
   int fd = open (file_name, O_RDONLY | O_BINARY);
   if (fd < 0) {
     AD_DEBUG_PRINT ("ERROR: open '%s' failed: %s", file_name, xstrerror (errno));
-    return nullptr;
+    AD_RETURNE (RESOURCE_ERROR);
   }
 
   if (lseek (fd, start, SEEK_SET) < 0) {
     AD_DEBUG_PRINT ("ERROR: lseek '%s' failed: %s", file_name, xstrerror (errno));
     close (fd);
-    return nullptr;
+    AD_RETURNE (RESOURCE_ERROR);
   }
 
   char* buf = (char*) ggc_alloc_atomic (len);
@@ -123,14 +132,14 @@ static char const* read_section_bytes (char const* file_name, off_t start, size_
       AD_DEBUG_PRINT ("ERROR: read '%s' failed at %zu/%zu: %s",
                       file_name, total, len, xstrerror (errno));
       close (fd);
-      return nullptr;
+      AD_RETURNE (RESOURCE_ERROR);
     }
     total += (size_t) n;
   }
 
   close (fd);
-  return buf;
-}
+  AD_RETURNO (buf);
+} AD_FUNCTION_END
 
 static ::array_detect_ns::ArrayDetectErrorCode runAnalysisAndStoreResults () {
   // 使用全局 context，确保 LTO 各阶段 context 生命周期一致
@@ -250,9 +259,10 @@ static ::array_detect_ns::ArrayDetectErrorCode find_array_detect_section (
     AD_RETURNE (RECOVERABLE_ERROR);
   }
 
-  char const* data = read_section_bytes (file_data->file_name, slot->start, slot->len);
+  char const* data = nullptr;
+  AD_TRY (read_section_bytes (AD_ARGS, file_data->file_name, slot->start, slot->len, data));
   if (!data || slot->len == 0) {
-    AD_DEBUG_PRINT ("ERROR: failed to read section '%s' (len=%zu)",
+    AD_DEBUG_PRINT ("ERROR: empty section '%s' (len=%zu)",
                     section_name, slot->len);
     AD_RETURNE (RECOVERABLE_ERROR);
   }
